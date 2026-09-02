@@ -559,7 +559,9 @@ transition:transform .22s ease, opacity .18s ease;
 <div class="chip" data-v="2">2 meses depois</div>
 </div>
 </label>
-<label class="f"><span>Dia do pagamento</span><input type="number" id="l-pagdia" min="1" max="31" step="1" value="10"></label>
+<div class="toggle" id="l-pagincerto"><div class="lb">Sem dia definido</div><div class="sw"></div></div>
+<label class="f" id="l-pagdia-wrap"><span>Dia do pagamento</span><input type="number" id="l-pagdia" min="1" max="31" step="1" value="10"></label>
+<p class="hint">Sem dia definido, o app usa o último dia útil do mês previsto como referência — assim nada é marcado como atrasado antes da hora.</p>
 <label class="f"><span>Retenção na fonte (%)</span><input type="number" id="l-reten" min="0" max="50" step="0.01" value="0" inputmode="decimal"></label>
 <p class="hint">Percentual descontado antes de o dinheiro cair na conta. Recebendo o valor cheio, deixe em 0.</p>
 <div class="row2">
@@ -643,6 +645,7 @@ const naAgenda = sh => sh.tipo !== 'passei' && !ehBolsa(sh);           // ocupa 
 // dias úteis: fim de semana rola para a frente (feriado não é considerado)
 const ehUtil = d => d.getDay() !== 0 && d.getDay() !== 6;
 function proximoUtil(d){ const x = new Date(d); while(!ehUtil(x)) x.setDate(x.getDate()+1); return x; }
+function anteriorUtil(d){ const x = new Date(d); while(!ehUtil(x)) x.setDate(x.getDate()-1); return x; }
 function nEsimoUtil(y, m, n){
 const d = new Date(y, m, 1); let c = 0;
 while(true){ if(ehUtil(d)){ c++; if(c === n) return new Date(d); } d.setDate(d.getDate()+1); }
@@ -658,15 +661,19 @@ const PAGMES = ['no mesmo mês','no mês seguinte','dois meses depois'];
 function vencimento(s){
 if(s.venc) return s.venc;
 const l = getLocal(s.localId);
-const dia = (l && l.pagDia) || 10;
 const add = (l && typeof l.pagMes === 'number') ? l.pagMes : 1;
 const d = parseDate(s.data);
 const y = d.getFullYear(), m = d.getMonth() + add;
 const ultimo = new Date(y, m+1, 0).getDate();   // 31 vira 28/30 em meses curtos
+// sem dia certo: referência é o fim do mês previsto, para não acusar atraso cedo demais
+if(l && l.pagIncerto) return iso(anteriorUtil(new Date(y, m, ultimo)));
+const dia = (l && l.pagDia) || 10;
 return iso(proximoUtil(new Date(y, m, Math.min(dia, ultimo))));
 }
 // quando o dinheiro encosta na conta: real se já pago, previsto se não
 const dataCaixa = s => (s.pago && s.pagoEm) ? s.pagoEm : vencimento(s);
+// true quando a data é só uma referência de mês, não um dia combinado
+const vencIncerto = s => !s.venc && !!(getLocal(s.localId)||{}).pagIncerto;
 function fim(hora,dur){
 if(!hora) return '';
 const [h,m] = hora.split(':').map(Number);
@@ -910,7 +917,9 @@ const v = parseDate(vencimento(s));
 const dias = Math.round((hoje()-v)/86400000);
 return `<div class="row"><div class="swatch" style="background:${localCor(s.localId)}"></div>
 <div class="txt"><b>${esc(localName(s.localId))}</b>
-<small>venceu ${pad2(v.getDate())}/${pad2(v.getMonth()+1)} · ${dias} dia${dias>1?'s':''} atrás</small></div>
+<small>${vencIncerto(s)
+? `${MES[v.getMonth()]} fechou há ${dias} dia${dias>1?'s':''}`
+: `venceu ${pad2(v.getDate())}/${pad2(v.getMonth()+1)} · ${dias} dia${dias>1?'s':''} atrás`}</small></div>
 <div class="val">${brl(liq(s))}</div>
 <button class="btn sm" data-cxpay="${s.id}">Caiu</button></div>`;
 }).join('')}</div>` : '';
@@ -920,7 +929,7 @@ const d = parseDate(dataCaixa(s)), t0 = parseDate(s.data);
 return `<div class="row" data-cxopen="${s.id}">
 <div class="swatch" style="background:${localCor(s.localId)}"></div>
 <div class="txt"><b>${esc(localName(s.localId))}</b>
-<small>${pad2(d.getDate())}/${pad2(d.getMonth()+1)} · plantão de ${pad2(t0.getDate())}/${pad2(t0.getMonth()+1)}</small></div>
+<small>${(!s.pago && vencIncerto(s)) ? `previsto em ${MES[d.getMonth()]}` : pad2(d.getDate())+'/'+pad2(d.getMonth()+1)} · lançamento de ${pad2(t0.getDate())}/${pad2(t0.getMonth()+1)}</small></div>
 <div class="val">${brl(liq(s))}</div>
 <div class="pill ${s.pago?'pago':'pend'}" data-cxpay="${s.id}">${s.pago?'Caiu':'Previsto'}</div></div>`;
 }).join('') : `<div class="empty">Nenhuma entrada prevista para ${MES[m]}.</div>`;
@@ -959,7 +968,9 @@ return `<div class="row" data-open="${s.id}">
 function renderLocais(){
 $('#loc-list').innerHTML = S.locais.length ? S.locais.map(l=>{
 const url = mapsUrl(l);
-const regra = `paga dia ${l.pagDia||10} ${PAGMES[typeof l.pagMes==='number'?l.pagMes:1]}`;
+const regra = l.pagIncerto
+? `paga ${PAGMES[typeof l.pagMes==='number'?l.pagMes:1]}, dia a confirmar`
+: `paga dia ${l.pagDia||10} ${PAGMES[typeof l.pagMes==='number'?l.pagMes:1]}`;
 const sub = [l.cidade, `dia ${brl(l.vDia||0)}/12h`, `noite ${brl(l.vNoite||0)}/12h`, regra].filter(Boolean).join(' · ');
 return `<div class="row" data-loc="${l.id}">
 <div class="swatch" style="background:${l.cor}"></div>
@@ -1158,9 +1169,12 @@ const l = getLocal(localId);
 if(!vencTouched){
 $('#f-venc').value = vencimento({ data: $('#f-date').value || iso(new Date()), localId });
 }
-$('#venc-hint').textContent = l
-? `Regra de ${l.nome}: dia ${l.pagDia||10}, ${PAGMES[typeof l.pagMes==='number'?l.pagMes:1]}. Altere só se este pagamento for exceção.`
-: 'Sem regra cadastrada — usando dia 10 do mês seguinte.';
+const quando = PAGMES[l && typeof l.pagMes==='number' ? l.pagMes : 1];
+$('#venc-hint').textContent = !l
+? 'Sem regra cadastrada — usando dia 10 do mês seguinte.'
+: l.pagIncerto
+? `${l.nome} paga ${quando}, sem dia definido. A data abaixo é só a referência de fim de mês — confirme o recebimento quando o dinheiro entrar.`
+: `Regra de ${l.nome}: dia ${l.pagDia||10}, ${quando}. Altere só se este pagamento for exceção.`;
 }
 function contraHint(){
 const c = chipGet('#f-contra'), t = chipGet('#f-tipo'), h = $('#contra-hint');
@@ -1284,6 +1298,9 @@ $('#l-vpart').value  = l ? (l.vPart||'')  : '';
 $('#l-vplano').value = l ? (l.vPlano||'') : '';
 $('#l-vproc').value  = l ? (l.vProc||'')  : '';
 chipSet('#l-pagmes', String(l && typeof l.pagMes === 'number' ? l.pagMes : 1));
+const inc = !!(l && l.pagIncerto);
+$('#l-pagincerto').classList.toggle('on', inc);
+$('#l-pagdia-wrap').classList.toggle('hidden', inc);
 $('#l-del').classList.toggle('hidden', !l);
 paintCores();
 $('#sheet2').classList.add('open'); $('#scrim').classList.add('open');
@@ -1294,6 +1311,7 @@ if(!nome){ toast('Dê um nome ao local'); return; }
 const dados = {
 nome, cidade: $('#l-cidade').value.trim(), endereco: $('#l-end').value.trim(),
 cor: corSel, vDia: parseFloat($('#l-dia').value)||0, vNoite: parseFloat($('#l-noite').value)||0,
+pagIncerto: $('#l-pagincerto').classList.contains('on'),
 pagDia: Math.min(31, Math.max(1, parseInt($('#l-pagdia').value)||10)),
 pagMes: parseInt(chipGet('#l-pagmes')) || 0,
 retencao: Math.min(50, Math.max(0, parseFloat($('#l-reten').value)||0)),
@@ -1373,6 +1391,9 @@ return;
 const tog = e.target.closest('.toggle');
 if(tog){
 tog.classList.toggle('on');
+if(tog.id === 'l-pagincerto'){
+$('#l-pagdia-wrap').classList.toggle('hidden', tog.classList.contains('on'));
+}
 if(tog.id === 'f-pago'){
 const on = tog.classList.contains('on');
 $('#f-pagoem-wrap').classList.toggle('hidden', !on);
@@ -1584,6 +1605,7 @@ id:l.id, nome:l.nome, cidade:l.cidade||'', endereco:l.endereco||'',
 cor:l.cor||CORES[i%CORES.length], vDia:l.vDia||0, vNoite:l.vNoite||0,
 pagDia: l.pagDia || 10,
 pagMes: typeof l.pagMes === 'number' ? l.pagMes : 1,
+pagIncerto: !!l.pagIncerto,
 retencao: +l.retencao || 0
 }));
 const shifts = (d.shifts||[]).map(s=>({
