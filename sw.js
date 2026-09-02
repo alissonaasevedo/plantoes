@@ -1,4 +1,4 @@
-const CACHE = 'plantoes-v3';
+const CACHE = 'plantoes-v4';
 const ASSETS = ['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -13,14 +13,31 @@ self.addEventListener('activate', e => {
   );
 });
 
+// HTML pela rede primeiro: assim toda atualizacao chega sozinha, sem trocar este arquivo.
+// Icones e manifest pelo cache primeiro, por velocidade. Offline cai no cache em ambos.
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  if (new URL(e.request.url).origin !== location.origin) return;
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  if (new URL(req.url).origin !== location.origin) return;
+
+  const ehHtml = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
+
+  if (ehHtml) {
+    e.respondWith(
+      fetch(req).then(resp => {
+        const copia = resp.clone();
+        caches.open(CACHE).then(c => c.put(req, copia));
+        return resp;
+      }).catch(() => caches.match(req).then(hit => hit || caches.match('./index.html')))
+    );
+    return;
+  }
+
   e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request).then(resp => {
+    caches.match(req).then(hit => hit || fetch(req).then(resp => {
       const copia = resp.clone();
-      caches.open(CACHE).then(c => c.put(e.request, copia));
+      caches.open(CACHE).then(c => c.put(req, copia));
       return resp;
-    }).catch(() => caches.match('./index.html')))
+    }))
   );
 });
