@@ -293,6 +293,25 @@ transition:transform .22s ease, opacity .18s ease;
 #v-mes,#v-caixa{grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:48px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none !important}}
+.chart-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 14px 12px;box-shadow:var(--sh);margin-bottom:8px}
+.chart-title{font-size:12.5px;color:var(--dim);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.chart-title strong{font-size:14px;color:var(--ink);font-weight:600}
+.chart-svg{width:100%;overflow:visible;display:block}
+.chart-leg{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap}
+.chart-leg span{font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:5px}
+.chart-leg i{display:inline-block;width:10px;height:10px;border-radius:2px}
+.week-grid{display:grid;grid-template-columns:44px repeat(7,1fr);gap:2px;margin-bottom:8px}
+.wg-head{text-align:center;font-size:10.5px;color:var(--dim);padding:4px 0}
+.wg-hour{font-size:10px;color:var(--dim-2);text-align:right;padding-right:6px;padding-top:3px;font-variant-numeric:tabular-nums}
+.wg-cell{border-radius:6px;min-height:32px;background:var(--surface-2);border:1px solid transparent;position:relative;cursor:pointer}
+.wg-cell:hover{border-color:var(--line-2)}
+.wg-event{position:absolute;left:2px;right:2px;border-radius:4px;font-size:10px;padding:2px 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#fff;font-weight:600;cursor:pointer}
+.wg-event.resid{color:var(--ink);background:var(--surface-2)!important;border:1px solid var(--line)}
+.wg-today{background:var(--accent-soft);border-color:var(--accent)!important}
+.week-nav{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.week-nav h3{flex:1;font-size:15px;font-weight:600;text-align:center}
+.hist-bar{height:6px;border-radius:99px;background:var(--surface-2);margin-top:4px;overflow:hidden}
+.hist-bar i{display:block;height:100%;background:var(--ok);border-radius:99px}
 .cl-version{margin-bottom:22px}
 .cl-version:last-child{margin-bottom:0}
 .cl-tag{display:inline-flex;align-items:center;gap:8px;margin-bottom:10px}
@@ -372,6 +391,7 @@ transition:transform .22s ease, opacity .18s ease;
 <div class="view-toggle" id="view-toggle">
 <button class="on" data-vt="lista"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> Mês</button>
 <button data-vt="dia"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg> Dia</button>
+<button data-vt="semana"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Semana</button>
 </div>
 <div class="segs" id="filter">
 <button class="on" data-f="all">Todos</button>
@@ -381,6 +401,7 @@ transition:transform .22s ease, opacity .18s ease;
 </div>
 <div id="shift-list"></div>
 <div id="day-view" class="hidden"></div>
+<div id="week-view" class="hidden"></div>
 </div>
 </section>
 <section id="v-caixa" class="hidden">
@@ -438,6 +459,16 @@ transition:transform .22s ease, opacity .18s ease;
 <button class="btn sm" id="ics-all">Exportar tudo</button>
 </div>
 <p class="hint" style="margin-top:14px">Gera um arquivo .ics com vários plantões de uma vez. No Google Agenda, importe em Configurações → Importar e exportar. No iPhone, toque no arquivo baixado.</p>
+<div class="sec" style="margin-top:26px"><h2>Histórico por local</h2></div>
+<div id="hist-local"></div>
+<div class="sec" style="margin-top:26px"><h2>Análise dos últimos 6 meses</h2></div>
+<div id="chart-panel"></div>
+<div class="sec" style="margin-top:26px"><h2>Exportação para contador</h2></div>
+<div class="row2" style="margin-top:4px">
+<button class="btn sm" id="csv-ano">CSV do ano</button>
+<button class="btn sm" id="csv-tudo">CSV completo</button>
+</div>
+<p class="hint" style="margin-top:12px">Arquivo .csv com data, local, turno, duração, bruto, líquido e status — organizado por mês e local. Abra no Excel ou passe para o contador.</p>
 <div class="sec" style="margin-top:26px"><h2>Backup</h2></div>
 <div class="row"><div class="txt"><b>Onde os dados estão</b><small id="sync-info">—</small></div></div>
 <div class="row2" style="margin-top:14px">
@@ -908,6 +939,7 @@ const pago = mine.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0); // mantido para u
 renderNext();
 renderCal(list);
 renderDia();
+renderSemana();
 const shown = filter==='due' ? list.filter(s=>counts(s) && !s.pago) : list;
 $('#list-count').textContent = filter==='due' ? 'Pendentes de pagamento' : 'Plantões';
 const el = $('#shift-list');
@@ -1162,6 +1194,8 @@ ${url?`<button class="iconbtn" data-map="${encodeURIComponent(url)}" aria-label=
 }
 function renderAjustes(){
 renderChangelog();
+chartPanel();
+histLocal();
 const y = cursor.getFullYear();
 const ano = S.shifts.filter(s=>counts(s) && parseDate(s.data).getFullYear()===y);
 const tot = ano.reduce((a,s)=>a+liq(s),0);
@@ -1193,6 +1227,12 @@ $('#sync-info').textContent = hasCloud
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+{ v:'1.8', d:'Set 2026', items:[
+{ t:'new', txt:'Gráfico de barras + linha de 6 meses (faturado × recebido) em Ajustes' },
+{ t:'new', txt:'Vista de Semana com grade visual e lançamento por clique' },
+{ t:'new', txt:'Histórico por local: total, % recebido e prazo médio de pagamento' },
+{ t:'new', txt:'Exportação CSV (ano ou completo) para contador ou Excel' },
+]},
 { v:'1.7', d:'Set 2026', items:[
 { t:'imp', txt:'Tela principal mostra o que entra na conta este mês, não o faturado' },
 { t:'new', txt:'Checklist de confirmações pendentes na abertura do app' },
@@ -1249,6 +1289,196 @@ const CHANGELOG = [
 { t:'new', txt:'Publicado em plantoes-asevedo.vercel.app com atualização automática via GitHub' },
 ]},
 ];
+/* ─── GRADE SEMANAL ─── */
+let semanaAtual = new Date();
+// domingo da semana atual
+function domingoSemana(d){ const x=new Date(d); x.setDate(x.getDate()-x.getDay()); x.setHours(0,0,0,0); return x; }
+function renderSemana(){
+const box=$('#week-view');
+if(viewTipo!=='semana'){ box.classList.add('hidden'); return; }
+box.classList.remove('hidden');
+$('#shift-list').classList.add('hidden');
+$('#day-view').classList.add('hidden');
+$$('#filter button').forEach(b=>b.closest('.segs').classList.add('hidden'));
+const dom=domingoSemana(semanaAtual);
+const dias=Array.from({length:7},(_,i)=>{ const d=new Date(dom); d.setDate(d.getDate()+i); return d; });
+const hj=iso(hoje());
+const nomeSemana=`${pad2(dias[0].getDate())}/${pad2(dias[0].getMonth()+1)} – ${pad2(dias[6].getDate())}/${pad2(dias[6].getMonth()+1)}/${dias[6].getFullYear()}`;
+const WD_S=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const slots=[7,12,19]; // turnos visuais: manhã, tarde, noite
+const colunas=dias.map(d=>{
+const isoDia=iso(d);
+const lista=S.shifts.filter(s=>naAgenda(s)&&s.data===isoDia)
+.sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
+return {d,isoDia,lista};
+});
+const eventosHTML=(col)=>col.lista.map(s=>{
+const cor=localCor(s.localId);
+const resid=ehResid(s), bolsa=ehBolsa(s), bloq=ehBloq(s);
+const label=bolsa?'Entrada':bloq?'🔒':resid?'Resid.':localName(s.localId).split(' ')[0];
+const bg=resid||bloq?'':cor;
+return `<div class="wg-event ${resid?'resid':''}" style="background:${bg};top:${s.hora?Math.max(0,(parseInt(s.hora)-7)*4)+'px':'4px'};position:relative;margin-bottom:3px" data-id="${s.id}">${label}${s.hora?' '+s.hora:''}</div>`;
+}).join('');
+box.innerHTML=`
+<div class="week-nav">
+<button class="mnav" onclick="semanaAtual.setDate(semanaAtual.getDate()-7);renderSemana()" style="width:33px;height:33px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--dim);cursor:pointer;font-size:15px">‹</button>
+<h3>${nomeSemana}</h3>
+<button class="mnav" onclick="semanaAtual=new Date();renderSemana()" style="border:0;background:var(--accent-soft);color:var(--accent);font-family:inherit;font-size:12.5px;font-weight:600;padding:5px 10px;border-radius:8px;cursor:pointer">Hoje</button>
+<button class="mnav" onclick="semanaAtual.setDate(semanaAtual.getDate()+7);renderSemana()" style="width:33px;height:33px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--dim);cursor:pointer;font-size:15px">›</button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px">
+${dias.map((d,i)=>`<div style="text-align:center;font-size:11px;color:${iso(d)===hj?'var(--accent)':'var(--dim)'};font-weight:${iso(d)===hj?'600':'400'}">${WD_S[i]}<br><span style="font-size:15px;font-weight:600;color:${iso(d)===hj?'var(--accent)':'var(--ink)'}">${d.getDate()}</span></div>`).join('')}
+</div>
+<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+${colunas.map(col=>`
+<div class="wg-cell ${col.isoDia===hj?'wg-today':''}" data-day="${col.isoDia}" style="min-height:80px;padding:4px">
+${eventosHTML(col)}
+</div>`).join('')}
+</div>`;
+// clicar numa célula vazia abre lançamento; clicar num evento edita
+box.querySelectorAll('[data-id]').forEach(el=>{
+el.addEventListener('click', e=>{
+e.stopPropagation();
+openSheet(S.shifts.find(x=>x.id===el.dataset.id));
+});
+});
+box.querySelectorAll('[data-day]').forEach(el=>{
+el.addEventListener('click', ()=> openSheet(null, el.dataset.day));
+});
+}
+/* ─── GRÁFICOS ─── */
+function mesesRetroativos(n){
+const out=[];
+const d=new Date();
+for(let i=n-1;i>=0;i--){
+const ref=new Date(d.getFullYear(),d.getMonth()-i,1);
+out.push({y:ref.getFullYear(),m:ref.getMonth(),label:MES[ref.getMonth()].slice(0,3)});
+}
+return out;
+}
+function chartPanel(){
+const meses=mesesRetroativos(6);
+const fab=m=>S.shifts.filter(s=>counts(s)&&parseDate(dataCaixa(s)).getMonth()===m.m&&parseDate(dataCaixa(s)).getFullYear()===m.y);
+const dados=meses.map(m=>{
+const arr=fab(m);
+return {
+label:m.label,
+fat: arr.reduce((a,s)=>a+liq(s),0),
+rec: arr.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0),
+n:   arr.length,
+};
+});
+const maxVal=Math.max(...dados.map(d=>d.fat),1);
+const W=320,H=160,pad={t:10,r:16,b:36,l:52};
+const gW=W-pad.l-pad.r, gH=H-pad.t-pad.b;
+const barW=Math.floor(gW/dados.length*0.55);
+const x=i=>pad.l+i*(gW/dados.length)+gW/dados.length/2;
+const y=v=>pad.t+gH*(1-v/maxVal);
+const ticks=4;
+// eixo Y
+let yAxis='';
+for(let i=0;i<=ticks;i++){
+const val=maxVal*i/ticks;
+const yy=y(val);
+yAxis+=`<line x1="${pad.l}" x2="${W-pad.r}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/>`;
+yAxis+=`<text x="${pad.l-5}" y="${yy+4}" text-anchor="end" font-size="10" fill="var(--dim)">${val>=1000?(val/1000).toFixed(val%1000?1:0)+'k':val}</text>`;
+}
+// barras (faturado) e barras sobrepostas (recebido)
+let bars='', recBars='', pts=[], ptsFat=[];
+dados.forEach((d,i)=>{
+const bh=gH*(d.fat/maxVal);
+const bhr=gH*(d.rec/maxVal);
+bars+=`<rect x="${x(i)-barW/2}" y="${y(d.fat)}" width="${barW}" height="${bh}" rx="3" fill="var(--accent)" opacity=".22"/>`;
+recBars+=`<rect x="${x(i)-barW/2}" y="${y(d.rec)}" width="${barW}" height="${bhr}" rx="3" fill="var(--accent)" opacity=".7"/>`;
+pts.push([x(i),y(d.rec)]);
+ptsFat.push([x(i),y(d.fat)]);
+bars+=`<text x="${x(i)}" y="${H-pad.b+16}" text-anchor="middle" font-size="10.5" fill="var(--dim)">${d.label}</text>`;
+});
+// linhas
+const linha=(pts,cor,op)=>{
+if(pts.length<2) return '';
+const d='M'+pts.map(p=>p.join(',')).join('L');
+return `<path d="${d}" fill="none" stroke="${cor}" stroke-width="2" stroke-linejoin="round" opacity="${op}"/>`;
+};
+const pontos=(pts,cor)=>pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${cor}"/>`).join('');
+const svg=`<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+${yAxis}${bars}${recBars}
+${linha(ptsFat,'var(--accent)',0.35)}
+${linha(pts,'var(--accent)',1)}
+${pontos(pts,'var(--accent)')}
+</svg>`;
+const totalFat=dados.reduce((a,d)=>a+d.fat,0);
+const totalRec=dados.reduce((a,d)=>a+d.rec,0);
+const pctGlobal=totalFat?Math.round(totalRec/totalFat*100):0;
+$('#chart-panel').innerHTML=`
+<div class="chart-wrap">
+<div class="chart-title">
+<strong>Faturado × Recebido</strong>
+<span>${pctGlobal}% recebido</span>
+</div>
+${svg}
+<div class="chart-leg">
+<span><i style="background:var(--accent);opacity:.3"></i>Faturado</span>
+<span><i style="background:var(--accent)"></i>Recebido</span>
+</div>
+</div>
+<div class="row" style="padding:10px 0">
+<div class="txt"><b>Total faturado</b><small>6 meses</small></div>
+<div class="val">${brl(totalFat)}</div>
+</div>
+<div class="row" style="padding:10px 0;border-bottom:0">
+<div class="txt"><b>Total recebido</b><small>6 meses</small></div>
+<div class="val" style="color:var(--ok)">${brl(totalRec)}</div>
+</div>`;
+}
+/* ─── EXPORTAÇÃO CSV ─── */
+function gerarCSV(shifts){
+const lin=['Data,Local,Cidade,Turno,Duração (h),Bruto (R$),Líquido (R$),Pago,Data recebimento,Categoria'];
+shifts.filter(counts).sort((a,b)=>a.data.localeCompare(b.data)).forEach(s=>{
+const l=getLocal(s.localId)||{nome:'',cidade:''};
+lin.push([
+s.data, esc(l.nome).replace(/,/g,';'), (l.cidade||'').replace(/,/g,';'),
+s.turno, s.duracao, bru(s).toFixed(2), liq(s).toFixed(2),
+s.pago?'Sim':'Nao', s.pagoEm||'', s.categoria||'remunerado'
+].join(','));
+});
+return lin.join('\n');
+}
+function baixarCSV(conteudo,nome){
+const bom='﻿'; // BOM para Excel reconhecer UTF-8
+const blob=new Blob([bom+conteudo],{type:'text/csv;charset=utf-8'});
+const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nome;
+a.click(); URL.revokeObjectURL(a.href); toast('CSV gerado');
+}
+function histLocal(){
+const locTotais=S.locais.map(l=>{
+const arr=S.shifts.filter(s=>counts(s)&&s.localId===l.id);
+const fat=arr.reduce((a,s)=>a+liq(s),0);
+const rec=arr.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0);
+const n=arr.length;
+// média de dias entre plantão e recebimento (só os pagos com data)
+const pagos=arr.filter(s=>s.pago&&s.pagoEm&&s.data);
+const mediaDias=pagos.length
+? Math.round(pagos.reduce((a,s)=>a+(parseDate(s.pagoEm)-parseDate(s.data))/86400000,0)/pagos.length)
+: null;
+return {l,fat,rec,n,mediaDias};
+}).filter(x=>x.n>0).sort((a,b)=>b.fat-a.fat);
+const maxFat=Math.max(...locTotais.map(x=>x.fat),1);
+$('#hist-local').innerHTML=locTotais.length?locTotais.map(x=>`
+<div class="row" style="flex-direction:column;align-items:stretch;cursor:default;padding:12px 0">
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+<div class="swatch" style="background:${x.l.cor}"></div>
+<div class="txt"><b>${esc(x.l.nome)}</b><small>${x.n} plantões</small></div>
+<div class="val">${brl(x.fat)}</div>
+</div>
+<div class="hist-bar"><i style="width:${Math.round(x.fat/maxFat*100)}%"></i></div>
+<div style="display:flex;justify-content:space-between;margin-top:5px">
+<span style="font-size:11.5px;color:var(--dim)">Recebido ${brl(x.rec)} (${x.fat?Math.round(x.rec/x.fat*100):0}%)</span>
+${x.mediaDias!==null?`<span style="font-size:11.5px;color:var(--dim)">Paga em ~${x.mediaDias} dias</span>`:''}
+</div>
+</div>`).join('')
+:`<div class="empty">Lance plantões para ver o histórico por local.</div>`;
+}
 function renderChangelog(){
 $('#changelog-list').innerHTML = CHANGELOG.map(v=>`
 <div class="cl-version">
@@ -1610,15 +1840,23 @@ $$('#view-toggle button').forEach(b=>{
 b.onclick = ()=>{
 viewTipo = b.dataset.vt;
 $$('#view-toggle button').forEach(x=>x.classList.toggle('on', x===b));
-if(viewTipo === 'dia'){
-diaAtual = new Date();
+if(viewTipo==='dia'){
+diaAtual=new Date();
 $('#shift-list').classList.add('hidden');
+$('#week-view').classList.add('hidden');
 $$('#filter button').forEach(x=>x.closest('.segs').classList.add('hidden'));
 renderDia();
+} else if(viewTipo==='semana'){
+semanaAtual=new Date();
+$('#shift-list').classList.add('hidden');
+$('#day-view').classList.add('hidden');
+$$('#filter button').forEach(x=>x.closest('.segs').classList.add('hidden'));
+renderSemana();
 } else {
 $('#shift-list').classList.remove('hidden');
-$$('#filter button').forEach(x=>x.closest('.segs').classList.remove('hidden'));
 $('#day-view').classList.add('hidden');
+$('#week-view').classList.add('hidden');
+$$('#filter button').forEach(x=>x.closest('.segs').classList.remove('hidden'));
 renderMes();
 }
 };
@@ -1837,6 +2075,12 @@ if(e.target.closest('[data-map]')) return;
 const r = e.target.closest('[data-loc]');
 if(r) openLocal(getLocal(r.dataset.loc));
 });
+$('#csv-ano').onclick = ()=>{
+const y=cursor.getFullYear();
+const s=S.shifts.filter(sh=>parseDate(sh.data).getFullYear()===y);
+baixarCSV(gerarCSV(s),`plantoes-${y}.csv`);
+};
+$('#csv-tudo').onclick = ()=> baixarCSV(gerarCSV(S.shifts),'plantoes-completo.csv');
 $('#recover').onclick = async ()=>{
 const achados = [];
 if(hasCloud && typeof window.storage.list === 'function'){
