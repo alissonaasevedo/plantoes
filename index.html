@@ -293,6 +293,17 @@ transition:transform .22s ease, opacity .18s ease;
 #v-mes,#v-caixa{grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:48px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none !important}}
+.cl-version{margin-bottom:22px}
+.cl-version:last-child{margin-bottom:0}
+.cl-tag{display:inline-flex;align-items:center;gap:8px;margin-bottom:10px}
+.cl-tag .v{font-size:13px;font-weight:700;background:var(--accent);color:#fff;padding:3px 10px;border-radius:99px}
+.cl-tag .d{font-size:12.5px;color:var(--dim)}
+.cl-items{display:flex;flex-direction:column;gap:6px}
+.cl-item{display:flex;gap:10px;font-size:13.5px;line-height:1.45}
+.cl-item .badge{flex:none;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:6px;margin-top:2px;white-space:nowrap}
+.badge-new{background:rgba(3,105,161,.1);color:var(--accent)}
+.badge-fix{background:rgba(14,138,95,.1);color:var(--ok)}
+.badge-imp{background:rgba(74,91,196,.1);color:var(--noite)}
 .tl-empty{text-align:center;padding:40px 20px;color:var(--dim);font-size:14px;border:1px dashed var(--line-2);border-radius:var(--r);background:var(--surface)}
 .tl-item{display:flex;gap:14px;align-items:stretch}
 .tl-hora{width:46px;flex:none;text-align:right;padding-top:14px;font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--dim);font-weight:500}
@@ -338,15 +349,16 @@ transition:transform .22s ease, opacity .18s ease;
 <section id="v-mes">
 <div class="pane">
 <div class="hero">
-<div class="lbl">Total do mês</div>
+<div class="lbl" id="h-lbl-caixa">Entra em —</div>
 <div class="big" id="h-total">R$ 0</div>
-<div class="sub" id="h-sub">Nenhum plantão lançado</div>
+<div class="sub" id="h-sub">Nenhum lançamento previsto</div>
 </div>
 <div class="gauge"><i class="p" id="h-bar" style="width:0%"></i></div>
 <div class="split">
-<div><div class="k">Recebido</div><div class="v ok" id="h-pago">R$ 0</div></div>
-<div><div class="k">A receber</div><div class="v due" id="h-pend">R$ 0</div></div>
+<div><div class="k">Já caiu</div><div class="v ok" id="h-pago">R$ 0</div></div>
+<div><div class="k">Ainda vem</div><div class="v due" id="h-pend">R$ 0</div></div>
 </div>
+<div id="h-checklist"></div>
 <div id="next-card"></div>
 <div class="cal">
 <div class="wd"><div>dom</div><div>seg</div><div>ter</div><div>qua</div><div>qui</div><div>sex</div><div>sáb</div></div>
@@ -418,6 +430,8 @@ transition:transform .22s ease, opacity .18s ease;
 <div class="sec" style="margin-top:26px"><h2>Referência tributária</h2></div>
 <div id="tax-panel"></div>
 <p class="hint" style="margin-top:14px">Referência da tabela do IRPF vigente em 2026. É informativo: não sou contador, e a apuração real depende de deduções, dependentes e das demais fontes de renda. Confirme com o seu.</p>
+<div class="sec" style="margin-top:26px"><h2>Versões</h2></div>
+<div id="changelog-list"></div>
 <div class="sec" style="margin-top:26px"><h2>Calendário</h2></div>
 <div class="row2">
 <button class="btn sm" id="ics-mes">Exportar mês</button>
@@ -839,20 +853,58 @@ const list = mesData();
 const mine = list.filter(counts);
 const total = mine.reduce((a,s)=>a+liq(s),0);
 const bruto = mine.reduce((a,s)=>a+bru(s),0);
-const pago  = mine.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0);
 const horas = mine.reduce((a,s)=>a+(+s.duracao||0),0);
 const hResid = list.filter(ehResid).reduce((a,s)=>a+(+s.duracao||0),0);
-$('#h-total').textContent = brl(total);
-const comHoras = mine.filter(s=>(+s.duracao||0) > 0);
-const totalH = comHoras.reduce((a,s)=>a+liq(s),0);
-const partes = [];
-if(comHoras.length) partes.push(`${comHoras.length} lançamento${comHoras.length>1?'s':''} · ${horas}h · ${brl(horas?totalH/horas:0)}/h`);
-if(bruto !== total) partes.push(`bruto ${brl(bruto)}`);
-if(hResid) partes.push(`+ ${hResid}h de residência`);
-$('#h-sub').textContent = partes.length ? partes.join(' · ') : 'Nenhum plantão lançado';
-$('#h-bar').style.width = (total ? Math.min(100,pago/total*100) : 0)+'%';
-$('#h-pago').textContent = brl(pago);
-$('#h-pend').textContent = brl(total-pago);
+// HERO: caixa do mês — o que entra na conta, não o que foi trabalhado
+const todosFinanc = S.shifts.filter(counts);
+const noMesCx = todosFinanc.filter(s=>{
+const d = parseDate(dataCaixa(s));
+return d.getMonth()===cursor.getMonth() && d.getFullYear()===cursor.getFullYear();
+}).sort((a,b)=>dataCaixa(a).localeCompare(dataCaixa(b)));
+const cxRec  = noMesCx.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0);
+const cxPrev = noMesCx.filter(s=>!s.pago).reduce((a,s)=>a+liq(s),0);
+const cxTot  = cxRec + cxPrev;
+$('#h-lbl-caixa').textContent = 'Entra em ' + MES[cursor.getMonth()];
+$('#h-total').textContent = brl(cxTot);
+const partesSub = [];
+if(noMesCx.length) partesSub.push(`${noMesCx.length} entrada${noMesCx.length>1?'s':''}`);
+if(total) partesSub.push(`faturado ${brl(total)}`);
+if(horas) partesSub.push(`${horas}h`);
+if(hResid) partesSub.push(`+${hResid}h residência`);
+$('#h-sub').textContent = partesSub.length ? partesSub.join(' · ') : 'Nenhum lançamento previsto para o mês';
+$('#h-bar').style.width = (cxTot ? Math.min(100, cxRec/cxTot*100) : 0)+'%';
+$('#h-pago').textContent = brl(cxRec);
+$('#h-pend').textContent = brl(cxPrev);
+// checklist compacto de pendências na tela principal
+const pendentes = noMesCx.filter(s=>!s.pago);
+if(pendentes.length > 0){
+const pct = cxTot ? Math.round(cxRec/cxTot*100) : 0;
+$('#h-checklist').innerHTML = `<div style="margin:16px 0 20px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+<span style="font-size:12.5px;color:var(--dim)">Confirmações pendentes · ${pct}% recebido</span>
+<span style="font-size:12.5px;font-weight:600;color:var(--dim)">${pendentes.length} de ${noMesCx.length}</span>
+</div>
+${pendentes.slice(0,4).map(s=>{
+const d=parseDate(dataCaixa(s)); const inc=vencIncerto(s);
+return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer" data-cxpay="${s.id}">
+<div style="width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line-2);background:var(--surface);flex:none;display:grid;place-items:center">
+<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-5" stroke="var(--dim-2)" stroke-width="1.4" stroke-linecap="round"/></svg>
+</div>
+<div style="flex:1;min-width:0">
+<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(localName(s.localId))}</div>
+<div style="font-size:12px;color:var(--dim)">${inc?'previsto em '+MES[d.getMonth()]:pad2(d.getDate())+'/'+pad2(d.getMonth()+1)} · ${brl(liq(s))}</div>
+</div>
+<div style="font-size:11px;padding:3px 9px;border-radius:99px;background:rgba(200,56,79,.07);color:var(--due);border:1px solid rgba(200,56,79,.22);flex:none">Pendente</div>
+</div>`;
+}).join('')}
+${pendentes.length>4?`<div style="text-align:center;padding:8px 0;font-size:12.5px;color:var(--dim)">+${pendentes.length-4} mais · ver na aba Caixa</div>`:''}
+</div>`;
+} else if(noMesCx.length > 0){
+$('#h-checklist').innerHTML = `<div style="text-align:center;padding:12px 0 20px;font-size:14px;color:var(--ok);font-weight:600">✓ Tudo recebido em ${MES[cursor.getMonth()]}</div>`;
+} else {
+$('#h-checklist').innerHTML = '';
+}
+const pago = mine.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0); // mantido para uso na lista
 renderNext();
 renderCal(list);
 renderDia();
@@ -1109,6 +1161,7 @@ ${url?`<button class="iconbtn" data-map="${encodeURIComponent(url)}" aria-label=
 }).join('') : `<div class="empty">Nenhum local ainda.<br>Toque em + para cadastrar o primeiro hospital.</div>`;
 }
 function renderAjustes(){
+renderChangelog();
 const y = cursor.getFullYear();
 const ano = S.shifts.filter(s=>counts(s) && parseDate(s.data).getFullYear()===y);
 const tot = ano.reduce((a,s)=>a+liq(s),0);
@@ -1139,6 +1192,78 @@ $('#sync-info').textContent = hasCloud
 }
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
+const CHANGELOG = [
+{ v:'1.7', d:'Set 2026', items:[
+{ t:'imp', txt:'Tela principal mostra o que entra na conta este mês, não o faturado' },
+{ t:'new', txt:'Checklist de confirmações pendentes na abertura do app' },
+{ t:'new', txt:'Histórico de versões em Ajustes → Versões' },
+{ t:'new', txt:'Bloqueio de agenda: férias, viagem, sobreaviso, compromisso' },
+{ t:'new', txt:'Vista de dia com timeline vertical e navegação por data' },
+{ t:'new', txt:'Marcação ⚠️ Atenção / Urgência por plantão' },
+]},
+{ v:'1.6', d:'Set 2026', items:[
+{ t:'new', txt:'Vista de dia com timeline vertical' },
+{ t:'new', txt:'Bloqueio de agenda: férias, viagem, sobreaviso, compromisso' },
+{ t:'new', txt:'Marcação ⚠️ Atenção / Urgência por plantão' },
+{ t:'imp', txt:'Cache v6 — ícone da Árvore de Andry aplicado corretamente' },
+]},
+{ v:'1.5', d:'Set 2026', items:[
+{ t:'new', txt:'Categoria Ambulatório: contagem de consultas particulares, planos e procedimentos' },
+{ t:'new', txt:'Renda fixa da residência: geração automática até fev/2028 no 2º dia útil' },
+{ t:'fix', txt:'Pagamento dia 28 rola para o próximo dia útil (ex.: fev/2027 → 01/03)' },
+]},
+{ v:'1.4', d:'Set 2026', items:[
+{ t:'new', txt:'Categoria Residência: agenda bloqueada, fora do financeiro, pontinho vazado no calendário' },
+{ t:'new', txt:'Repetição por dias da semana (terça e sexta por N semanas)' },
+{ t:'new', txt:'Conflito de horário com aviso antes de salvar' },
+{ t:'new', txt:'Bruto × líquido + retenção na fonte por local' },
+{ t:'new', txt:'Painel de referência tributária IRPF 2026 em Ajustes' },
+{ t:'new', txt:'Locais sem dia de pagamento definido — referência no fim do mês' },
+]},
+{ v:'1.3', d:'Set 2026', items:[
+{ t:'new', txt:'Aba Caixa: fluxo de entrada por data de pagamento, não de competência' },
+{ t:'new', txt:'Bloco de atrasos com alerta quando o mês previsto fechou' },
+{ t:'new', txt:'Regra de pagamento por local: dia fixo ou mês sem dia definido' },
+{ t:'new', txt:'Exportação para Google Agenda e .ics (iPhone)' },
+{ t:'new', txt:'Botão "Procurar lançamentos perdidos" em Ajustes' },
+]},
+{ v:'1.2', d:'Set 2026', items:[
+{ t:'new', txt:'Localização dos hospitais: cidade, endereço e atalho para o app de mapas' },
+{ t:'new', txt:'Cor de identificação por hospital' },
+{ t:'new', txt:'Card do próximo plantão com botão "Como chegar"' },
+{ t:'new', txt:'Filtro "A receber" na lista do mês' },
+{ t:'imp', txt:'Menu lateral em telas largas + layout em duas colunas' },
+{ t:'imp', txt:'Tema claro com fundo cinza-azulado' },
+]},
+{ v:'1.1', d:'Set 2026', items:[
+{ t:'new', txt:'Valor baseado em 12h × duração: 24h = dobro automático' },
+{ t:'new', txt:'Mini-calendário com pontinho por plantão' },
+{ t:'new', txt:'Aba Locais com gerenciamento de hospitais e clínicas' },
+{ t:'new', txt:'Aba Trocas com saldo por colega' },
+{ t:'new', txt:'Backup .json + restauração' },
+]},
+{ v:'1.0', d:'Set 2026', items:[
+{ t:'new', txt:'Lançamento inicial: plantões com data, local, turno, duração, valor e pagamento' },
+{ t:'new', txt:'Resumo mensal com gauge de recebido × a receber' },
+{ t:'new', txt:'PWA instalável com ícone na tela inicial' },
+{ t:'new', txt:'Publicado em plantoes-asevedo.vercel.app com atualização automática via GitHub' },
+]},
+];
+function renderChangelog(){
+$('#changelog-list').innerHTML = CHANGELOG.map(v=>`
+<div class="cl-version">
+<div class="cl-tag">
+<span class="v">v${v.v}</span>
+<span class="d">${v.d}</span>
+</div>
+<div class="cl-items">
+${v.items.map(i=>`<div class="cl-item">
+<span class="badge badge-${i.t}">${i.t==='new'?'Novo':i.t==='fix'?'Correção':'Melhoria'}</span>
+<span>${i.txt}</span>
+</div>`).join('')}
+</div>
+</div>`).join('');
+}
 function renderTax(){
 const y = cursor.getFullYear(), m = cursor.getMonth();
 const recebidos = S.shifts.filter(s => counts(s) && s.pago);
@@ -1636,6 +1761,15 @@ $('#rep-hint').textContent = n
 }
 $('#f-hora').onchange = janela;
 $('#f-durc').oninput = autoValor;
+// confirmar recebimento tocando no item do checklist principal
+$('#h-checklist').addEventListener('click', async e=>{
+const b = e.target.closest('[data-cxpay]');
+if(!b) return;
+const s = S.shifts.find(x=>x.id===b.dataset.cxpay);
+if(!s) return;
+s.pago = true; s.pagoEm = s.pagoEm || iso(new Date());
+await store.save(S); render(); toast('Recebimento confirmado ✓');
+});
 $('#shift-list').addEventListener('click', async e=>{
 if(e.target.closest('[data-map]')) return;
 const pay = e.target.closest('[data-pay]');
