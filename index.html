@@ -293,6 +293,33 @@ transition:transform .22s ease, opacity .18s ease;
 #v-mes,#v-caixa{grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:48px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none !important}}
+.tl-empty{text-align:center;padding:40px 20px;color:var(--dim);font-size:14px;border:1px dashed var(--line-2);border-radius:var(--r);background:var(--surface)}
+.tl-item{display:flex;gap:14px;align-items:stretch}
+.tl-hora{width:46px;flex:none;text-align:right;padding-top:14px;font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--dim);font-weight:500}
+.tl-card{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:11px 14px 12px 15px;position:relative;overflow:hidden;cursor:pointer;transition:border-color .18s,box-shadow .18s}
+.tl-card:hover{border-color:var(--line-2);box-shadow:var(--sh)}
+.tl-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c,var(--accent))}
+.tl-card .tc-nome{font-weight:600;font-size:15px;display:flex;align-items:center;gap:6px}
+.tl-card .tc-meta{font-size:12.5px;color:var(--dim);margin-top:2px;font-variant-numeric:tabular-nums}
+.tl-card .tc-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tl-card.urgente::before{background:var(--due)}
+.tl-card.urgente .tc-nome{color:var(--due)}
+.tl-card.bloqueio-card::before{background:var(--dim-2)}
+.tl-card.bloqueio-card .tc-nome{color:var(--dim)}
+.bloquear-card{border-radius:var(--r);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--line);cursor:pointer;position:relative;overflow:hidden}
+.bloquear-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--dim-2)}
+.chip-urg{display:inline-block;margin-top:5px;font-size:11px;padding:2px 8px;border-radius:6px;background:rgba(200,56,79,.08);color:var(--due);border:1px solid rgba(200,56,79,.22)}
+.chip-bl{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;background:var(--surface-2);color:var(--dim-2);border:1px solid var(--line)}
+.view-toggle{display:flex;gap:4px;background:var(--surface-2);border-radius:9px;padding:3px;margin-left:auto}
+.view-toggle button{border:0;background:none;color:var(--dim);font-family:inherit;font-size:12.5px;padding:5px 11px;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px}
+.view-toggle button.on{background:var(--surface);color:var(--ink);box-shadow:var(--sh)}
+.day-header{display:flex;align-items:center;gap:12px;padding:18px 0 10px;border-bottom:2px solid var(--accent-soft);margin-bottom:16px}
+.day-header h2{font-size:20px;font-weight:600;letter-spacing:-.01em;flex:1;text-transform:capitalize}
+.day-header .day-nav{display:flex;gap:5px}
+.day-header .day-nav button{width:33px;height:33px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--dim);font-size:15px;cursor:pointer;display:grid;place-items:center}
+.day-header .day-nav button:hover{border-color:var(--line-2);color:var(--ink)}
+.day-header .hoje-btn{border:0;background:var(--accent-soft);color:var(--accent);font-family:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:9px;cursor:pointer}
+.timeline{display:flex;flex-direction:column;gap:8px}
 </style>
 </head>
 <body>
@@ -329,12 +356,19 @@ transition:transform .22s ease, opacity .18s ease;
 <div class="pane">
 <div class="sec">
 <h2 id="list-count">Plantões</h2>
+<div style="display:flex;gap:8px;align-items:center">
+<div class="view-toggle" id="view-toggle">
+<button class="on" data-vt="lista"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> Mês</button>
+<button data-vt="dia"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg> Dia</button>
+</div>
 <div class="segs" id="filter">
 <button class="on" data-f="all">Todos</button>
 <button data-f="due">A receber</button>
 </div>
 </div>
+</div>
 <div id="shift-list"></div>
+<div id="day-view" class="hidden"></div>
 </div>
 </section>
 <section id="v-caixa" class="hidden">
@@ -433,6 +467,7 @@ transition:transform .22s ease, opacity .18s ease;
 <div class="chip on" data-v="remunerado">Plantão</div>
 <div class="chip" data-v="ambulatorio">Ambulatório</div>
 <div class="chip" data-v="residencia">Residência</div>
+<div class="chip" data-v="bloqueio">Bloqueio</div>
 </div>
 </label>
 <div class="row2">
@@ -522,6 +557,20 @@ transition:transform .22s ease, opacity .18s ease;
 </label>
 <p class="hint" id="rep-hint">—</p>
 </div>
+<div id="bl-tipos-wrap" class="hidden">
+<label class="f"><span>Motivo</span>
+<div class="chips" id="f-bl-tipo">
+<div class="chip on" data-v="ferias">🏖️ Férias</div>
+<div class="chip" data-v="viagem">✈️ Viagem</div>
+<div class="chip" data-v="sobreaviso">📟 Sobreaviso</div>
+<div class="chip" data-v="compromisso">📌 Compromisso</div>
+<div class="chip" data-v="outro">Outro</div>
+</div>
+</label>
+<label class="f hidden" id="f-bl-fim-wrap"><span>Até (data fim — opcional)</span><input type="date" id="f-bl-fim"></label>
+<p class="hint">Bloqueia a agenda e avisa sobre conflitos. Não entra no financeiro.</p>
+</div>
+<div class="toggle" id="f-urgente" style="margin-bottom:15px"><div class="lb">⚠️ Atenção / Urgência</div><div class="sw"></div></div>
 <label class="f"><span>Observação</span><textarea id="f-obs" placeholder="Opcional"></textarea></label>
 <div id="cal-row" class="hidden">
 <div class="f"><span>Calendário</span>
@@ -637,11 +686,12 @@ const parseDate = s => { const [y,m,d] = s.split('-').map(Number); return new Da
 const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const hoje = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
 const sameMonth = (s,ref) => { const d = parseDate(s); return d.getMonth()===ref.getMonth() && d.getFullYear()===ref.getFullYear(); };
-const ehResid = s => s.categoria === 'residencia';
-const ehBolsa = s => s.categoria === 'bolsa';
-const ehAmb   = s => s.categoria === 'ambulatorio';
-const counts  = sh => sh.tipo !== 'passei' && !ehResid(sh);            // entra no financeiro
-const naAgenda = sh => sh.tipo !== 'passei' && !ehBolsa(sh);           // ocupa o seu tempo
+const ehResid   = s => s.categoria === 'residencia';
+const ehBolsa   = s => s.categoria === 'bolsa';
+const ehAmb     = s => s.categoria === 'ambulatorio';
+const ehBloq    = s => s.categoria === 'bloqueio';
+const counts  = sh => sh.tipo !== 'passei' && !ehResid(sh) && !ehBloq(sh); // entra no financeiro
+const naAgenda = sh => sh.tipo !== 'passei' && !ehBolsa(sh);                // ocupa o seu tempo (inclui bloqueio)
 // dias úteis: fim de semana rola para a frente (feriado não é considerado)
 const ehUtil = d => d.getDay() !== 0 && d.getDay() !== 6;
 function proximoUtil(d){ const x = new Date(d); while(!ehUtil(x)) x.setDate(x.getDate()+1); return x; }
@@ -805,6 +855,7 @@ $('#h-pago').textContent = brl(pago);
 $('#h-pend').textContent = brl(total-pago);
 renderNext();
 renderCal(list);
+renderDia();
 const shown = filter==='due' ? list.filter(s=>counts(s) && !s.pago) : list;
 $('#list-count').textContent = filter==='due' ? 'Pendentes de pagamento' : 'Plantões';
 const el = $('#shift-list');
@@ -821,13 +872,18 @@ const cid = l && l.cidade ? ` · ${esc(l.cidade)}` : '';
 let tag = '';
 if(s.tipo==='peguei') tag = `<div class="tag">Peguei de ${esc(s.colega||'colega')}</div>`;
 if(s.tipo==='passei') tag = `<div class="tag">Passei para ${esc(s.colega||'colega')}</div>`;
-if(!tag && s.obs) tag = `<div class="tag">${esc(s.obs.slice(0,42))}</div>`;
-const resid = ehResid(s);
+if(!tag && s.urgente && !ehResid(s) && !ehBolsa(s)) tag = `<div class="chip-urg">⚠️ Atenção</div>`;
+else if(!tag && s.obs) tag = `<div class="tag">${esc(s.obs.slice(0,42))}</div>`;
+const resid = ehResid(s), bloq = ehBloq(s);
 if(resid) tag = `<div class="tag">Residência · sem remuneração</div>`;
+if(bloq){
+const icos={'ferias':'🏖️','viagem':'✈️','sobreaviso':'📟','compromisso':'📌','outro':'📋'};
+tag = `<div class="chip-bl">${icos[s.blTipo]||'📋'} ${s.blTipo||'bloqueio'}${s.blFim?' até '+pad2(parseDate(s.blFim).getDate())+'/'+pad2(parseDate(s.blFim).getMonth()+1):''}</div>`;
+}
 if(ehBolsa(s) && s.obs) tag = `<div class="tag">${esc(s.obs)}</div>`;
 const pill = (off || resid) ? '' : `<div class="pill ${s.pago?'pago':'pend'}" data-pay="${s.id}">${s.pago?'Pago':'Pendente'}</div>`;
-const dinheiro = resid ? '<div class="money" style="color:var(--dim-2);font-size:12.5px">bloqueado</div>' : `<div class="money">${brl(liq(s))}</div>`;
-return `<div class="shift ${off?'off':''} ${resid?'resid':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)}">
+const dinheiro = (resid||bloq) ? `<div class="money" style="color:var(--dim-2);font-size:12.5px">${bloq?'—':'bloqueado'}</div>` : `<div class="money">${brl(liq(s))}</div>`;
+return `<div class="shift ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)}">
 <div class="daycol ${s.data===t?'is-today':''}"><div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div></div>
 <div class="info">
 <div class="place">${ehBolsa(s)?'':(s.turno==='noturno'?ICON_MOON:ICON_SUN)}<span>${esc(localName(s.localId))}</span></div>
@@ -848,6 +904,79 @@ if(s.nProc)  p.push(`${s.nProc} procedimento${s.nProc>1?'s':''}`);
 return p.join(' · ') + cid;
 }
 return `${s.hora||'--:--'} → ${fim(s.hora,s.duracao)} · ${s.duracao}h${cid}`;
+}
+/* ─── VISTA DE DIA ─── */
+const WD_LONG = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
+function renderDia(){
+const d = diaAtual;
+const tStr = iso(d);
+const lista = S.shifts.filter(s => naAgenda(s) && s.data === tStr)
+.sort((a,b)=>(a.hora||'00:00').localeCompare(b.hora||'00:00'));
+const box = $('#day-view');
+if(viewTipo !== 'dia'){ box.classList.add('hidden'); return; }
+box.classList.remove('hidden');
+$('#shift-list').classList.add('hidden');
+$$('#filter button').forEach(b=>b.closest('.segs').classList.add('hidden'));
+const nomeDia = `${WD_LONG[d.getDay()]}, ${String(d.getDate()).padStart(2,'0')} de ${MES[d.getMonth()]} de ${d.getFullYear()}`;
+box.innerHTML = `
+<div class="day-header">
+<h2>${nomeDia}</h2>
+<button class="hoje-btn" id="btn-hoje">Hoje</button>
+<div class="day-nav">
+<button id="d-prev" aria-label="Dia anterior">‹</button>
+<button id="d-next" aria-label="Próximo dia">›</button>
+</div>
+</div>
+<div class="timeline" id="timeline">
+${lista.length === 0
+? `<div class="tl-empty">Nenhum compromisso neste dia.<br>Toque em + para lançar.</div>`
+: lista.map(s => {
+const resid = ehResid(s), bolsa = ehBolsa(s), amb = ehAmb(s), bloq = ehBloq(s);
+const cor = localCor(s.localId);
+const icone = resid ? '' : (s.turno==='noturno' ? ICON_MOON : ICON_SUN);
+const nome = esc(localName(s.localId));
+const icos={'ferias':'🏖️','viagem':'✈️','sobreaviso':'📟','compromisso':'📌','outro':'📋'};
+let meta = '';
+if(bolsa) meta = 'Entrada mensal fixa';
+else if(resid) meta = `${s.hora||'--:--'} → ${fim(s.hora,s.duracao)} · ${s.duracao}h · Residência`;
+else if(bloq){
+meta = `${s.hora?s.hora+' → '+fim(s.hora,s.duracao)+' · '+s.duracao+'h · ':'Dia inteiro · '}${icos[s.blTipo]||'📋'} ${s.blTipo||'bloqueio'}${s.blFim?' até '+pad2(parseDate(s.blFim).getDate())+'/'+pad2(parseDate(s.blFim).getMonth()+1):''}`;
+}
+else if(amb) meta = metaLinha(s,'');
+else meta = `${s.hora||'--:--'} → ${fim(s.hora,s.duracao)} · ${s.duracao}h · ${s.turno}`;
+const tags = [];
+if(s.urgente && !resid && !bolsa) tags.push(`<span class="chip-urg">⚠️ Atenção</span>`);
+if(resid) tags.push(`<span class="tag">Residência · sem remuneração</span>`);
+if(s.tipo==='peguei') tags.push(`<span class="tag">Peguei de ${esc(s.colega||'colega')}</span>`);
+if(s.tipo==='passei') tags.push(`<span class="tag">Passei para ${esc(s.colega||'colega')}</span>`);
+if(s.obs) tags.push(`<span class="tag">${esc(s.obs.slice(0,48))}</span>`);
+if(!resid && !bolsa){
+const v = liq(s);
+tags.push(`<span class="tag ${s.pago?'pill pago':'pill pend'}">${s.pago?'Pago · ':'Previsto · '}${brl(v)}</span>`);
+}
+return `<div class="tl-item" data-id="${s.id}">
+<div class="tl-hora">${bolsa?'':s.hora||'--:--'}</div>
+<div class="tl-card ${s.urgente&&!resid&&!bolsa&&!bloq?'urgente':''} ${resid?'resid':''} ${bloq?'bloqueio-card':''}" style="--c:${cor}" data-id="${s.id}">
+<div class="tc-nome">${icone}<span>${nome}</span></div>
+<div class="tc-meta">${meta}</div>
+${tags.length ? `<div class="tc-tags">${tags.join('')}</div>` : ''}
+</div>
+</div>`;
+}).join('')
+}
+</div>`;
+// eventos de navegação
+$('#btn-hoje').onclick = ()=>{ diaAtual = new Date(); renderDia(); };
+$('#d-prev').onclick   = ()=>{ diaAtual.setDate(diaAtual.getDate()-1); renderDia(); };
+$('#d-next').onclick   = ()=>{ diaAtual.setDate(diaAtual.getDate()+1); renderDia(); };
+// clicar no card abre o sheet de edição
+$$('#timeline [data-id]').forEach(el=>{
+el.addEventListener('click', e=>{
+const id = el.closest('[data-id]').dataset.id;
+const s = S.shifts.find(x=>x.id===id);
+if(s) openSheet(s);
+});
+});
 }
 function renderNext(){
 const t = iso(hoje());
@@ -1064,7 +1193,7 @@ const s = shift || {
 data: presetDate || iso(new Date()), localId: (S.locais[0]||{}).id || '__new',
 turno:'diurno', duracao:12, hora:'07:00', valor:'', pago:false,
 tipo:'meu', colega:'', contra:'devolver', quitado:false, obs:'',
-categoria:'remunerado', liquido:''
+categoria:'remunerado', liquido:'', urgente:false, blTipo:'ferias', blFim:''
 };
 fillLocalSelect(s.localId);
 $('#f-date').value = s.data;
@@ -1081,6 +1210,8 @@ $('#f-durc-wrap').classList.toggle('hidden', preset);
 $('#f-durc').value = preset ? 8 : s.duracao;
 chipSet('#f-cat', s.categoria || 'remunerado');
 const lAtual = getLocal(s.localId) || {};
+chipSet('#f-bl-tipo', s.blTipo || 'ferias');
+$('#f-bl-fim').value = s.blFim || '';
 $('#f-npart').value  = s.nPart  || 0;
 $('#f-nplano').value = s.nPlano || 0;
 $('#f-nproc').value  = s.nProc  || 0;
@@ -1088,6 +1219,7 @@ $('#f-vpart').value  = s.vPart  || lAtual.vPart  || 70;
 $('#f-vplano').value = s.vPlano || lAtual.vPlano || 50;
 $('#f-vproc').value  = s.vProc  || lAtual.vProc  || 0;
 liqTouched = !!shift; conflitoOk = false;
+$('#f-urgente').classList.toggle('on', !!(shift && shift.urgente));
 $('#f-liquido').value = (s.liquido ?? '') === '' ? (s.valor ?? '') : s.liquido;
 $$('#f-wd .chip').forEach(c=>c.classList.remove('on'));
 $('#f-wd-wrap').classList.add('hidden');
@@ -1127,7 +1259,11 @@ function aplicarCategoria(){
 const cat = chipGet('#f-cat');
 const resid = cat === 'residencia', amb = cat === 'ambulatorio';
 ['#f-valor-wrap','#f-liq-wrap','#fin-wrap'].forEach(sel=>$(sel).classList.toggle('hidden', resid));
+const bloq = cat === 'bloqueio';
 $('#amb-wrap').classList.toggle('hidden', !amb);
+$('#bl-tipos-wrap').classList.toggle('hidden', !bloq);
+$('#f-bl-fim-wrap').classList.toggle('hidden', !bloq);
+if(bloq){ $('#fin-wrap').classList.add('hidden'); $('#f-valor-wrap').classList.add('hidden'); $('#f-liq-wrap').classList.add('hidden'); }
 const nomes = { residencia:'compromisso de residência', ambulatorio:'dia de atendimento', remunerado:'plantão' };
 $('#sh-title').textContent = (editing ? 'Editar ' : 'Novo ') + (nomes[cat] || 'plantão');
 if(amb) calcAmb();
@@ -1196,7 +1332,7 @@ function conflito(novo, ignoraId){
 const a = janelaDe(novo);
 if(!(a.fim > a.ini)) return null;
 return S.shifts.find(s=>{
-if(s.id === ignoraId || !naAgenda(s)) return false;
+if(s.id === ignoraId || (!naAgenda(s) && !ehBloq(s))) return false;
 const b = janelaDe(s);
 return a.ini < b.fim && b.ini < a.fim;
 }) || null;
@@ -1239,6 +1375,9 @@ const pago = !resid && $('#f-pago').classList.contains('on');
 const amb = categoria === 'ambulatorio';
 const base = {
 categoria,
+urgente: !ehResid(categoria) && !ehBloq(categoria) && $('#f-urgente').classList.contains('on'),
+blTipo: ehBloq(categoria) ? (chipGet('#f-bl-tipo') || 'ferias') : '',
+blFim:  ehBloq(categoria) ? ($('#f-bl-fim').value || '') : '',
 nPart:  amb ? (parseInt($('#f-npart').value)||0)  : 0,
 nPlano: amb ? (parseInt($('#f-nplano').value)||0) : 0,
 nProc:  amb ? (parseInt($('#f-nproc').value)||0)  : 0,
@@ -1342,6 +1481,23 @@ render();
 });
 function novoItem(){ return view === 'locais' ? openLocal(null) : openSheet(null); }
 $('#fab').onclick = novoItem;
+$$('#view-toggle button').forEach(b=>{
+b.onclick = ()=>{
+viewTipo = b.dataset.vt;
+$$('#view-toggle button').forEach(x=>x.classList.toggle('on', x===b));
+if(viewTipo === 'dia'){
+diaAtual = new Date();
+$('#shift-list').classList.add('hidden');
+$$('#filter button').forEach(x=>x.closest('.segs').classList.add('hidden'));
+renderDia();
+} else {
+$('#shift-list').classList.remove('hidden');
+$$('#filter button').forEach(x=>x.closest('.segs').classList.remove('hidden'));
+$('#day-view').classList.add('hidden');
+renderMes();
+}
+};
+});
 $('#add-top').onclick = novoItem;
 $('#scrim').onclick = closeSheets;
 $('#sh-close').onclick = closeSheets;
@@ -1504,11 +1660,15 @@ if(c) openSheet(S.shifts.find(x=>x.id===c.dataset.id));
 $('#cal-grid').addEventListener('click', e=>{
 const b = e.target.closest('[data-day]'); if(!b) return;
 const d = new Date(cursor.getFullYear(), cursor.getMonth(), +b.dataset.day);
+if(viewTipo === 'dia'){
+diaAtual = new Date(d); renderDia();
+} else {
 const alvo = document.querySelector(`.shift[data-date="${iso(d)}"]`);
 if(alvo){
 alvo.scrollIntoView({behavior:'smooth',block:'center'});
 alvo.classList.add('flash'); setTimeout(()=>alvo.classList.remove('flash'),1400);
 }else openSheet(null, iso(d));
+}
 });
 // aba Caixa
 document.addEventListener('click', async e=>{
@@ -1610,6 +1770,9 @@ retencao: +l.retencao || 0
 }));
 const shifts = (d.shifts||[]).map(s=>({
 ...s, categoria: s.categoria || 'remunerado',
+urgente: !!s.urgente,
+blTipo: s.blTipo || 'ferias',
+blFim: s.blFim || '',
 nPart:+s.nPart||0, nPlano:+s.nPlano||0, nProc:+s.nProc||0,
 vPart:+s.vPart||0, vPlano:+s.vPlano||0, vProc:+s.vProc||0
 }));
@@ -1622,7 +1785,7 @@ render();
 })();
 </script>
 <script>
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
+if('serviceWorker' in navigator && location.protocol === 'https:') {
 window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 </script>
