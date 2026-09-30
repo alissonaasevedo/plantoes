@@ -790,8 +790,9 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 <div class="chip" data-v="outro">Outro</div>
 </div>
 </label>
-<label class="f hidden" id="f-bl-fim-wrap"><span>Até (data fim — opcional)</span><input type="date" id="f-bl-fim"></label>
-<p class="hint">Bloqueia a agenda e avisa sobre conflitos. Não entra no financeiro.</p>
+<label class="f" id="f-bl-fim-wrap"><span>Data de término (opcional)</span><input type="date" id="f-bl-fim"></label>
+<div class="toggle" id="f-bl-diaint"><div class="lb">Bloqueio de dia inteiro</div><div class="sw on"></div></div>
+<p class="hint" id="bl-hint">Bloqueia a agenda e avisa sobre conflitos. Não entra no financeiro.</p>
 </div>
 <div class="toggle" id="f-urgente" style="margin-bottom:15px"><div class="lb">⚠️ Atenção / Urgência</div><div class="sw"></div></div>
 <label class="f"><span>Observação</span><textarea id="f-obs" placeholder="Opcional"></textarea></label>
@@ -1264,7 +1265,7 @@ const box = $('#next-card');
 if(!nx){ box.innerHTML = ''; return; }
 const d = parseDate(nx.data);
 const dias = Math.round((d - hoje())/86400000);
-const quando = dias===0 ? 'Hoje' : dias===1 ? 'Amanhã' : `Em ${dias} dias`;
+const quando = dias===0 ? '🔴 Hoje' : dias===1 ? '🟡 Amanhã' : dias<=3 ? `🟠 Em ${dias} dias` : `Em ${dias} dias`;
 const l = getLocal(nx.localId), url = mapsUrl(l);
 box.innerHTML = `<div class="next" style="--nc:${localCor(nx.localId)}" data-id="${nx.id}">
 <div class="when">Próximo plantão · ${quando}</div>
@@ -1918,6 +1919,9 @@ chipSet('#f-cat', s.categoria || 'remunerado');
 const lAtual = getLocal(s.localId) || {};
 chipSet('#f-bl-tipo', s.blTipo || 'ferias');
 $('#f-bl-fim').value = s.blFim || '';
+const blDiaInt = s.blDiaInt !== false;
+const diaIntTog = $('#f-bl-diaint');
+if(diaIntTog) diaIntTog.classList.toggle('on', blDiaInt);
 $('#f-npart').value  = s.nPart  || 0;
 $('#f-nplano').value = s.nPlano || 0;
 $('#f-nproc').value  = s.nProc  || 0;
@@ -1968,9 +1972,18 @@ const resid = cat === 'residencia', amb = cat === 'ambulatorio';
 const bloq = cat === 'bloqueio';
 $('#amb-wrap').classList.toggle('hidden', !amb);
 $('#bl-tipos-wrap').classList.toggle('hidden', !bloq);
-$('#f-bl-fim-wrap').classList.toggle('hidden', !bloq);
+// campos que somem no bloqueio
+['#f-local','#f-newlocal-wrap','#f-turno','#f-dur','#f-durc-wrap','#f-valor-wrap','#f-liq-wrap','#fin-wrap','#f-urgente'].forEach(sel=>{
+const el=$(sel); if(el) el.closest('label,div.toggle,div.row2,.f')?.classList.toggle('hidden', bloq) || el.classList.toggle('hidden', bloq);
+});
+const localLbl = $('label[for="f-local"]') || $('label.f:has(#f-local)');
+// esconder via parent
+const fLocal = $('#f-local'); if(fLocal){ const wrap=fLocal.closest('label.f'); if(wrap) wrap.classList.toggle('hidden',bloq); }
+const fTurno = $('#f-turno'); if(fTurno){ const wrap=fTurno.closest('label.f'); if(wrap) wrap.classList.toggle('hidden',bloq); }
+const fDur = $('#f-dur'); if(fDur){ const wrap=fDur.closest('label.f'); if(wrap) wrap.classList.toggle('hidden',bloq); }
 if(bloq){ $('#fin-wrap').classList.add('hidden'); $('#f-valor-wrap').classList.add('hidden'); $('#f-liq-wrap').classList.add('hidden'); }
-const nomes = { residencia:'compromisso de residência', ambulatorio:'dia de atendimento', remunerado:'plantão' };
+if(!bloq){ ['#f-local','#f-turno','#f-dur'].forEach(sel=>{ const el=$(sel); if(el){const w=el.closest('label.f'); if(w) w.classList.remove('hidden');}}); }
+const nomes = { residencia:'compromisso de residência', ambulatorio:'dia de atendimento', remunerado:'plantão', bloqueio:'bloqueio de agenda' };
 $('#sh-title').textContent = (editing ? 'Editar ' : 'Novo ') + (nomes[cat] || 'plantão');
 if(amb) calcAmb();
 }
@@ -2084,6 +2097,7 @@ categoria,
 urgente: !ehResid(categoria) && !ehBloq(categoria) && $('#f-urgente').classList.contains('on'),
 blTipo: ehBloq(categoria) ? (chipGet('#f-bl-tipo') || 'ferias') : '',
 blFim:  ehBloq(categoria) ? ($('#f-bl-fim').value || '') : '',
+blDiaInt: ehBloq(categoria) ? $('#f-bl-diaint').classList.contains('on') : true,
 nPart:  amb ? (parseInt($('#f-npart').value)||0)  : 0,
 nPlano: amb ? (parseInt($('#f-nplano').value)||0) : 0,
 nProc:  amb ? (parseInt($('#f-nproc').value)||0)  : 0,
