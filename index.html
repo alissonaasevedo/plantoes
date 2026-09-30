@@ -690,7 +690,6 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 <div class="chip on" data-v="remunerado">Plantão</div>
 <div class="chip" data-v="ambulatorio">Ambulatório</div>
 <div class="chip" data-v="residencia">Residência</div>
-<div class="chip" data-v="bloqueio">Bloqueio</div>
 </div>
 </label>
 <div class="row2">
@@ -780,20 +779,6 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 </label>
 <p class="hint" id="rep-hint">—</p>
 </div>
-<div id="bl-tipos-wrap" class="hidden">
-<label class="f"><span>Motivo</span>
-<div class="chips" id="f-bl-tipo">
-<div class="chip on" data-v="ferias">🏖️ Férias</div>
-<div class="chip" data-v="viagem">✈️ Viagem</div>
-<div class="chip" data-v="sobreaviso">📟 Sobreaviso</div>
-<div class="chip" data-v="compromisso">📌 Compromisso</div>
-<div class="chip" data-v="outro">Outro</div>
-</div>
-</label>
-<label class="f" id="f-bl-fim-wrap"><span>Data de término (opcional)</span><input type="date" id="f-bl-fim"></label>
-<div class="toggle" id="f-bl-diaint"><div class="lb">Bloqueio de dia inteiro</div><div class="sw on"></div></div>
-<p class="hint" id="bl-hint">Bloqueia a agenda e avisa sobre conflitos. Não entra no financeiro.</p>
-</div>
 <div class="toggle" id="f-urgente" style="margin-bottom:15px"><div class="lb">⚠️ Atenção / Urgência</div><div class="sw"></div></div>
 <label class="f"><span>Observação</span><textarea id="f-obs" placeholder="Opcional"></textarea></label>
 <div id="cal-row" class="hidden">
@@ -861,6 +846,31 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 <p class="hint" style="margin-top:18px">O evento leva nome do local, endereço, horário de início e fim, valor e um lembrete 2 horas antes. No iPhone, toque no arquivo baixado para o Calendário abrir a confirmação.</p>
 </div>
 <div class="toast" id="toast"></div>
+<div class="sheet" id="sheet-bl">
+<div class="grab"></div>
+<div class="sheet-head">
+<h2>Bloqueio de agenda</h2>
+<button class="btn ghost sm" id="sbl-close">Fechar</button>
+</div>
+<label class="f"><span>Motivo</span>
+<div class="chips" id="sbl-motivo">
+<div class="chip on" data-v="ferias">🏖️ Férias</div>
+<div class="chip" data-v="viagem">✈️ Viagem</div>
+<div class="chip" data-v="sobreaviso">📟 Sobreaviso</div>
+<div class="chip" data-v="compromisso">📌 Compromisso</div>
+<div class="chip" data-v="outro">Outro</div>
+</div>
+</label>
+<div class="row2">
+<label class="f"><span>Data início</span><input type="date" id="sbl-ini"></label>
+<label class="f"><span>Data fim</span><input type="date" id="sbl-fim"></label>
+</div>
+<label class="f"><span>Observação (opcional)</span><input type="text" id="sbl-obs" placeholder="ex: Congresso, viagem a trabalho…"></label>
+<div class="actions">
+<button class="btn danger sm" id="sbl-del" style="flex:none">Excluir</button>
+<button class="btn prim" id="sbl-save">Salvar bloqueio</button>
+</div>
+</div>
 <script>
 /* ================= armazenamento =================
 Dentro do Claude usa window.storage (sincroniza celular + PC pela conta).
@@ -893,7 +903,7 @@ return ok;
 }
 };
 const CORES = ['#FFC24D','#4ECFA0','#8B9DFF','#FF7A93','#5FC8EC','#C48BF5','#F79E5C','#93D95F'];
-let S = { shifts: [], locais: [] };
+let S = { shifts: [], locais: [], bloqueios: [] };
 let cursor = new Date();
 let view = 'mes';
 let filter = 'all';
@@ -1296,36 +1306,37 @@ const t = new Date(); const isThis = t.getMonth()===m && t.getFullYear()===y;
 const valPorDia = {};
 list.filter(counts).forEach(s=>{ const k=parseDate(s.data).getDate(); valPorDia[k]=(valPorDia[k]||0)+liq(s); });
 const maxVal = Math.max(...Object.values(valPorDia), 1);
-// expandir bloqueios com período para todos os dias do intervalo
-const byDayFull = Object.assign({}, byDay);
-list.filter(ehBloq).forEach(s=>{
-if(!s.blFim || s.blFim <= s.data) return;
-const ini = parseDate(s.data), fim2 = parseDate(s.blFim);
-const cur = new Date(ini); cur.setDate(cur.getDate()+1);
+// Marcar dias de S.bloqueios (objeto separado dos shifts)
+const bloqDias = new Set();
+const bloqMotivosDia = {};
+S.bloqueios.forEach(b=>{
+if(!b.ini) return;
+const cur = new Date(parseDate(b.ini));
+const fim2 = parseDate(b.fim||b.ini);
 while(cur <= fim2){
 if(cur.getMonth()===m && cur.getFullYear()===y){
 const dd = cur.getDate();
-if(!byDayFull[dd]) byDayFull[dd] = [];
-if(!byDayFull[dd].find(x=>x.id===s.id)) byDayFull[dd].push(s);
+bloqDias.add(dd);
+bloqMotivosDia[dd] = b.motivo||'ferias';
 }
 cur.setDate(cur.getDate()+1);
 }
 });
+const emojisBloq = {ferias:'🏖️',viagem:'✈️',sobreaviso:'📟',compromisso:'📌',outro:'🔒'};
 let html = '';
 for(let i=0;i<first;i++) html += '<button class="void"></button>';
 for(let d=1;d<=dim;d++){
-const arr = byDayFull[d] || [];
+const arr = byDay[d] || [];
 const val = valPorDia[d] || 0;
 const alpha = val>0 ? Math.max(0.10, Math.min(0.70, val/maxVal)) : 0;
 const bg = val>0 ? `rgba(10,95,95,${alpha.toFixed(2)})` : '';
-const temBloq = arr.some(ehBloq) && !val;
-const bloqBg = temBloq ? 'rgba(155,27,27,.08)' : '';
-const dots = arr.filter(s=>ehResid(s)||ehBloq(s)).slice(0,2).map(s=>
-ehResid(s) ? '<i class="oca"></i>'
-: '<i style="background:rgba(155,27,27,.5)"></i>').join('');
-html += `<button data-day="${d}" class="${arr.length?'has':''} ${isThis&&t.getDate()===d?'today':''}"
+const temBloq = bloqDias.has(d);
+const bloqBg = temBloq ? 'rgba(155,27,27,.09)' : '';
+const dotsRes = arr.filter(s=>ehResid(s)).slice(0,2).map(()=>'<i class="oca"></i>').join('');
+const bloqIcon = temBloq ? `<span style="font-size:9px;line-height:1">${emojisBloq[bloqMotivosDia[d]]||'🔒'}</span>` : '';
+html += `<button data-day="${d}" class="${(arr.length||temBloq)?'has':''} ${isThis&&t.getDate()===d?'today':''}"
 style="${bg?`background:${bg};`:bloqBg?`background:${bloqBg};`:''}">
-<span>${d}</span><span class="dots">${dots}</span></button>`;
+<span>${d}</span><span class="dots">${dotsRes}${bloqIcon}</span></button>`;
 }
 $('#cal-grid').innerHTML = html;
 }
@@ -1950,11 +1961,7 @@ $('#f-durc-wrap').classList.toggle('hidden', preset);
 $('#f-durc').value = preset ? 8 : s.duracao;
 chipSet('#f-cat', s.categoria || 'remunerado');
 const lAtual = getLocal(s.localId) || {};
-chipSet('#f-bl-tipo', s.blTipo || 'ferias');
-$('#f-bl-fim').value = s.blFim || '';
-const blDiaInt = s.blDiaInt !== false;
-const diaIntTog = $('#f-bl-diaint');
-if(diaIntTog) diaIntTog.classList.toggle('on', blDiaInt);
+// bloqueio agora em sheet separado
 $('#f-npart').value  = s.nPart  || 0;
 $('#f-nplano').value = s.nPlano || 0;
 $('#f-nproc').value  = s.nProc  || 0;
@@ -2002,21 +2009,8 @@ function aplicarCategoria(){
 const cat = chipGet('#f-cat');
 const resid = cat === 'residencia', amb = cat === 'ambulatorio';
 ['#f-valor-wrap','#f-liq-wrap','#fin-wrap'].forEach(sel=>$(sel).classList.toggle('hidden', resid));
-const bloq = cat === 'bloqueio';
 $('#amb-wrap').classList.toggle('hidden', !amb);
-$('#bl-tipos-wrap').classList.toggle('hidden', !bloq);
-// campos que somem no bloqueio
-['#f-local','#f-newlocal-wrap','#f-turno','#f-dur','#f-durc-wrap','#f-valor-wrap','#f-liq-wrap','#fin-wrap','#f-urgente'].forEach(sel=>{
-const el=$(sel); if(el) el.closest('label,div.toggle,div.row2,.f')?.classList.toggle('hidden', bloq) || el.classList.toggle('hidden', bloq);
-});
-const localLbl = $('label[for="f-local"]') || $('label.f:has(#f-local)');
-// esconder via parent
-const fLocal = $('#f-local'); if(fLocal){ const wrap=fLocal.closest('label.f'); if(wrap) wrap.classList.toggle('hidden',bloq); }
-const fTurno = $('#f-turno'); if(fTurno){ const wrap=fTurno.closest('label.f'); if(wrap) wrap.classList.toggle('hidden',bloq); }
-const fDur = $('#f-dur'); if(fDur){ const wrap=fDur.closest('label.f'); if(wrap) wrap.classList.toggle('hidden',bloq); }
-if(bloq){ $('#fin-wrap').classList.add('hidden'); $('#f-valor-wrap').classList.add('hidden'); $('#f-liq-wrap').classList.add('hidden'); }
-if(!bloq){ ['#f-local','#f-turno','#f-dur'].forEach(sel=>{ const el=$(sel); if(el){const w=el.closest('label.f'); if(w) w.classList.remove('hidden');}}); }
-const nomes = { residencia:'compromisso de residência', ambulatorio:'dia de atendimento', remunerado:'plantão', bloqueio:'bloqueio de agenda' };
+const nomes = { residencia:'compromisso de residência', ambulatorio:'dia de atendimento', remunerado:'plantão' };
 $('#sh-title').textContent = (editing ? 'Editar ' : 'Novo ') + (nomes[cat] || 'plantão');
 if(amb) calcAmb();
 }
@@ -2128,9 +2122,7 @@ const amb = categoria === 'ambulatorio';
 const base = {
 categoria,
 urgente: !ehResid(categoria) && !ehBloq(categoria) && $('#f-urgente').classList.contains('on'),
-blTipo: ehBloq(categoria) ? (chipGet('#f-bl-tipo') || 'ferias') : '',
-blFim:  ehBloq(categoria) ? ($('#f-bl-fim').value || '') : '',
-blDiaInt: ehBloq(categoria) ? $('#f-bl-diaint').classList.contains('on') : true,
+blTipo:'', blFim:'', blDiaInt:true,
 nPart:  amb ? (parseInt($('#f-npart').value)||0)  : 0,
 nPlano: amb ? (parseInt($('#f-nplano').value)||0) : 0,
 nProc:  amb ? (parseInt($('#f-nproc').value)||0)  : 0,
@@ -2232,7 +2224,73 @@ window.scrollTo({top:0});
 render();
 };
 });
-function novoItem(){ return view === 'locais' ? openLocal(null) : openSheet(null); }
+/* ===== BLOQUEIOS ===== */
+let editingBloq = null;
+function openBloqueio(b){
+editingBloq = b || null;
+chipSet('#sbl-motivo', b?.motivo || 'ferias');
+const hoje2 = iso(new Date());
+$('#sbl-ini').value = b?.ini || hoje2;
+$('#sbl-fim').value = b?.fim || b?.ini || hoje2;
+$('#sbl-obs').value = b?.obs || '';
+$('#sbl-del').classList.toggle('hidden', !b);
+$('#scrim').classList.add('open');
+$('#sheet-bl').classList.add('open');
+}
+function closeBloqueio(){
+$('#sheet-bl').classList.remove('open');
+$('#scrim').classList.remove('open');
+editingBloq = null;
+}
+$('#sbl-close').onclick = closeBloqueio;
+$('#sbl-del').onclick = async ()=>{
+if(!editingBloq) return;
+if(!confirm('Excluir bloqueio?')) return;
+S.bloqueios = S.bloqueios.filter(b=>b.id!==editingBloq.id);
+await store.save(S); closeBloqueio(); render(); toast('Bloqueio removido');
+};
+$('#sbl-save').onclick = async ()=>{
+const ini = $('#sbl-ini').value;
+const fim = $('#sbl-fim').value || ini;
+if(!ini){ toast('Informe a data de início'); return; }
+if(fim < ini){ toast('Data fim deve ser ≥ início'); return; }
+const bl = {
+id: editingBloq?.id || uid(),
+motivo: chipGet('#sbl-motivo') || 'ferias',
+ini, fim, obs: $('#sbl-obs').value.trim()
+};
+if(editingBloq){
+const idx = S.bloqueios.findIndex(b=>b.id===bl.id);
+if(idx>=0) S.bloqueios[idx]=bl; else S.bloqueios.push(bl);
+} else {
+S.bloqueios.push(bl);
+}
+await store.save(S); closeBloqueio(); render();
+toast(editingBloq ? 'Bloqueio atualizado' : 'Bloqueio adicionado');
+};
+function novoItem(){
+if(view==='locais') return openLocal(null);
+let menu = $('#fab-menu');
+if(menu){ menu.remove(); return; }
+menu = document.createElement('div');
+menu.id = 'fab-menu';
+menu.style.cssText = `position:fixed;right:20px;bottom:calc(150px + env(safe-area-inset-bottom));
+background:var(--surface);border:1px solid var(--line);border-radius:14px;
+box-shadow:var(--sh-md);z-index:31;overflow:hidden;min-width:180px;`;
+menu.innerHTML = `
+<button id="fab-p" style="display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;
+padding:14px 16px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;
+border-bottom:1px solid var(--line)">🏥 <span>Novo plantão</span></button>
+<button id="fab-b" style="display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;
+padding:14px 16px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer">
+🔒 <span>Novo bloqueio</span></button>`;
+document.body.appendChild(menu);
+menu.querySelector('#fab-p').onclick = ()=>{ menu.remove(); openSheet(null); };
+menu.querySelector('#fab-b').onclick = ()=>{ menu.remove(); openBloqueio(null); };
+setTimeout(()=>document.addEventListener('click', function h(e){
+if(!menu.contains(e.target)&&e.target.id!=='fab'){ menu.remove(); document.removeEventListener('click',h); }
+}),100);
+}
 $('#fab').onclick = novoItem;
 // período do resumo
 document.querySelectorAll('#res-periodo button').forEach(b=>{
@@ -2448,6 +2506,13 @@ const c = e.target.closest('[data-id]');
 if(c) openSheet(S.shifts.find(x=>x.id===c.dataset.id));
 });
 $('#cal-grid').addEventListener('click', e=>{
+const btnBl = e.target.closest('button[data-day]');
+if(btnBl){
+const dBl = +btnBl.dataset.day;
+const dStr = iso(new Date(cursor.getFullYear(), cursor.getMonth(), dBl));
+const blEncontrado = S.bloqueios.find(b=>dStr>=b.ini && dStr<=(b.fim||b.ini));
+if(blEncontrado){ openBloqueio(blEncontrado); return; }
+}
 const b = e.target.closest('[data-day]'); if(!b) return;
 const d = new Date(cursor.getFullYear(), cursor.getMonth(), +b.dataset.day);
 if(viewTipo === 'dia'){
@@ -2558,15 +2623,20 @@ pagMes: typeof l.pagMes === 'number' ? l.pagMes : 1,
 pagIncerto: !!l.pagIncerto,
 retencao: +l.retencao || 0
 }));
-const shifts = (d.shifts||[]).map(s=>({
+// migrar bloqueios antigos de shifts para S.bloqueios
+const bloqueiosAntigos = (d.shifts||[]).filter(s=>s.categoria==='bloqueio').map(s=>({
+id: s.id || uid(), motivo: s.blTipo||'ferias', ini: s.data, fim: s.blFim||s.data, obs: s.obs||''
+}));
+const bloqueios = [...(d.bloqueios||[]), ...bloqueiosAntigos]
+.filter((b,i,a)=>a.findIndex(x=>x.id===b.id)===i) // deduplicar
+.map(b=>({ id:b.id||uid(), motivo:b.motivo||'ferias', ini:b.ini||b.data||'', fim:b.fim||b.ini||'', obs:b.obs||'' }));
+const shifts = (d.shifts||[]).filter(s=>s.categoria!=='bloqueio').map(s=>({
 ...s, categoria: s.categoria || 'remunerado',
-urgente: !!s.urgente,
-blTipo: s.blTipo || 'ferias',
-blFim: s.blFim || '',
+urgente: !!s.urgente, blTipo:'', blFim:'',
 nPart:+s.nPart||0, nPlano:+s.nPlano||0, nProc:+s.nProc||0,
 vPart:+s.vPart||0, vPlano:+s.vPlano||0, vProc:+s.vProc||0
 }));
-return { shifts, locais };
+return { shifts, locais, bloqueios };
 }
 (async function init(){
 const saved = await store.load();
