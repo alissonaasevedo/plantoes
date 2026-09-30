@@ -76,15 +76,17 @@ header h1 {
 font-size: 18px; font-weight: 700; letter-spacing: -.02em;
 text-transform: capitalize; color: var(--accent);
 }
-.headtools { display: flex; align-items: center; gap: 8px; }
-.m.mnav { display: flex; gap: 4px; }
+.headtools { display: flex; align-items: center; gap: 8px; flex-direction: row; }
+.mnav { display: flex; flex-direction: row !important; gap: 5px; align-items: center; }
 .mnav button {
-width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 10px;
+width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 10px;
 background: var(--surface); color: var(--dim); font-size: 20px; cursor: pointer;
-display: grid; place-items: center; transition: .15s;
+display: flex !important; align-items: center; justify-content: center;
+flex-direction: row !important; transition: .15s; flex: none;
+text-transform: none; letter-spacing: 0; padding: 0;
 }
 .mnav button:hover, .mnav button:active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-#today { font-size: 11px; font-weight: 700; letter-spacing: .04em; width: 48px; }
+#today { font-size: 11px; font-weight: 700; letter-spacing: .04em; width: 52px; }
 #add-top { display: none; }
 /* ── Secções responsivas ── */
 section { display: block; }
@@ -426,6 +428,33 @@ transition: transform .22s ease, opacity .18s ease;
 }
 @media(min-width:1240px){
 #v-mes, #v-caixa { grid-template-columns: minmax(0,420px) minmax(0,1fr); gap: 52px; }
+}
+/* Garantia: .mnav button NUNCA herda flex-direction:column da nav */
+.mnav, .mnav button {
+flex-direction: row !important;
+}
+.mnav button {
+flex: none !important;
+padding: 0 !important;
+text-transform: none !important;
+letter-spacing: 0 !important;
+font-size: 20px !important;
+width: 44px !important;
+height: 44px !important;
+border: 1px solid var(--line) !important;
+border-radius: 10px !important;
+background: var(--surface) !important;
+color: var(--dim) !important;
+display: flex !important;
+align-items: center !important;
+justify-content: center !important;
+gap: 0 !important;
+}
+#today {
+width: 52px !important;
+font-size: 11px !important;
+font-weight: 700 !important;
+letter-spacing: .04em !important;
 }
 @media(prefers-reduced-motion:reduce){ * { transition: none !important; } }
 /* nav com ícones */
@@ -1007,7 +1036,7 @@ clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'),1900);
 /* ================= render ================= */
 function render(){
 const titles = { mes: MES[cursor.getMonth()]+' '+cursor.getFullYear(), caixa:'Caixa · '+MES[cursor.getMonth()],
-trocas:'Trocas', locais:'Locais', ajustes:'Ajustes' };
+resumo:'Resumo', locais:'Locais', ajustes:'Ajustes' };
 $('#title').textContent = titles[view];
 $('#mnav').classList.toggle('hidden', view !== 'mes' && view !== 'caixa');
 renderMes(); renderCaixa(); renderResumo(); renderLocais(); renderAjustes();
@@ -2118,7 +2147,7 @@ $$('nav button').forEach(b=>{
 b.onclick = ()=>{
 view = b.dataset.v;
 $$('nav button').forEach(x=>x.classList.toggle('on', x===b));
-['mes','caixa','trocas','locais','ajustes'].forEach(v=>$('#v-'+v).classList.toggle('hidden', v!==view));
+['mes','caixa','resumo','locais','ajustes'].forEach(v=>$('#v-'+v).classList.toggle('hidden', v!==view));
 $('#fab').classList.toggle('hidden', view!=='mes' && view!=='locais');
 const at = $('#add-top');
 at.textContent = view==='locais' ? 'Novo local' : 'Novo plantão';
