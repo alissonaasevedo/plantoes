@@ -617,9 +617,12 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 <label class="f"><span>Parcela 1 (R$)</span><input type="number" id="b-v1" step="0.01" value="410.61" inputmode="decimal"></label>
 <label class="f"><span>Parcela 2 (R$)</span><input type="number" id="b-v2" step="0.01" value="3654.42" inputmode="decimal"></label>
 </div>
+<div class="row2">
+<label class="f"><span>Desde o mês</span><input type="month" id="b-ini" value="2025-04"></label>
 <label class="f"><span>Até o mês</span><input type="month" id="b-fim" value="2028-02"></label>
+</div>
 <button class="btn sm wide" id="b-gerar">Gerar entradas mensais</button>
-<p class="hint" style="margin-top:14px">Cria duas entradas por mês, no segundo dia útil, do mês atual até o limite. Rodar de novo não duplica o que já existe. Feriados podem adiar o crédito em um ou dois dias.</p>
+<p class="hint" style="margin-top:14px">Cria duas entradas por mês, no segundo dia útil, do intervalo escolhido. Rodar de novo não duplica o que já existe. Feriados podem adiar o crédito em um ou dois dias.</p>
 <div class="sec" style="margin-top:26px"><h2>Referência tributária</h2></div>
 <div id="tax-panel"></div>
 <p class="hint" style="margin-top:14px">Referência da tabela do IRPF vigente em 2026. É informativo: não sou contador, e a apuração real depende de deduções, dependentes e das demais fontes de renda. Confirme com o seu.</p>
@@ -1812,7 +1815,7 @@ ${x.mediaDias!==null?`<span style="font-size:11.5px;color:var(--dim)">Paga em ~$
 :`<div class="empty">Lance plantões para ver o histórico por local.</div>`;
 }
 function renderChangelog(){
-$('#changelog-list').innerHTML = CHANGELOG.map(v=>`
+const renderVersao = v=>`
 <div class="cl-version">
 <div class="cl-tag">
 <span class="v">v${v.v}</span>
@@ -1824,7 +1827,23 @@ ${v.items.map(i=>`<div class="cl-item">
 <span>${i.txt}</span>
 </div>`).join('')}
 </div>
-</div>`).join('');
+</div>`;
+const primeira = CHANGELOG[0];
+const resto = CHANGELOG.slice(1);
+$('#changelog-list').innerHTML =
+renderVersao(primeira) +
+(resto.length ? `
+<div id="cl-mais-wrap" class="hidden" style="margin-top:4px">
+${resto.map(renderVersao).join('')}
+</div>
+<button class="btn sm wide" id="cl-mais" style="margin-top:12px;color:var(--dim);border-color:var(--line)">
+Ver versões anteriores (${resto.length})
+</button>` : '');
+const btn = $('#cl-mais');
+if(btn) btn.onclick = ()=>{
+$('#cl-mais-wrap').classList.remove('hidden');
+btn.style.display='none';
+};
 }
 function renderTax(){
 const y = cursor.getFullYear(), m = cursor.getMonth();
@@ -2317,8 +2336,9 @@ cor:CORES[S.locais.length % CORES.length], vDia:0, vNoite:0,
 pagDia:2, pagMes:0, retencao:0, vPart:0, vPlano:0, vProc:0 };
 S.locais.push(l);
 }
-const hoje0 = hoje();
-let y = hoje0.getFullYear(), m = hoje0.getMonth(), criados = 0;
+const iniVal = $('#b-ini').value || '2025-04';
+const [iy, im] = iniVal.split('-').map(Number);
+let y = iy, m = im - 1, criados = 0;
 while(y < ay || (y === ay && m <= am - 1)){
 const d = iso(nEsimoUtil(y, m, 2));
 [[v1,'Bolsa'], [v2,'Complementação']].forEach(([v, rot])=>{
