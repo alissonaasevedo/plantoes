@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Plantões">
-<meta name="theme-color" content="#F4F7FB">
+<meta name="theme-color" content="#F0EDE6">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="icon" href="./icon-192.png">
@@ -60,7 +60,7 @@ font-size: 16px;
 line-height: 1.5;
 -webkit-font-smoothing: antialiased;
 padding-left: var(--rail);
-padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+padding-bottom: calc(72px + var(--sab));
 overscroll-behavior-y: none;
 }
 .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
@@ -69,7 +69,7 @@ header {
 position: sticky; top: 0; z-index: 20;
 background: rgba(240,237,230,.92); backdrop-filter: blur(14px);
 border-bottom: 1px solid var(--line);
-padding: calc(14px + env(safe-area-inset-top, 0px)) 0 13px;
+padding: calc(14px + var(--sat)) 0 13px;
 display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 header h1 {
@@ -85,7 +85,7 @@ display: grid; place-items: center;
 .mnav button:hover { border-color: var(--accent); color: var(--accent); }
 #add-top { display: none; }
 /* ── Secções responsivas ── */
-section { display: grid; gap: 0; }
+section { display: block; }
 .pane { min-width: 0; }
 /* ── Label caps ── */
 .caps-label {
@@ -233,7 +233,7 @@ box-shadow: 0 6px 20px rgba(10,95,95,.35);
 nav {
 position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
 background: rgba(240,237,230,.94); backdrop-filter: blur(16px);
-border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); display: flex;
+border-top: 1px solid var(--line); padding-bottom: var(--sab); display: flex;
 }
 nav button {
 flex: 1; background: none; border: 0; color: var(--dim-2);
@@ -432,7 +432,7 @@ nav {
 position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
 background: rgba(255,255,255,.97); backdrop-filter: blur(20px);
 border-top: 1px solid var(--line); box-shadow: 0 -1px 0 var(--line);
-padding-bottom: env(safe-area-inset-bottom); display: flex;
+padding-bottom: var(--sab); display: flex;
 }
 nav button {
 flex: 1; background: none; border: 0; color: var(--dim-2);
