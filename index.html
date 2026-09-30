@@ -1214,13 +1214,21 @@ ${lista.length === 0
 const resid = ehResid(s), bolsa = ehBolsa(s), amb = ehAmb(s), bloq = ehBloq(s);
 const cor = localCor(s.localId);
 const icone = resid ? '' : (s.turno==='noturno' ? ICON_MOON : ICON_SUN);
-const nome = esc(localName(s.localId));
 const icos={'ferias':'🏖️','viagem':'✈️','sobreaviso':'📟','compromisso':'📌','outro':'📋'};
+const nomesBloq={ferias:'Férias',viagem:'Viagem',sobreaviso:'Sobreaviso',compromisso:'Compromisso',outro:'Bloqueio'};
+const nome = bloq
+? `${icos[s.blTipo]||'📋'} ${nomesBloq[s.blTipo]||'Bloqueio'}`
+: esc(localName(s.localId));
 let meta = '';
 if(bolsa) meta = 'Entrada mensal fixa';
 else if(resid) meta = `${s.hora||'--:--'} → ${fim(s.hora,s.duracao)} · ${s.duracao}h · Residência`;
 else if(bloq){
-meta = `${s.hora?s.hora+' → '+fim(s.hora,s.duracao)+' · '+s.duracao+'h · ':'Dia inteiro · '}${icos[s.blTipo]||'📋'} ${s.blTipo||'bloqueio'}${s.blFim?' até '+pad2(parseDate(s.blFim).getDate())+'/'+pad2(parseDate(s.blFim).getMonth()+1):''}`;
+const dIni = parseDate(s.data);
+const iniStr = `${pad2(dIni.getDate())}/${pad2(dIni.getMonth()+1)}`;
+const fimStr = s.blFim && s.blFim!==s.data
+? ` → ${pad2(parseDate(s.blFim).getDate())}/${pad2(parseDate(s.blFim).getMonth()+1)}`
+: '';
+meta = iniStr + fimStr;
 }
 else if(amb) meta = metaLinha(s,'');
 else meta = `${s.hora||'--:--'} → ${fim(s.hora,s.duracao)} · ${s.duracao}h · ${s.turno}`;
@@ -1230,7 +1238,7 @@ if(resid) tags.push(`<span class="tag">Residência · sem remuneração</span>`)
 if(s.tipo==='peguei') tags.push(`<span class="tag">Peguei de ${esc(s.colega||'colega')}</span>`);
 if(s.tipo==='passei') tags.push(`<span class="tag">Passei para ${esc(s.colega||'colega')}</span>`);
 if(s.obs) tags.push(`<span class="tag">${esc(s.obs.slice(0,48))}</span>`);
-if(!resid && !bolsa){
+if(!resid && !bolsa && !bloq){
 const v = liq(s);
 tags.push(`<span class="tag ${s.pago?'pill pago':'pill pend'}">${s.pago?'Pago · ':'Previsto · '}${brl(v)}</span>`);
 }
@@ -1284,14 +1292,39 @@ const dim = new Date(y,m+1,0).getDate();
 const byDay = {};
 list.forEach(s=>{ const k = parseDate(s.data).getDate(); (byDay[k] = byDay[k] || []).push(s); });
 const t = new Date(); const isThis = t.getMonth()===m && t.getFullYear()===y;
+// heatmap: valor por dia
+const valPorDia = {};
+list.filter(counts).forEach(s=>{ const k=parseDate(s.data).getDate(); valPorDia[k]=(valPorDia[k]||0)+liq(s); });
+const maxVal = Math.max(...Object.values(valPorDia), 1);
+// expandir bloqueios com período para todos os dias do intervalo
+const byDayFull = Object.assign({}, byDay);
+list.filter(ehBloq).forEach(s=>{
+if(!s.blFim || s.blFim <= s.data) return;
+const ini = parseDate(s.data), fim2 = parseDate(s.blFim);
+const cur = new Date(ini); cur.setDate(cur.getDate()+1);
+while(cur <= fim2){
+if(cur.getMonth()===m && cur.getFullYear()===y){
+const dd = cur.getDate();
+if(!byDayFull[dd]) byDayFull[dd] = [];
+if(!byDayFull[dd].find(x=>x.id===s.id)) byDayFull[dd].push(s);
+}
+cur.setDate(cur.getDate()+1);
+}
+});
 let html = '';
 for(let i=0;i<first;i++) html += '<button class="void"></button>';
 for(let d=1;d<=dim;d++){
-const arr = byDay[d] || [];
-const dots = arr.slice(0,3).map(s=>ehResid(s)
-? `<i class="oca"></i>`
-: `<i style="background:${localCor(s.localId)}"></i>`).join('');
-html += `<button data-day="${d}" class="${arr.length?'has':''} ${isThis&&t.getDate()===d?'today':''}">
+const arr = byDayFull[d] || [];
+const val = valPorDia[d] || 0;
+const alpha = val>0 ? Math.max(0.10, Math.min(0.70, val/maxVal)) : 0;
+const bg = val>0 ? `rgba(10,95,95,${alpha.toFixed(2)})` : '';
+const temBloq = arr.some(ehBloq) && !val;
+const bloqBg = temBloq ? 'rgba(155,27,27,.08)' : '';
+const dots = arr.filter(s=>ehResid(s)||ehBloq(s)).slice(0,2).map(s=>
+ehResid(s) ? '<i class="oca"></i>'
+: '<i style="background:rgba(155,27,27,.5)"></i>').join('');
+html += `<button data-day="${d}" class="${arr.length?'has':''} ${isThis&&t.getDate()===d?'today':''}"
+style="${bg?`background:${bg};`:bloqBg?`background:${bloqBg};`:''}">
 <span>${d}</span><span class="dots">${dots}</span></button>`;
 }
 $('#cal-grid').innerHTML = html;
