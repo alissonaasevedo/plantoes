@@ -77,12 +77,14 @@ font-size: 18px; font-weight: 700; letter-spacing: -.02em;
 text-transform: capitalize; color: var(--accent);
 }
 .headtools { display: flex; align-items: center; gap: 8px; }
-.m.mnav button {
-width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px;
-background: var(--surface); color: var(--dim); font-size: 15px; cursor: pointer;
-display: grid; place-items: center;
+.m.mnav { display: flex; gap: 4px; }
+.mnav button {
+width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 10px;
+background: var(--surface); color: var(--dim); font-size: 20px; cursor: pointer;
+display: grid; place-items: center; transition: .15s;
 }
-.mnav button:hover { border-color: var(--accent); color: var(--accent); }
+.mnav button:hover, .mnav button:active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+#today { font-size: 11px; font-weight: 700; letter-spacing: .04em; width: 48px; }
 #add-top { display: none; }
 /* ── Secções responsivas ── */
 section { display: block; }
@@ -380,29 +382,28 @@ box-shadow: var(--sh-md);
 .proj-card .pc-base { font-size: 12px; color: var(--dim); margin-top: 4px; }
 /* ── Layout Desktop ── */
 @media(min-width:900px){
-:root { --rail: 220px; }
-body { padding-bottom: 40px; }
+:root { --rail: 0px; }
+body { padding-bottom: 40px; padding-top: 52px; }
 .wrap { padding: 0 36px; }
 nav {
-top: 0; bottom: 0; right: auto; width: 220px; flex-direction: column;
-border-top: 0; border-right: 1px solid var(--line); border-bottom: 0;
-background: var(--surface); padding: 24px 14px; gap: 2px;
-box-shadow: none; backdrop-filter: none;
+top: 0; left: 0; right: 0; bottom: auto; width: auto; flex-direction: row;
+border-top: 0; border-right: 0; border-bottom: 1px solid var(--line);
+background: var(--surface); padding: 0 36px; gap: 0;
+box-shadow: var(--sh); backdrop-filter: none;
+align-items: stretch; height: 52px;
 }
-nav::before {
-content: "Plantões"; font-size: 16px; font-weight: 800; color: var(--accent);
-padding: 0 12px 20px; letter-spacing: -.02em;
-}
+nav::before { display: none; }
 nav button {
-flex: none; flex-direction: row; justify-content: flex-start; gap: 10px;
-padding: 9px 12px; border-radius: 8px; font-size: 13px; text-transform: none; letter-spacing: 0;
-color: var(--dim);
+flex: none; flex-direction: row; align-items: center; gap: 7px;
+padding: 0 14px; border-radius: 0; font-size: 13px; text-transform: none; letter-spacing: 0;
+color: var(--dim); height: 100%; border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
 nav button:hover { background: var(--surface-2); color: var(--ink); }
-nav button.on { background: var(--accent-soft); color: var(--accent); }
-nav button .nav-ico { font-size: 18px; width: 22px; height: 22px; }
+nav button:hover { background: var(--surface-2); color: var(--ink); }
+nav button.on { background: transparent; color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+nav button .nav-ico { font-size: 16px; width: 20px; height: 20px; }
 nav button.on .nav-ico { transform: none; }
-header { padding: 22px 0 17px; }
+header { padding: 20px 0 16px; position: static; background: transparent; border-bottom: 0; backdrop-filter: none; }
 header h1 { font-size: 22px; }
 #add-top { display: inline-flex; align-items: center; gap: 6px; }
 .fab { display: none; }
@@ -535,11 +536,33 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 <div id="cx-list"></div>
 </div>
 </section>
-<section id="v-trocas" class="hidden">
-<div class="sec"><h2>Saldo com colegas</h2></div>
-<div id="bal-list"></div>
-<div class="sec" style="margin-top:26px"><h2>Trocas em aberto</h2></div>
-<div id="tr-list"></div>
+<section id="v-resumo" class="hidden">
+<div class="hero" style="padding-top:20px">
+<div class="lbl" id="res-lbl">Resumo de —</div>
+<div class="big" id="res-total">R$ 0</div>
+<div class="sub" id="res-sub">—</div>
+</div>
+<div class="gauge"><i class="p" id="res-bar" style="width:0%"></i></div>
+<div class="split">
+<div><div class="k">Recebido</div><div class="v ok" id="res-rec">R$ 0</div></div>
+<div><div class="k">A receber</div><div class="v due" id="res-pend">R$ 0</div></div>
+</div>
+<div class="sec"><h2>Período</h2>
+<div class="segs" id="res-periodo">
+<button class="on" data-rp="mes">Este mês</button>
+<button data-rp="3m">3 meses</button>
+<button data-rp="ano">Este ano</button>
+<button data-rp="tudo">Tudo</button>
+</div>
+</div>
+<div class="sec"><h2>Por local</h2></div>
+<div id="res-locais"></div>
+<div class="sec" style="margin-top:8px"><h2>Por turno</h2></div>
+<div id="res-turnos"></div>
+<div class="sec" style="margin-top:8px"><h2>Últimos 6 meses</h2></div>
+<div id="res-chart"></div>
+<div class="sec" style="margin-top:8px"><h2>Plantões de colegas</h2></div>
+<div id="res-trocas"></div>
 </section>
 <section id="v-locais" class="hidden">
 <div class="sec"><h2>Hospitais e clínicas</h2></div>
@@ -609,7 +632,7 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 <nav>
 <button class="on" data-v="mes"><div class="nav-ico">📅</div>Mês</button>
 <button data-v="caixa"><div class="nav-ico">💰</div>Caixa</button>
-<button data-v="trocas"><div class="nav-ico">🔄</div>Trocas</button>
+<button data-v="resumo"><div class="nav-ico">📊</div>Resumo</button>
 <button data-v="locais"><div class="nav-ico">🏥</div>Locais</button>
 <button data-v="ajustes"><div class="nav-ico">⚙️</div>Ajustes</button>
 </nav>
@@ -987,7 +1010,7 @@ const titles = { mes: MES[cursor.getMonth()]+' '+cursor.getFullYear(), caixa:'Ca
 trocas:'Trocas', locais:'Locais', ajustes:'Ajustes' };
 $('#title').textContent = titles[view];
 $('#mnav').classList.toggle('hidden', view !== 'mes' && view !== 'caixa');
-renderMes(); renderCaixa(); renderTrocas(); renderLocais(); renderAjustes();
+renderMes(); renderCaixa(); renderResumo(); renderLocais(); renderAjustes();
 }
 function mesData(){
 return S.shifts.filter(s=>sameMonth(s.data,cursor))
@@ -1289,24 +1312,81 @@ $('#cx-fut').innerHTML = fut.map(f=>`<div class="row" data-goto="${f.ref.getFull
 <small>${f.v ? 'previsto' : 'sem lançamentos'}</small></div>
 <div class="val" style="color:${f.v?'var(--ink)':'var(--dim-2)'}">${brl(f.v)}</div></div>`).join('');
 }
-function renderTrocas(){
-const ab = abertas(), bal = {};
-ab.forEach(s=>{ const k = (s.colega||'Sem nome').trim(); bal[k] = (bal[k]||0) + (s.tipo==='passei'?1:-1); });
-const nomes = Object.keys(bal).filter(k=>bal[k]!==0).sort();
-$('#bal-list').innerHTML = nomes.length ? nomes.map(k=>{
-const v = bal[k];
-const txt = v>0 ? `te deve ${v} plantã${v>1?'os':'o'}` : `você deve ${-v} plantã${-v>1?'os':'o'}`;
-return `<div class="row"><div class="swatch" style="background:${v>0?'var(--ok)':'var(--due)'}"></div>
-<div class="txt"><b>${esc(k)}</b></div><div class="st ${v>0?'me':'eu'}">${txt}</div></div>`;
-}).join('') : `<div class="empty">Nenhuma pendência de troca.</div>`;
-$('#tr-list').innerHTML = ab.length ? ab.sort((a,b)=>a.data.localeCompare(b.data)).map(s=>{
+function renderResumo(){
+const periodo = document.querySelector('#res-periodo .on')?.dataset.rp || 'mes';
+const hj = hoje();
+const filtro = s => {
+if(!counts(s)) return false;
 const d = parseDate(s.data);
-return `<div class="row" data-open="${s.id}">
-<div class="swatch" style="background:${localCor(s.localId)}"></div>
-<div class="txt"><b>${s.tipo==='passei'?'Passei para':'Peguei de'} ${esc(s.colega||'colega')}</b>
-<small>${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} · ${esc(localName(s.localId))} · ${s.duracao}h</small></div>
-<button class="btn sm" data-quit="${s.id}">Quitar</button></div>`;
-}).join('') : `<div class="empty">Trocas com devolução prevista aparecem aqui.</div>`;
+if(periodo==='mes')  return d.getMonth()===hj.getMonth() && d.getFullYear()===hj.getFullYear();
+if(periodo==='3m'){  const lim=new Date(hj); lim.setMonth(lim.getMonth()-3); return d>=lim && d<=hj; }
+if(periodo==='ano')  return d.getFullYear()===hj.getFullYear();
+return true;
+};
+const arr = S.shifts.filter(filtro);
+const fat  = arr.reduce((a,s)=>a+liq(s),0);
+const rec  = arr.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0);
+const pend = fat - rec;
+const h    = arr.reduce((a,s)=>a+(+s.duracao||0),0);
+const nomes= {mes:'Este mês','3m':'Últimos 3 meses',ano:'Este ano',tudo:'Todo o período'};
+$('#res-lbl').textContent = 'Resumo · ' + (nomes[periodo]||'');
+$('#res-total').textContent = brl(fat);
+$('#res-sub').textContent = `${arr.length} lançamento${arr.length!==1?'s':''} · ${h}h`;
+$('#res-bar').style.width = (fat ? Math.min(100,rec/fat*100) : 0)+'%';
+$('#res-rec').textContent  = brl(rec);
+$('#res-pend').textContent = brl(pend);
+// por local
+const porLocal = {};
+arr.forEach(s=>{ porLocal[s.localId] = (porLocal[s.localId]||{fat:0,rec:0,n:0}); porLocal[s.localId].fat+=liq(s); porLocal[s.localId].rec+=s.pago?liq(s):0; porLocal[s.localId].n++; });
+const maxFat = Math.max(...Object.values(porLocal).map(x=>x.fat),1);
+$('#res-locais').innerHTML = Object.entries(porLocal).sort((a,b)=>b[1].fat-a[1].fat).map(([lid,d])=>{
+const l = getLocal(lid)||{nome:'Desconhecido',cor:'#ccc'};
+return `<div class="row" style="flex-direction:column;align-items:stretch;padding:12px 0">
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+<div class="swatch" style="background:${l.cor}"></div>
+<div class="txt"><b>${esc(l.nome)}</b><small>${d.n} lançamento${d.n!==1?'s':''}</small></div>
+<div class="val">${brl(d.fat)}</div>
+</div>
+<div class="hist-bar"><i style="width:${Math.round(d.fat/maxFat*100)}%;background:var(--accent)"></i></div>
+<div style="display:flex;justify-content:space-between;margin-top:4px">
+<span style="font-size:11.5px;color:var(--dim)">Recebido ${brl(d.rec)}</span>
+<span style="font-size:11.5px;color:var(--dim)">${fat?Math.round(d.fat/fat*100):0}% do total</span>
+</div></div>`;
+}).join('') || '<div class="empty">Nenhum lançamento no período.</div>';
+// por turno
+const porTurno = {diurno:{fat:0,n:0},noturno:{fat:0,n:0}};
+arr.forEach(s=>{ const t=s.turno||'diurno'; porTurno[t].fat+=liq(s); porTurno[t].n++; });
+$('#res-turnos').innerHTML = Object.entries(porTurno).filter(([,d])=>d.n>0).map(([t,d])=>`
+<div class="row"><div class="txt"><b>${t==='diurno'?'☀️ Diurno':'🌙 Noturno'}</b><small>${d.n} plantão${d.n!==1?'es':''}</small></div><div class="val">${brl(d.fat)}</div></div>`).join('') || '<div class="empty">—</div>';
+// gráfico 6 meses (reutilizar chartPanel mas direcionado para res-chart)
+const meses=mesesRetroativos(6);
+const dados=meses.map(m=>{
+const sub=S.shifts.filter(s=>counts(s)&&parseDate(dataCaixa(s)).getMonth()===m.m&&parseDate(dataCaixa(s)).getFullYear()===m.y);
+return{label:m.label,fat:sub.reduce((a,s)=>a+liq(s),0),rec:sub.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0)};
+});
+const maxV=Math.max(...dados.map(d=>d.fat),1);
+const W=320,H=140,pad={t:8,r:12,b:28,l:44};
+const gW=W-pad.l-pad.r,gH=H-pad.t-pad.b;
+const x=i=>pad.l+i*(gW/dados.length)+gW/dados.length/2;
+const y=v=>pad.t+gH*(1-v/maxV);
+const bW=Math.floor(gW/dados.length*0.55);
+let bars='',pts=[],ptsFat=[];
+dados.forEach((d,i)=>{
+bars+=`<rect x="${x(i)-bW/2}" y="${y(d.fat)}" width="${bW}" height="${gH*(d.fat/maxV)}" rx="3" fill="var(--accent)" opacity=".2"/>`;
+bars+=`<rect x="${x(i)-bW/2}" y="${y(d.rec)}" width="${bW}" height="${gH*(d.rec/maxV)}" rx="3" fill="var(--accent)" opacity=".7"/>`;
+pts.push([x(i),y(d.rec)]); ptsFat.push([x(i),y(d.fat)]);
+bars+=`<text x="${x(i)}" y="${H-pad.b+14}" text-anchor="middle" font-size="10" fill="var(--dim)">${d.label}</text>`;
+const ticks=3;
+if(i===0) for(let t=0;t<=ticks;t++){const vv=maxV*t/ticks;const yy=y(vv);bars+=`<line x1="${pad.l}" x2="${W-pad.r}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${pad.l-4}" y="${yy+4}" text-anchor="end" font-size="9" fill="var(--dim)">${vv>=1000?(vv/1000).toFixed(0)+'k':Math.round(vv)}</text>`;}
+});
+const linha=(arr,op)=>arr.length<2?'':'<path d="M'+arr.map(p=>p.join(',')).join('L')+'" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" opacity="'+op+'"/>';
+$('#res-chart').innerHTML=`<div class="chart-wrap"><svg class="chart-svg" viewBox="0 0 ${W} ${H}">${bars}${linha(ptsFat,.3)}${linha(pts,1)}${pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--accent)"/>`).join('')}</svg><div class="chart-leg"><span><i style="background:var(--accent);opacity:.3"></i>Faturado</span><span><i style="background:var(--accent)"></i>Recebido</span></div></div>`;
+// plantões de colegas
+const colegas = S.shifts.filter(s=>counts(s)&&s.tipo==='peguei').sort((a,b)=>b.data.localeCompare(a.data));
+$('#res-trocas').innerHTML = colegas.length ? colegas.slice(0,8).map(s=>{
+const d=parseDate(s.data);
+return `<div class="row"><div class="txt"><b>${esc(localName(s.localId))}</b><small>${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()} · de ${esc(s.colega||'colega')}</small></div><div class="val">${brl(liq(s))}</div></div>`;
+}).join('') : '<div class="empty">Nenhum plantão de colega no período.</div>';
 }
 function renderLocais(){
 $('#loc-list').innerHTML = S.locais.length ? S.locais.map(l=>{
@@ -2049,6 +2129,13 @@ render();
 });
 function novoItem(){ return view === 'locais' ? openLocal(null) : openSheet(null); }
 $('#fab').onclick = novoItem;
+// período do resumo
+document.querySelectorAll('#res-periodo button').forEach(b=>{
+b.onclick = ()=>{
+document.querySelectorAll('#res-periodo button').forEach(x=>x.classList.remove('on'));
+b.classList.add('on'); renderResumo();
+};
+});
 // quick-banner: registrar com um toque
 (function atualizaQuickBanner(){
 const hj = hoje();
@@ -2288,13 +2375,7 @@ return;
 const o = e.target.closest('[data-cxopen]');
 if(o) openSheet(S.shifts.find(x=>x.id===o.dataset.cxopen));
 });
-$('#tr-list').addEventListener('click', async e=>{
-const q = e.target.closest('[data-quit]');
-if(q){ const s = S.shifts.find(x=>x.id===q.dataset.quit); s.quitado = true;
-await store.save(S); render(); toast('Troca quitada'); return; }
-const r = e.target.closest('[data-open]');
-if(r) openSheet(S.shifts.find(x=>x.id===r.dataset.open));
-});
+// tr-list removido — aba Trocas substituída por Resumo
 $('#loc-list').addEventListener('click', e=>{
 if(e.target.closest('[data-map]')) return;
 const r = e.target.closest('[data-loc]');
