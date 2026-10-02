@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -408,6 +408,43 @@ box-shadow: var(--sh-md);
 .proj-card .pc-range { font-size: 20px; font-weight: 800; color: var(--ink); letter-spacing: -.01em; }
 .proj-card .pc-base { font-size: 12px; color: var(--dim); margin-top: 4px; }
 /* ── Layout Desktop ── */
+/* ─── landscape mobile: iPhone rotacionado ─── */
+@media(orientation:landscape) and (max-width:899px){
+:root { --rail:0px; }
+body { padding-bottom: 40px; padding-top: 52px; }
+/* nav vira topbar horizontal igual ao desktop */
+nav {
+top:0; left:0; right:0; bottom:auto; width:auto; flex-direction:row;
+border-top:0; border-right:0; border-bottom:1px solid var(--line);
+background:rgba(240,237,230,.95); padding:0 20px; gap:0;
+height:48px; align-items:stretch; box-shadow:var(--sh); backdrop-filter:blur(16px);
+}
+nav::before { display:none; }
+nav button {
+flex:1; flex-direction:row; align-items:center; justify-content:center; gap:6px;
+padding:0 8px; border-radius:0; font-size:11.5px; text-transform:none; letter-spacing:0;
+height:100%; border-bottom:2px solid transparent; margin-bottom:-1px;
+}
+nav button:hover { background:var(--surface-2); }
+nav button.on { background:transparent; color:var(--accent); border-bottom-color:var(--accent); font-weight:700; }
+nav button .nav-ico { font-size:16px; width:18px; height:18px; }
+nav button.on .nav-ico { transform:none; }
+/* FAB sobe para não cobrir conteúdo */
+.fab { bottom:calc(56px + env(safe-area-inset-bottom)); right:16px; }
+/* hero mais compacto */
+.hero { padding-top:12px; }
+.hero .big { font-size:clamp(32px,8vw,48px); }
+.split { padding-bottom:12px; }
+/* calendário cabe ao lado da lista em 2 colunas */
+#v-mes section { display:grid; grid-template-columns:minmax(0,320px) minmax(0,1fr); gap:24px; align-items:start; }
+/* safe area lateral em landscape */
+.wrap { padding:0 calc(20px + env(safe-area-inset-left)) 0 calc(20px + env(safe-area-inset-right)); }
+header { padding:calc(10px + env(safe-area-inset-top)) 0 10px; }
+}
+/* ─── dark mode: nav landscape ─── */
+@media(prefers-color-scheme:dark) and (orientation:landscape) and (max-width:899px){
+nav { background:rgba(28,28,26,.96); }
+}
 @media(min-width:900px){
 :root { --rail: 0px; }
 body { padding-bottom: 40px; padding-top: 52px; }
