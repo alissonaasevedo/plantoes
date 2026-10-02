@@ -641,6 +641,7 @@ input,select,textarea{background:var(--surface-2);color:var(--ink);border-color:
 .fab{box-shadow:0 6px 20px rgba(0,0,0,.55);}
 .quick-banner{background:var(--accent);}
 }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
 @media(prefers-reduced-motion:reduce){ * { transition: none !important; } }
 /* nav com ícones */
 nav {
@@ -671,6 +672,21 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 </head>
 <body>
 <div class="wrap">
+<div id="ptr-indicator" style="
+position:fixed;top:0;left:0;right:0;z-index:100;
+display:flex;align-items:center;justify-content:center;
+height:0;overflow:hidden;
+background:var(--bg);
+transition:height .2s ease;
+pointer-events:none;
+">
+<div id="ptr-spinner" style="
+width:28px;height:28px;border-radius:50%;
+border:2.5px solid var(--line);
+border-top-color:var(--accent);
+opacity:0;transition:opacity .2s;
+"></div>
+</div>
 <header>
 <h1 id="title">—</h1>
 <div class="headtools">
@@ -2570,6 +2586,68 @@ else S.locais.push({ id:uid(), ...dados });
 await store.save(S); closeSheets(); render(); toast('Local salvo');
 }
 /* ================= eventos ================= */
+// ── pull-to-refresh ──
+(function(){
+const IND   = document.getElementById('ptr-indicator');
+const SPIN  = document.getElementById('ptr-spinner');
+const THRESHOLD = 72;   // px para disparar
+const MAX_PULL  = 90;
+let startY = 0, pulling = false, released = false;
+let rafId  = null;
+let spinning = false;
+function setHeight(h){
+IND.style.height = h + 'px';
+SPIN.style.opacity = Math.min(1, h / THRESHOLD);
+const rot = (h / THRESHOLD) * 180;
+SPIN.style.transform = `rotate(${rot}deg)`;
+}
+function startSpin(){
+spinning = true;
+SPIN.style.transition = 'opacity .2s';
+SPIN.style.transform  = '';
+SPIN.style.animation  = 'ptr-spin .7s linear infinite';
+}
+function reset(){
+IND.style.transition   = 'height .3s ease';
+SPIN.style.transition  = 'opacity .3s';
+setHeight(0);
+setTimeout(()=>{
+IND.style.transition  = '';
+SPIN.style.animation  = '';
+SPIN.style.transform  = '';
+spinning = false; pulling = false; released = false;
+}, 320);
+}
+document.addEventListener('touchstart', e=>{
+if(window.scrollY > 4) return;
+startY   = e.touches[0].clientY;
+pulling  = true;
+released = false;
+IND.style.transition = '';
+}, {passive:true});
+document.addEventListener('touchmove', e=>{
+if(!pulling || released) return;
+const dy = e.touches[0].clientY - startY;
+if(dy <= 0) return;
+const pull = Math.min(dy * .45, MAX_PULL);
+setHeight(pull);
+}, {passive:true});
+document.addEventListener('touchend', async ()=>{
+if(!pulling || released) return;
+released = true;
+const h = parseFloat(IND.style.height)||0;
+if(h >= THRESHOLD){
+IND.style.transition = 'height .2s ease';
+IND.style.height     = THRESHOLD + 'px';
+startSpin();
+await new Promise(r=>setTimeout(r, 700));
+render();
+toast('Atualizado ✓');
+await new Promise(r=>setTimeout(r, 300));
+}
+reset();
+});
+})();
 // ocultar saldo
 let saldoOculto = false;
 const MASK = 'R$ •••••';
