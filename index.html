@@ -410,40 +410,107 @@ box-shadow: var(--sh-md);
 /* ── Layout Desktop ── */
 /* ─── landscape mobile: iPhone rotacionado ─── */
 @media(orientation:landscape) and (max-width:899px){
-:root { --rail:0px; }
-body { padding-bottom: 40px; padding-top: 52px; }
-/* nav vira topbar horizontal igual ao desktop */
+:root {
+--rail: 0px;
+--sat: env(safe-area-inset-top, 0px);
+--sab: env(safe-area-inset-bottom, 0px);
+--sal: env(safe-area-inset-left, 0px);
+--sar: env(safe-area-inset-right, 0px);
+}
+/* body: padding-top para nav no topo, zero embaixo (nav não está mais em baixo) */
+body {
+padding-top: 48px;
+padding-bottom: calc(16px + var(--sab));
+padding-left: var(--sal);
+padding-right: var(--sar);
+overflow-x: hidden;
+}
+/* header some em landscape — a nav já tem o título */
+header { display: none; }
+/* nav: topbar fixo no topo, ocupa largura toda */
 nav {
-top:0; left:0; right:0; bottom:auto; width:auto; flex-direction:row;
-border-top:0; border-right:0; border-bottom:1px solid var(--line);
-background:rgba(240,237,230,.95); padding:0 20px; gap:0;
-height:48px; align-items:stretch; box-shadow:var(--sh); backdrop-filter:blur(16px);
+position: fixed;
+top: 0; left: 0; right: 0; bottom: auto;
+width: 100%; height: 48px;
+flex-direction: row; align-items: stretch;
+border-top: 0; border-right: 0; border-bottom: 1px solid var(--line);
+background: rgba(240,237,230,.97);
+backdrop-filter: blur(16px);
+padding: 0 calc(16px + var(--sal)) 0 calc(16px + var(--sar));
+gap: 0; z-index: 25; box-shadow: 0 1px 0 var(--line);
 }
-nav::before { display:none; }
 nav button {
-flex:1; flex-direction:row; align-items:center; justify-content:center; gap:6px;
-padding:0 8px; border-radius:0; font-size:11.5px; text-transform:none; letter-spacing:0;
-height:100%; border-bottom:2px solid transparent; margin-bottom:-1px;
+flex: 1;
+flex-direction: column;
+align-items: center; justify-content: center;
+gap: 2px;
+padding: 0 4px;
+border-radius: 0;
+font-size: 9.5px;
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: .03em;
+height: 100%;
+border-bottom: 2px solid transparent;
+margin-bottom: -1px;
+color: var(--dim-2);
 }
-nav button:hover { background:var(--surface-2); }
-nav button.on { background:transparent; color:var(--accent); border-bottom-color:var(--accent); font-weight:700; }
-nav button .nav-ico { font-size:16px; width:18px; height:18px; }
-nav button.on .nav-ico { transform:none; }
-/* FAB sobe para não cobrir conteúdo */
-.fab { bottom:calc(56px + env(safe-area-inset-bottom)); right:16px; }
-/* hero mais compacto */
-.hero { padding-top:12px; }
-.hero .big { font-size:clamp(32px,8vw,48px); }
-.split { padding-bottom:12px; }
-/* calendário cabe ao lado da lista em 2 colunas */
-#v-mes section { display:grid; grid-template-columns:minmax(0,320px) minmax(0,1fr); gap:24px; align-items:start; }
-/* safe area lateral em landscape */
-.wrap { padding:0 calc(20px + env(safe-area-inset-left)) 0 calc(20px + env(safe-area-inset-right)); }
-header { padding:calc(10px + env(safe-area-inset-top)) 0 10px; }
+nav button .nav-ico { font-size: 18px; width: 22px; height: 22px; }
+nav button.on { color: var(--accent); border-bottom-color: var(--accent); background: transparent; }
+nav button.on .nav-ico { transform: none; }
+/* FAB posicionado para não sobrepor conteúdo */
+.fab {
+position: fixed;
+right: calc(20px + var(--sar));
+bottom: calc(20px + var(--sab));
+z-index: 30;
 }
-/* ─── dark mode: nav landscape ─── */
+/* wrap: respeita safe-areas laterais */
+.wrap {
+padding-left: calc(16px + var(--sal));
+padding-right: calc(16px + var(--sar));
+max-width: 100%;
+}
+/* hero compacto */
+.hero { padding-top: 10px; }
+.hero .big { font-size: clamp(28px, 7vw, 44px); }
+.split { padding-bottom: 10px; }
+/* layout 2 colunas aproveitando a largura */
+#v-mes section,
+#v-caixa section {
+display: grid;
+grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+gap: 20px;
+align-items: start;
+}
+/* mnav botões navegação mês */
+.mnav button { width: 36px; height: 36px; }
+/* sheet em landscape: ocupa menos altura */
+.sheet {
+max-height: 95vw;
+border-radius: 12px 12px 0 0;
+}
+}
+/* ─── dark mode em landscape ─── */
 @media(prefers-color-scheme:dark) and (orientation:landscape) and (max-width:899px){
-nav { background:rgba(28,28,26,.96); }
+nav { background: rgba(26,26,24,.97); }
+}
+/* ─── header inline em landscape (substitui o sticky que some) ─── */
+@media(orientation:landscape) and (max-width:899px){
+#v-mes > .wrap > .pane > .inline-header,
+#v-caixa > .wrap > .pane > .inline-header,
+#v-resumo > .wrap > .inline-header,
+#v-locais > .wrap > .inline-header,
+#v-ajustes > .wrap > .inline-header { display: flex !important; }
+.inline-header {
+display: none;
+align-items: center; justify-content: space-between;
+padding: 10px 0 8px;
+gap: 10px;
+}
+.inline-header h1 {
+font-size: 16px; font-weight: 700; letter-spacing: -.01em; color: var(--accent); flex: 1;
+}
 }
 @media(min-width:900px){
 :root { --rail: 0px; }
@@ -584,6 +651,14 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 </header>
 <section id="v-mes">
 <div class="pane">
+<div class="inline-header">
+<h1 id="il-mes">Mês</h1>
+<div class="mnav">
+<button id="prev-il">‹</button>
+<button id="today-il">◦</button>
+<button id="next-il">›</button>
+</div>
+</div>
 <div class="hero">
 <div class="lbl" id="h-lbl-caixa">Entra em —</div>
 <div class="big" id="h-total">R$ 0</div>
@@ -631,6 +706,14 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 </section>
 <section id="v-caixa" class="hidden">
 <div class="pane">
+<div class="inline-header">
+<h1 id="il-caixa">Caixa</h1>
+<div class="mnav">
+<button id="cx-prev-il">‹</button>
+<button id="cx-today-il">◦</button>
+<button id="cx-next-il">›</button>
+</div>
+</div>
 <div class="hero">
 <div class="lbl" id="cx-lbl">Entra neste mês</div>
 <div class="big" id="cx-total">R$ 0</div>
@@ -1144,6 +1227,8 @@ function render(){
 const titles = { mes: MES[cursor.getMonth()]+' '+cursor.getFullYear(), caixa:'Caixa · '+MES[cursor.getMonth()],
 resumo:'Resumo', locais:'Locais', ajustes:'Ajustes' };
 $('#title').textContent = titles[view];
+const ilMes=$('#il-mes'); if(ilMes) ilMes.textContent=MES[cursor.getMonth()]+' '+cursor.getFullYear();
+const ilCx=$('#il-caixa'); if(ilCx) ilCx.textContent='Caixa · '+MES[cursor.getMonth()];
 $('#mnav').classList.toggle('hidden', view !== 'mes' && view !== 'caixa');
 renderMes(); renderCaixa(); renderResumo(); renderLocais(); renderAjustes();
 }
@@ -2341,6 +2426,12 @@ await store.save(S); closeSheets(); render(); toast('Local salvo');
 $('#prev').onclick  = ()=>{ cursor = new Date(cursor.getFullYear(), cursor.getMonth()-1, 1); render(); };
 $('#next').onclick  = ()=>{ cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1); render(); };
 $('#today').onclick = ()=>{ cursor = new Date(); render(); };
+$('#prev-il').onclick   = ()=>{ cursor = new Date(cursor.getFullYear(), cursor.getMonth()-1, 1); render(); };
+$('#next-il').onclick   = ()=>{ cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1); render(); };
+$('#today-il').onclick  = ()=>{ cursor = new Date(); render(); };
+$('#cx-prev-il').onclick  = ()=>{ cursor = new Date(cursor.getFullYear(), cursor.getMonth()-1, 1); render(); };
+$('#cx-next-il').onclick  = ()=>{ cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1); render(); };
+$('#cx-today-il').onclick = ()=>{ cursor = new Date(); render(); };
 $$('nav button').forEach(b=>{
 b.onclick = ()=>{
 view = b.dataset.v;
