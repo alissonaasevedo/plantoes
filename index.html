@@ -100,12 +100,23 @@ background: var(--surface);
 }
 .list-sep:first-child { padding-top: 6px; }
 /* ocultar saldo */
-.saldo-oculto .big::after { content: 'R$ •••••'; }
-.saldo-oculto .big > * { display: none; }
-.saldo-oculto #h-total { font-size: clamp(44px, 12vw, 60px); letter-spacing: -.03em; color: var(--ink); }
-.saldo-oculto .v, .saldo-oculto .val,
-.saldo-oculto #h-sub { filter: blur(8px); user-select: none; pointer-events: none; }
-.saldo-oculto .tl-cx-bar, .saldo-oculto .money { filter: blur(8px); }
+.saldo-oculto .money,
+.saldo-oculto .val,
+.saldo-oculto .v.ok,
+.saldo-oculto .v.due,
+.saldo-oculto #h-sub,
+.saldo-oculto .row-val,
+.saldo-oculto .tl-cx-bar,
+.saldo-oculto .res-total,
+.saldo-oculto .cx-total {
+filter: blur(7px);
+user-select: none;
+pointer-events: none;
+transition: filter .2s ease;
+}
+/* pill de valor também fica oculto */
+.saldo-oculto .pill.pago,
+.saldo-oculto .pill.pend { filter: blur(5px); }
 /* barra de controles da lista — não transborda em telas pequenas */
 .ctrl-bar {
 display: flex; gap: 6px; align-items: center;
@@ -1368,8 +1379,10 @@ const dur=480,ini=performance.now();
 const ease=t=>t<.5?2*t*t:(4-2*t)*t-1;
 function step(now){
 const t=Math.min((now-ini)/dur,1);
-el.textContent=brl(Math.round(anterior+(alvo-anterior)*ease(t)));
-if(t<1)requestAnimationFrame(step); else el.textContent=brl(alvo);
+const v=brl(Math.round(anterior+(alvo-anterior)*ease(t)));
+if(!saldoOculto) el.textContent=v; else el.dataset.real=v;
+if(t<1)requestAnimationFrame(step);
+else { el.dataset.real=brl(alvo); if(!saldoOculto) el.textContent=brl(alvo); }
 }
 requestAnimationFrame(step);
 })(cxTot);
@@ -2559,11 +2572,27 @@ await store.save(S); closeSheets(); render(); toast('Local salvo');
 /* ================= eventos ================= */
 // ocultar saldo
 let saldoOculto = false;
+const MASK = 'R$ •••••';
+function aplicarOcultar(){
+document.body.classList.toggle('saldo-oculto', saldoOculto);
+$('#ico-olho').style.display     = saldoOculto ? 'none' : '';
+$('#ico-olho-off').style.display = saldoOculto ? '' : 'none';
+// hero principal
+const el = $('#h-total');
+if(saldoOculto){
+if(!el.dataset.real) el.dataset.real = el.textContent;
+el.textContent = MASK;
+el.style.fontSize = 'clamp(36px,9vw,48px)';
+el.style.letterSpacing = '.05em';
+} else {
+if(el.dataset.real){ el.textContent = el.dataset.real; el.removeAttribute('data-real'); }
+el.style.fontSize = '';
+el.style.letterSpacing = '';
+}
+}
 $('#btn-ocultar').onclick = ()=>{
 saldoOculto = !saldoOculto;
-document.body.classList.toggle('saldo-oculto', saldoOculto);
-$('#ico-olho').style.display     = saldoOculto ? 'none'  : '';
-$('#ico-olho-off').style.display = saldoOculto ? '' : 'none';
+aplicarOcultar();
 };
 $('#prev').onclick  = ()=>{ cursor = new Date(cursor.getFullYear(), cursor.getMonth()-1, 1); render(); };
 $('#next').onclick  = ()=>{ cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1); render(); };
