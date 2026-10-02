@@ -1257,18 +1257,79 @@ return d.getMonth()===cursor.getMonth() && d.getFullYear()===cursor.getFullYear(
 const cxRec  = noMesCx.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0);
 const cxPrev = noMesCx.filter(s=>!s.pago).reduce((a,s)=>a+liq(s),0);
 const cxTot  = cxRec + cxPrev;
-// sparkline dos últimos 6 meses inline no label
+// sparkline animada dos últimos 6 meses
 (function(){
 const sm=mesesRetroativos(6);
 const sv=sm.map(m=>S.shifts.filter(s=>counts(s)&&parseDate(dataCaixa(s)).getMonth()===m.m&&parseDate(dataCaixa(s)).getFullYear()===m.y).reduce((a,s)=>a+liq(s),0));
-const mx=Math.max(...sv,1); const W=60,H=18;
-const pts=sv.map((v,i)=>`${(i/(sv.length-1)*W).toFixed(1)},${(H-v/mx*H).toFixed(1)}`).join(' ');
-const lastX=W, lastY=(H-sv[sv.length-1]/mx*H).toFixed(1);
-const svg=sv.some(v=>v>0)
-?`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align:middle;margin-left:8px;opacity:.65;flex:none"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${lastX}" cy="${lastY}" r="2.5" fill="var(--accent)"/></svg>`:'';
+const mx=Math.max(...sv,1); const W=64,H=20;
+const pts=sv.map((v,i)=>`${(i/(sv.length-1)*W).toFixed(1)},${(H-2-v/mx*(H-4)).toFixed(1)}`).join(' ');
+const lastY=(H-2-sv[sv.length-1]/mx*(H-4)).toFixed(1);
+const temDados=sv.some(v=>v>0);
+// calcular comprimento da polyline para a animação
+function polylineLen(pts){
+const pairs=pts.split(' ').map(p=>p.split(',').map(Number));
+let len=0;
+for(let i=1;i<pairs.length;i++){
+const dx=pairs[i][0]-pairs[i-1][0], dy=pairs[i][1]-pairs[i-1][1];
+len+=Math.sqrt(dx*dx+dy*dy);
+}
+return len;
+}
+const svg=temDados?`<svg id="spark-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"
+style="vertical-align:middle;margin-left:7px;flex:none;overflow:visible">
+<defs>
+<linearGradient id="spark-fade" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0%" stop-color="var(--accent)" stop-opacity="0.3"/>
+<stop offset="100%" stop-color="var(--accent)" stop-opacity="1"/>
+</linearGradient>
+</defs>
+<polyline id="spark-line" points="${pts}"
+fill="none" stroke="url(#spark-fade)" stroke-width="2"
+stroke-linecap="round" stroke-linejoin="round"/>
+<circle id="spark-dot" cx="${W}" cy="${lastY}" r="0"
+fill="var(--accent)" opacity="0"/>
+</svg>`:'' ;
 const lbl=$('#h-lbl-caixa');
 lbl.style.display='flex'; lbl.style.alignItems='center';
 lbl.innerHTML='Entra em '+MES[cursor.getMonth()]+svg;
+if(!temDados) return;
+// animar a linha (stroke-dashoffset draw) + pulso no ponto final
+requestAnimationFrame(()=>{
+const line=document.getElementById('spark-line');
+const dot =document.getElementById('spark-dot');
+if(!line||!dot) return;
+const len=Math.ceil(polylineLen(pts));
+line.style.strokeDasharray=len;
+line.style.strokeDashoffset=len;
+const dur=520; const ini=performance.now();
+const ease=t=>t<.5?2*t*t:(4-2*t)*t-1;
+function step(now){
+const t=Math.min((now-ini)/dur,1);
+const prog=ease(t);
+line.style.strokeDashoffset=len*(1-prog);
+if(t>=1){
+// pulso no ponto final após a linha terminar
+dot.style.opacity='1';
+dot.setAttribute('r','2.5');
+let pr=2.5, growing=true;
+let pulsos=0;
+function pulsar(){
+if(pulsos>=2) return;
+const pDur=300; const pIni=performance.now();
+function pStep(now2){
+const pt=Math.min((now2-pIni)/pDur,1);
+const r=growing ? 2.5+1.5*Math.sin(pt*Math.PI) : 2.5;
+dot.setAttribute('r',r.toFixed(2));
+if(pt<1) requestAnimationFrame(pStep);
+else { pulsos++; if(pulsos<2) requestAnimationFrame(pulsar); }
+}
+requestAnimationFrame(pStep);
+}
+setTimeout(pulsar,80);
+} else requestAnimationFrame(step);
+}
+requestAnimationFrame(step);
+});
 })();
 (function animarHero(alvo){
 const el=$('#h-total');
