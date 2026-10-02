@@ -353,6 +353,21 @@ padding: 10px 18px; border-radius: 99px; opacity: 0; transition: .22s; pointer-e
 /* ── Caixa ── */
 .taxbar { height: 5px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; margin: 10px 0 5px; }
 .taxbar i { display: block; height: 100%; background: var(--accent); transition: width .4s ease; }
+/* timeline da aba Caixa */
+.tl-cx { padding: 4px 0; }
+.tl-cx-item { display: flex; gap: 14px; padding-bottom: 4px; cursor: pointer; }
+.tl-cx-item:hover .tl-cx-body { background: var(--surface-2); }
+.tl-cx-line { display: flex; flex-direction: column; align-items: center; width: 16px; flex: none; padding-top: 14px; }
+.tl-cx-dot { width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid; flex: none; transition: background .2s; }
+.tl-cx-vline { width: 2px; flex: 1; min-height: 24px; background: var(--line); margin-top: 4px; border-radius: 99px; }
+.tl-cx-vline.hidden { visibility: hidden; }
+.tl-cx-body { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; transition: background .15s; }
+.tl-cx-top { display: flex; gap: 10px; align-items: flex-start; }
+.tl-cx-top .txt { flex: 1; min-width: 0; }
+.tl-cx-bar { height: 4px; border-radius: 99px; background: var(--line); overflow: hidden; margin-top: 8px; position: relative; }
+.tl-cx-bar i { display: block; height: 100%; background: var(--ok); border-radius: 99px; transition: width .5s ease; }
+.tl-cx-bar span { position: absolute; right: 0; top: 6px; font-size: 10.5px; color: var(--dim); white-space: nowrap; }
+.tl-cx-pago .tl-cx-dot { background: var(--ok); }
 /* ── Changelog ── */
 .cl-version { margin-bottom: 22px; }
 .cl-version:last-child { margin-bottom: 0; }
@@ -465,6 +480,29 @@ width: 52px !important;
 font-size: 11px !important;
 font-weight: 700 !important;
 letter-spacing: .04em !important;
+}
+@media(prefers-color-scheme:dark){
+:root{
+--bg:#1C1C1A; --bg-soft:#222220; --surface:#242422; --surface-2:#2C2C2A;
+--line:#333331; --line-2:#454542;
+--ink:#F0EDE6; --dim:#8A8780; --dim-2:#5E5D5A;
+--accent-soft:rgba(10,95,95,.22); --ok-soft:rgba(10,107,58,.18);
+--due-soft:rgba(155,27,27,.18); --amber-soft:rgba(192,118,5,.18);
+--sh:0 1px 4px rgba(0,0,0,.4),0 2px 10px rgba(0,0,0,.35);
+--sh-md:0 4px 20px rgba(0,0,0,.55);
+}
+header{background:rgba(28,28,26,.93);}
+nav{background:rgba(36,36,34,.97);}
+.sheet,.scrim{--bg:#1C1C1A;}
+.sheet{background:var(--bg);}
+input,select,textarea{background:var(--surface-2);color:var(--ink);border-color:var(--line-2);}
+.cal .grid button.has{background:var(--surface-2);}
+.mnav button,.btn{background:var(--surface-2);}
+.segs{background:var(--surface-2);}
+.segs button.on{background:var(--surface);}
+.shift,.cal,.chart-wrap,.proj-card,.meta-ring,.next{background:var(--surface);border-color:var(--line);}
+.fab{box-shadow:0 6px 20px rgba(0,0,0,.55);}
+.quick-banner{background:var(--accent);}
 }
 @media(prefers-reduced-motion:reduce){ * { transition: none !important; } }
 /* nav com ícones */
@@ -634,6 +672,13 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 <button class="btn sm" id="ics-all">Exportar tudo</button>
 </div>
 <p class="hint" style="margin-top:14px">Gera um arquivo .ics com vários plantões de uma vez. No Google Agenda, importe em Configurações → Importar e exportar. No iPhone, toque no arquivo baixado.</p>
+<div class="sec" style="margin-top:26px"><h2>Notificações</h2></div>
+<div class="row2" style="margin-top:4px">
+<div>
+<p class="hint" style="margin-top:0">Receba um aviso no dia anterior ao próximo plantão, às 20h. Funciona com o app instalado na tela inicial (iPhone: Safari → Adicionar à Tela Inicial).</p>
+</div>
+</div>
+<button class="btn sm" id="btn-notif" style="margin-bottom:20px">🔔 Ativar notificações</button>
 <div class="sec" style="margin-top:26px"><h2>Conferência de lançamentos (14 dias)</h2></div>
 <div id="conf-grid-wrap"></div>
 <p class="hint">Dias em vermelho não têm nenhum lançamento. Toque para lançar.</p>
@@ -1085,8 +1130,33 @@ return d.getMonth()===cursor.getMonth() && d.getFullYear()===cursor.getFullYear(
 const cxRec  = noMesCx.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0);
 const cxPrev = noMesCx.filter(s=>!s.pago).reduce((a,s)=>a+liq(s),0);
 const cxTot  = cxRec + cxPrev;
-$('#h-lbl-caixa').textContent = 'Entra em ' + MES[cursor.getMonth()];
-$('#h-total').textContent = brl(cxTot);
+// sparkline dos últimos 6 meses inline no label
+(function(){
+const sm=mesesRetroativos(6);
+const sv=sm.map(m=>S.shifts.filter(s=>counts(s)&&parseDate(dataCaixa(s)).getMonth()===m.m&&parseDate(dataCaixa(s)).getFullYear()===m.y).reduce((a,s)=>a+liq(s),0));
+const mx=Math.max(...sv,1); const W=60,H=18;
+const pts=sv.map((v,i)=>`${(i/(sv.length-1)*W).toFixed(1)},${(H-v/mx*H).toFixed(1)}`).join(' ');
+const lastX=W, lastY=(H-sv[sv.length-1]/mx*H).toFixed(1);
+const svg=sv.some(v=>v>0)
+?`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align:middle;margin-left:8px;opacity:.65;flex:none"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${lastX}" cy="${lastY}" r="2.5" fill="var(--accent)"/></svg>`:'';
+const lbl=$('#h-lbl-caixa');
+lbl.style.display='flex'; lbl.style.alignItems='center';
+lbl.innerHTML='Entra em '+MES[cursor.getMonth()]+svg;
+})();
+(function animarHero(alvo){
+const el=$('#h-total');
+const anterior=parseFloat((el.dataset.valor||'0').replace(/\D/g,''))||0;
+if(anterior===alvo){el.textContent=brl(alvo);return;}
+el.dataset.valor=alvo;
+const dur=480,ini=performance.now();
+const ease=t=>t<.5?2*t*t:(4-2*t)*t-1;
+function step(now){
+const t=Math.min((now-ini)/dur,1);
+el.textContent=brl(Math.round(anterior+(alvo-anterior)*ease(t)));
+if(t<1)requestAnimationFrame(step); else el.textContent=brl(alvo);
+}
+requestAnimationFrame(step);
+})(cxTot);
 const partesSub = [];
 if(noMesCx.length) partesSub.push(`${noMesCx.length} entrada${noMesCx.length>1?'s':''}`);
 if(total) partesSub.push(`faturado ${brl(total)}`);
@@ -1376,16 +1446,38 @@ return `<div class="row"><div class="swatch" style="background:${localCor(s.loca
 <div class="val">${brl(liq(s))}</div>
 <button class="btn sm" data-cxpay="${s.id}">Caiu</button></div>`;
 }).join('')}</div>` : '';
-// entradas do mês
-$('#cx-list').innerHTML = noMes.length ? noMes.map(s=>{
-const d = parseDate(dataCaixa(s)), t0 = parseDate(s.data);
-return `<div class="row" data-cxopen="${s.id}">
-<div class="swatch" style="background:${localCor(s.localId)}"></div>
-<div class="txt"><b>${esc(localName(s.localId))}</b>
-<small>${(!s.pago && vencIncerto(s)) ? `previsto em ${MES[d.getMonth()]}` : pad2(d.getDate())+'/'+pad2(d.getMonth()+1)} · lançamento de ${pad2(t0.getDate())}/${pad2(t0.getMonth()+1)}</small></div>
+// entradas do mês — timeline visual
+if(!noMes.length){
+$('#cx-list').innerHTML=`<div class="empty">Nenhuma entrada prevista para ${MES[m]}.</div>`;
+} else {
+const saldoCum = [];
+let acum=0;
+noMes.forEach(s=>{ acum+=s.pago?liq(s):0; saldoCum.push(acum); });
+const maxSaldo=Math.max(...noMes.map((_,i)=>saldoCum[i]||0),tot,1);
+$('#cx-list').innerHTML=`<div class="tl-cx">
+${noMes.map((s,i)=>{
+const d=parseDate(dataCaixa(s)), t0=parseDate(s.data);
+const dataStr=(!s.pago&&vencIncerto(s))?`previsto em ${MES[d.getMonth()]}`:pad2(d.getDate())+'/'+pad2(d.getMonth()+1);
+const pct=Math.round(saldoCum[i]/maxSaldo*100);
+return `<div class="tl-cx-item ${s.pago?'tl-cx-pago':''}" data-cxopen="${s.id}">
+<div class="tl-cx-line">
+<div class="tl-cx-dot" style="background:${s.pago?'var(--ok)':'var(--line-2)'}; border-color:${localCor(s.localId)}"></div>
+<div class="tl-cx-vline ${i===noMes.length-1?'hidden':''}"></div>
+</div>
+<div class="tl-cx-body">
+<div class="tl-cx-top">
+<div class="txt"><b>${esc(localName(s.localId))}</b><small>${dataStr} · lançamento ${pad2(t0.getDate())}/${pad2(t0.getMonth()+1)}</small></div>
+<div style="text-align:right">
 <div class="val">${brl(liq(s))}</div>
-<div class="pill ${s.pago?'pago':'pend'}" data-cxpay="${s.id}">${s.pago?'Caiu':'Previsto'}</div></div>`;
-}).join('') : `<div class="empty">Nenhuma entrada prevista para ${MES[m]}.</div>`;
+<div class="pill ${s.pago?'pago':'pend'}" data-cxpay="${s.id}">${s.pago?'Caiu':'Previsto'}</div>
+</div>
+</div>
+${s.pago?`<div class="tl-cx-bar"><i style="width:${pct}%"></i><span>${brl(saldoCum[i])} acumulado</span></div>`:''}
+</div>
+</div>`;
+}).join('')}
+</div>`;
+}
 // projeção dos 3 meses seguintes
 const fut = [];
 for(let i=1;i<=3;i++){
@@ -1804,6 +1896,7 @@ font-size="15" font-weight="800" fill="${corArc}" font-family="'Bricolage Grotes
 </div>
 </div>` : `<div class="empty">Defina uma meta mensal abaixo para acompanhar o progresso.</div>`;
 }
+$('#btn-notif').onclick = pedirPermissaoNotif;
 $('#meta-salvar').onclick=async()=>{
 const v=parseFloat($('#meta-input').value)||0;
 S.metaMensal=v; await store.save(S); renderMeta(); toast(v?'Meta salva':'Meta removida');
@@ -2613,6 +2706,36 @@ await store.save(S); render(); toast('Backup restaurado');
 };
 r.readAsText(f); e.target.value = '';
 };
+/* ================= notificações locais ================= */
+function agendarNotificacoes(){
+if(!('Notification' in window)) return;
+const t=iso(hoje());
+const nx=S.shifts.filter(s=>naAgenda(s)&&counts(s)&&s.data>t)
+.sort((a,b)=>a.data.localeCompare(b.data))[0];
+if(!nx) return;
+// agendar para 1 dia antes às 20h
+const dPlantao=parseDate(nx.data);
+const dAviso=new Date(dPlantao); dAviso.setDate(dAviso.getDate()-1); dAviso.setHours(20,0,0,0);
+const msAte=dAviso.getTime()-Date.now();
+if(msAte<0||msAte>7*24*3600*1000) return; // só agenda se for dentro de 7 dias
+clearTimeout(window._notifTimer);
+window._notifTimer=setTimeout(()=>{
+if(Notification.permission==='granted'){
+new Notification('Plantão amanhã 🏥',{
+body:`${localName(nx.localId)} · ${nx.hora||'07:00'} · ${nx.duracao}h`,
+icon:'./icon-192.png',tag:'proximo-plantao'
+});
+}
+},msAte);
+}
+async function pedirPermissaoNotif(){
+if(!('Notification' in window)) return toast('Notificações não suportadas neste dispositivo');
+if(Notification.permission==='granted'){ agendarNotificacoes(); toast('Notificações já ativas ✓'); return; }
+if(Notification.permission==='denied'){ toast('Permissão negada — ative nas configurações do iPhone'); return; }
+const r=await Notification.requestPermission();
+if(r==='granted'){ agendarNotificacoes(); toast('Notificações ativadas ✓'); }
+else toast('Permissão negada');
+}
 /* ================= início ================= */
 function normalize(d){
 const locais = (d.locais||[]).map((l,i)=>({
@@ -2642,6 +2765,14 @@ return { shifts, locais, bloqueios };
 const saved = await store.load();
 if(saved && Array.isArray(saved.shifts)) S = normalize(saved);
 render();
+if(Notification.permission==='granted') agendarNotificacoes();
+// App Shortcuts: tratar URL params
+const params=new URLSearchParams(location.search);
+if(params.get('action')==='novo') setTimeout(()=>openSheet(null),300);
+if(params.get('action')==='proximo'){
+const nx=S.shifts.filter(s=>naAgenda(s)&&s.data>=iso(hoje())).sort((a,b)=>a.data.localeCompare(b.data))[0];
+if(nx) setTimeout(()=>openSheet(nx),300);
+}
 })();
 </script>
 <script>
