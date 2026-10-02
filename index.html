@@ -91,6 +91,21 @@ text-transform: none; letter-spacing: 0; padding: 0;
 #add-top { display: none; }
 /* ── Secções responsivas ── */
 section { display: block; }
+/* separador de grupo na lista */
+.list-sep {
+font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
+text-transform: uppercase; color: var(--dim-2);
+padding: 12px 14px 5px;
+background: var(--surface);
+}
+.list-sep:first-child { padding-top: 6px; }
+/* ocultar saldo */
+.saldo-oculto .big::after { content: 'R$ •••••'; }
+.saldo-oculto .big > * { display: none; }
+.saldo-oculto #h-total { font-size: clamp(44px, 12vw, 60px); letter-spacing: -.03em; color: var(--ink); }
+.saldo-oculto .v, .saldo-oculto .val,
+.saldo-oculto #h-sub { filter: blur(8px); user-select: none; pointer-events: none; }
+.saldo-oculto .tl-cx-bar, .saldo-oculto .money { filter: blur(8px); }
 /* barra de controles da lista — não transborda em telas pequenas */
 .ctrl-bar {
 display: flex; gap: 6px; align-items: center;
@@ -668,7 +683,17 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 </div>
 <div class="hero">
 <div class="lbl" id="h-lbl-caixa">Entra em —</div>
+<div style="display:flex;align-items:center;gap:10px">
 <div class="big" id="h-total">R$ 0</div>
+<button id="btn-ocultar" aria-label="Ocultar saldo" style="background:none;border:0;cursor:pointer;padding:4px;color:var(--dim-2);flex:none;line-height:1">
+<svg id="ico-olho" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+</svg>
+<svg id="ico-olho-off" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>
+</svg>
+</button>
+</div>
 <div class="sub" id="h-sub">Nenhum lançamento previsto</div>
 </div>
 <div class="gauge"><i class="p" id="h-bar" style="width:0%"></i></div>
@@ -676,6 +701,7 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 <div><div class="k">Já caiu</div><div class="v ok" id="h-pago">R$ 0</div></div>
 <div><div class="k">Ainda vem</div><div class="v due" id="h-pend">R$ 0</div></div>
 </div>
+<div id="h-meta-hero"></div>
 <div id="h-checklist"></div>
 <div id="next-card"></div>
 <div class="cal">
@@ -1372,6 +1398,29 @@ $('#h-sub').textContent = (partesSub.join(' · ') || 'Nenhum lançamento previst
 $('#h-bar').style.width = (cxTot ? Math.min(100, cxRec/cxTot*100) : 0)+'%';
 $('#h-pago').textContent = brl(cxRec);
 $('#h-pend').textContent = brl(cxPrev);
+// mini-gauge da meta no hero
+const metaV = S.metaMensal||0;
+const metaEl = $('#h-meta-hero');
+if(metaV && cxTot){
+const pctM = Math.min(100, Math.round(cxTot/metaV*100));
+const r=14, cx2=16, cy2=16, circ=2*Math.PI*r;
+const dash=circ*(pctM/100), gap=circ-dash;
+const corM = cxTot>=metaV?'var(--ok)':'var(--accent)';
+metaEl.innerHTML=`<div style="display:flex;align-items:center;gap:9px;padding:10px 0 4px">
+<svg width="32" height="32" viewBox="0 0 32 32" style="flex:none">
+<circle cx="${cx2}" cy="${cy2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="3"/>
+<circle cx="${cx2}" cy="${cy2}" r="${r}" fill="none" stroke="${corM}" stroke-width="3"
+stroke-dasharray="${dash.toFixed(1)} ${gap.toFixed(1)}" stroke-linecap="round"
+transform="rotate(-90 ${cx2} ${cy2})" style="transition:stroke-dasharray .6s ease"/>
+</svg>
+<div>
+<div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--dim-2)">Meta mensal</div>
+<div style="font-size:13px;font-weight:700;color:${corM}">${pctM}% · ${cxTot>=metaV?'<span style=color:var(--ok)>batida 🎉</span>':'faltam '+brl(metaV-cxTot)}</div>
+</div>
+</div>`;
+} else {
+metaEl.innerHTML='';
+}
 // checklist compacto de pendências na tela principal
 const pendentes = noMesCx.filter(s=>!s.pago);
 if(pendentes.length > 0){
@@ -1416,7 +1465,24 @@ el.innerHTML = list.length
 return;
 }
 const t = iso(hoje());
+// Agrupar por período: Hoje / Ontem / Esta semana / + antigos por data
+const hj = iso(hoje());
+const ant = iso(new Date(Date.now()-86400000));
+const semAtr = iso(new Date(Date.now()-7*86400000));
+function grupoData(s){
+if(s.data === hj)  return 'Hoje';
+if(s.data === ant) return 'Ontem';
+if(s.data > semAtr) return 'Esta semana';
+return pad2(parseDate(s.data).getDate())+'/'+pad2(parseDate(s.data).getMonth()+1);
+}
+// montar html com separadores de grupo
+let grupoAtual = null;
 el.innerHTML = shown.map(s=>{
+const grupo = grupoData(s);
+const sep = grupo !== grupoAtual
+? `<div class="list-sep">${grupo}</div>`
+: '';
+grupoAtual = grupo;
 const d = parseDate(s.data), off = !counts(s), l = getLocal(s.localId);
 const cid = l && l.cidade ? ` · ${esc(l.cidade)}` : '';
 let tag = '';
@@ -1433,7 +1499,7 @@ tag = `<div class="chip-bl">${icos[s.blTipo]||'📋'} ${s.blTipo||'bloqueio'}${s
 if(ehBolsa(s) && s.obs) tag = `<div class="tag">${esc(s.obs)}</div>`;
 const pill = (off || resid) ? '' : `<div class="pill ${s.pago?'pago':'pend'}" data-pay="${s.id}">${s.pago?'Pago':'Pendente'}</div>`;
 const dinheiro = (resid||bloq) ? `<div class="money" style="color:var(--dim-2);font-size:12.5px">${bloq?'—':'bloqueado'}</div>` : `<div class="money">${brl(liq(s))}</div>`;
-return `<div class="shift ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)}">
+return sep + `<div class="shift ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)}">
 <div class="daycol ${s.data===t?'is-today':''}"><div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div></div>
 <div class="info">
 <div class="place">${ehBolsa(s)?'':(s.turno==='noturno'?ICON_MOON:ICON_SUN)}<span>${esc(localName(s.localId))}</span></div>
@@ -2491,6 +2557,14 @@ else S.locais.push({ id:uid(), ...dados });
 await store.save(S); closeSheets(); render(); toast('Local salvo');
 }
 /* ================= eventos ================= */
+// ocultar saldo
+let saldoOculto = false;
+$('#btn-ocultar').onclick = ()=>{
+saldoOculto = !saldoOculto;
+document.body.classList.toggle('saldo-oculto', saldoOculto);
+$('#ico-olho').style.display     = saldoOculto ? 'none'  : '';
+$('#ico-olho-off').style.display = saldoOculto ? '' : 'none';
+};
 $('#prev').onclick  = ()=>{ cursor = new Date(cursor.getFullYear(), cursor.getMonth()-1, 1); render(); };
 $('#next').onclick  = ()=>{ cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1); render(); };
 $('#today').onclick = ()=>{ cursor = new Date(); render(); };
