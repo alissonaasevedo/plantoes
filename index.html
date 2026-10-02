@@ -9,7 +9,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Plantões">
-<meta name="theme-color" content="#F0EDE6">
+<meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#09090B" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="icon" href="./icon-192.png">
@@ -18,32 +19,32 @@
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&display=swap');
 :root {
 /* ── Paleta principal ── */
---bg:       #F0EDE6;
---bg-soft:  #EAE6DE;
+--bg:       #F8F9FA;
+--bg-soft:  #F1F3F5;
 --surface:  #FFFFFF;
---surface-2:#F5F2EC;
---line:     #E0D9CE;
---line-2:   #CFC8BC;
+--surface-2:#F8F9FA;
+--line:     #E9ECEF;
+--line-2:   #DEE2E6;
 /* ── Tipografia ── */
---ink:      #1A1A18;
---dim:      #6B6558;
---dim-2:    #9A9085;
+--ink:      #0F172A;
+--dim:      #64748B;
+--dim-2:    #94A3B8;
 /* ── Cores de ação ── */
---accent:   #0A5F5F;   /* verde-azulado escuro */
---accent-2: #0D7A7A;   /* hover / médio */
---accent-soft: #E0EEEE;
---amber:    #C07605;   /* âmbar — destaque secundário */
---amber-soft:#FFF3D6;
+--accent:   #6366F1;
+--accent-2: #4F46E5;
+--accent-soft: rgba(99,102,241,.1);
+--amber:    #6366F1;
+--amber-soft:rgba(99,102,241,.1);
 /* ── Status ── */
---ok:    #0A6B3A;
---ok-soft: #D8F0E4;
---due:   #9B1B1B;
---due-soft:#FAE0E0;
---noite: #2D3A8C;
+--ok:       #059669;
+--ok-soft:  rgba(5,150,105,.1);
+--due:      #D97706;
+--due-soft: rgba(217,119,6,.1);
+--noite:    #4F46E5;
 /* ── Outros ── */
---r: 12px;
---sh: 0 1px 3px rgba(26,26,24,.06), 0 2px 8px rgba(26,26,24,.06);
---sh-md: 0 4px 16px rgba(26,26,24,.10);
+--r: 10px;
+--sh: 0 1px 3px rgba(15,23,42,.06), 0 2px 8px rgba(15,23,42,.05);
+--sh-md: 0 4px 16px rgba(15,23,42,.1);
 --rail: 0px;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -159,7 +160,7 @@ font-variant-numeric: tabular-nums;
 position: relative; border-radius: var(--r); padding: 16px 18px 18px; margin-bottom: 24px;
 background: var(--accent); overflow: hidden; box-shadow: var(--sh-md);
 }
-.next .when { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.65); margin-bottom: 6px; }
+.next .when { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.6); margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
 .next .pl { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -.02em; }
 .next .dt { font-size: 13px; color: rgba(255,255,255,.75); margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .next .go {
@@ -184,7 +185,7 @@ padding: 13px 15px 13px 17px; margin-bottom: 7px; cursor: pointer;
 position: relative; overflow: hidden; transition: border-color .15s, box-shadow .2s;
 }
 .shift:hover { border-color: var(--line-2); box-shadow: var(--sh); }
-.shift::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c, var(--accent)); }
+.shift::before { content: ""; position: absolute; left: 0; top: 12%; bottom: 12%; width: 3px; background: var(--c, var(--accent)); border-radius: 0 3px 3px 0; }
 .shift.off { opacity: .45; }
 .shift.off .money { text-decoration: line-through; }
 .shift.flash { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -242,7 +243,7 @@ button { font-family: inherit; }
 position: fixed; right: 20px; bottom: calc(88px + env(safe-area-inset-bottom));
 width: 54px; height: 54px; border-radius: 16px; border: 0; z-index: 30;
 background: var(--accent); color: #fff; cursor: pointer; display: grid; place-items: center;
-box-shadow: 0 6px 20px rgba(10,95,95,.35);
+box-shadow: 0 6px 20px rgba(99,102,241,.35);
 }
 nav {
 position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
@@ -600,10 +601,11 @@ letter-spacing: .04em !important;
 --sh:0 1px 4px rgba(0,0,0,.4),0 2px 10px rgba(0,0,0,.35);
 --sh-md:0 4px 20px rgba(0,0,0,.55);
 }
-header{background:rgba(28,28,26,.93);}
-nav{background:rgba(36,36,34,.97);}
-.sheet,.scrim{--bg:#1C1C1A;}
+header{background:rgba(9,9,11,.95);}
+nav{background:rgba(9,9,11,.97);}
+.sheet,.scrim{--bg:#09090B;}
 .sheet{background:var(--bg);}
+#shift-list { border-color: var(--line); }
 input,select,textarea{background:var(--surface-2);color:var(--ink);border-color:var(--line-2);}
 .cal .grid button.has{background:var(--surface-2);}
 .mnav button,.btn{background:var(--surface-2);}
