@@ -16,7 +16,7 @@
 <link rel="icon" href="./icon-192.png">
 <title>Plantões</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap');
 :root {
 /* ── Paleta principal ── */
 --bg:       #F8F9FA;
@@ -57,7 +57,7 @@ html { background: var(--bg); height: 100%; }
 body {
 background: var(--bg);
 color: var(--ink);
-font-family: 'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif;
+font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 font-size: 16px;
 line-height: 1.5;
 -webkit-font-smoothing: antialiased;
@@ -650,20 +650,91 @@ nav button {
 flex: 1; background: none; border: 0; color: var(--dim-2);
 padding: 9px 2px 10px; font-size: 10px; font-weight: 600; cursor: pointer;
 display: flex; flex-direction: column; align-items: center; gap: 5px;
-letter-spacing: .02em; font-family: 'Bricolage Grotesque', sans-serif;
+letter-spacing: .02em;
 transition: color .15s;
 }
 nav button .nav-ico {
 font-size: 22px; line-height: 1; display: flex; align-items: center;
 justify-content: center; width: 28px; height: 28px;
 }
-nav button.on { color: var(--accent); }
+nav button.on {
+color: var(--accent);
+position: relative;
+}
+nav button.on::after {
+content: '';
+position: absolute;
+bottom: 0;
+left: 50%;
+transform: translateX(-50%);
+width: 20px;
+height: 2.5px;
+background: var(--accent);
+border-radius: 99px 99px 0 0;
+}
 nav button.on .nav-ico { transform: translateY(-1px); }
 /* itens extras que migram */
 .tl-empty{text-align:center;padding:40px 20px;color:var(--dim);font-size:14px;border:1px dashed var(--line-2);border-radius:var(--r);background:var(--surface)}
 .bloquear-card{border-radius:var(--r);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--line);cursor:pointer;position:relative;overflow:hidden}
 .bloquear-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--dim-2)}
 .wd-chips .chip{min-width:0;flex:1;padding:10px 2px}
+/* ─── Confetti canvas (pay celebration) ─── */
+#pay-canvas {
+position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+pointer-events: none; z-index: 9999;
+}
+/* ─── Banner próxima entrada ─── */
+#h-banner-prox {
+font-size: 12.5px; color: var(--dim);
+padding: 4px 0 2px;
+display: none;
+}
+#h-banner-prox span { font-weight: 600; color: var(--ok); }
+/* ─── Wrapped ─── */
+#wrapped-btn {
+width: 100%; border: 1.5px dashed var(--line-2);
+background: transparent; border-radius: 14px;
+padding: 16px; cursor: pointer; color: var(--ink);
+font-family: inherit; font-size: 15px; font-weight: 600;
+display: flex; align-items: center; gap: 10px;
+transition: background .18s, border-color .18s;
+margin-top: 4px;
+}
+#wrapped-btn:hover { background: var(--surface-2); border-color: var(--accent); }
+#wrapped-sheet {
+position: fixed; inset: 0; z-index: 800;
+background: var(--bg); overflow-y: auto;
+padding: 48px 24px 80px; display: none; flex-direction: column; gap: 0;
+}
+#wrapped-sheet.open { display: flex; }
+.wr-close {
+position: fixed; top: 16px; right: 20px;
+background: var(--surface); border: 1px solid var(--line);
+border-radius: 99px; padding: 6px 16px; font-size: 14px; font-weight: 600;
+cursor: pointer; color: var(--ink); z-index: 801; font-family: inherit;
+}
+.wr-hero { text-align: center; padding: 32px 0 24px; }
+.wr-hero .yr { font-size: 13px; letter-spacing: .1em; font-weight: 700;
+color: var(--dim); text-transform: uppercase; margin-bottom: 8px; }
+.wr-hero .total { font-size: 52px; font-weight: 800; color: var(--accent);
+letter-spacing: -.03em; line-height: 1; }
+.wr-hero .sub { font-size: 14px; color: var(--dim); margin-top: 8px; }
+.wr-card {
+background: var(--surface); border-radius: 18px; padding: 20px;
+margin: 8px 0; display: flex; align-items: center; gap: 14px;
+}
+.wr-card .wr-ico { font-size: 28px; flex: none; }
+.wr-card .wr-lbl { font-size: 12px; font-weight: 600; letter-spacing: .06em;
+text-transform: uppercase; color: var(--dim-2); }
+.wr-card .wr-val { font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+.wr-card .wr-sub { font-size: 12px; color: var(--dim); margin-top: 2px; }
+.wr-share {
+margin-top: 24px; width: 100%; padding: 16px; border-radius: 14px;
+background: var(--accent); color: #fff; font-family: inherit;
+font-size: 15px; font-weight: 700; border: 0; cursor: pointer;
+letter-spacing: -.01em;
+}
+<style>@keyframes flashPay{0%{opacity:1}100%{opacity:0}}</style>
 </style>
 </head>
 <body>
@@ -725,6 +796,7 @@ opacity:0;transition:opacity .2s;
 <div><div class="k">Ainda vem</div><div class="v due" id="h-pend">R$ 0</div></div>
 </div>
 <div id="h-meta-hero"></div>
+<div id="h-banner-prox"></div>
 <div id="h-checklist"></div>
 <div id="next-card"></div>
 <div class="cal">
@@ -822,6 +894,9 @@ opacity:0;transition:opacity .2s;
 <div id="loc-list"></div>
 </section>
 <section id="v-ajustes" class="hidden">
+<div style="margin-bottom:8px">
+<button id="wrapped-btn">✦ <span>Seu ano em números</span></button>
+</div>
 <div class="sec"><h2>Ano de <span id="yr">—</span></h2></div>
 <div id="year-stats"></div>
 <div class="sec" style="margin-top:26px"><h2>Distribuição por local</h2></div>
@@ -1278,6 +1353,57 @@ function toast(msg){
 const t = $('#toast'); t.textContent = msg; t.classList.add('on');
 clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'),1900);
 }
+/* ── Celebração de pagamento ── */
+function confettiPay(valor){
+const cvs = $('#pay-canvas');
+cvs.style.display = 'block';
+const ctx = cvs.getContext('2d');
+cvs.width  = window.innerWidth;
+cvs.height = window.innerHeight;
+const COR = ['#6366F1','#34D399','#FBBF24','#F472B6','#60A5FA','#A78BFA'];
+const N = 80;
+const parts = Array.from({length:N}, ()=>({
+x: Math.random()*cvs.width,
+y: cvs.height * (.2 + Math.random()*.3),
+r: 4 + Math.random()*5,
+c: COR[Math.floor(Math.random()*COR.length)],
+vx: (Math.random()-.5)*6,
+vy: -(6 + Math.random()*8),
+rot: Math.random()*360,
+drot: (Math.random()-.5)*12,
+alpha: 1,
+shape: Math.random()>.4 ? 'rect' : 'circle',
+}));
+let frame;
+const dur = 1800; const ini = performance.now();
+function step(now){
+const t = Math.min((now-ini)/dur, 1);
+ctx.clearRect(0,0,cvs.width,cvs.height);
+for(const p of parts){
+p.x  += p.vx;
+p.vy += .25;      // gravidade
+p.y  += p.vy;
+p.rot+= p.drot;
+p.alpha = Math.max(0, 1 - t*1.4);
+ctx.save();
+ctx.globalAlpha = p.alpha;
+ctx.translate(p.x, p.y);
+ctx.rotate(p.rot * Math.PI/180);
+ctx.fillStyle = p.c;
+if(p.shape==='circle'){ ctx.beginPath(); ctx.arc(0,0,p.r,0,Math.PI*2); ctx.fill(); }
+else { ctx.fillRect(-p.r, -p.r*.5, p.r*2, p.r); }
+ctx.restore();
+}
+if(t < 1) frame = requestAnimationFrame(step);
+else { cvs.style.display='none'; ctx.clearRect(0,0,cvs.width,cvs.height); }
+}
+frame = requestAnimationFrame(step);
+// flash verde no fundo
+const flash = document.createElement('div');
+flash.style.cssText = 'position:fixed;inset:0;background:rgba(52,211,153,.12);z-index:9998;pointer-events:none;animation:flashPay .45s ease forwards';
+document.body.appendChild(flash);
+setTimeout(()=>flash.remove(), 500);
+}
 /* ================= render ================= */
 function render(){
 const titles = { mes: MES[cursor.getMonth()]+' '+cursor.getFullYear(), caixa:'Caixa · '+MES[cursor.getMonth()],
@@ -1476,6 +1602,45 @@ $('#h-checklist').innerHTML = `<div style="text-align:center;padding:12px 0 20px
 $('#h-checklist').innerHTML = '';
 }
 const pago = mine.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0); // mantido para uso na lista
+// ─ banner próxima entrada financeira ─
+(function(){
+const hoje2 = hoje();
+let melhor = null, melhorDias = Infinity;
+for(const l of S.locais){
+if(!l.nome) continue;
+const dia = l.pagDia || 10;
+const pagMes = typeof l.pagMes==='number' ? l.pagMes : 1;
+// calcular próxima data de pagamento deste local
+let candidato = new Date(hoje2.getFullYear(), hoje2.getMonth() + pagMes, dia);
+// ajustar para o último dia do mês se dia > dias do mês
+const ultimo = new Date(candidato.getFullYear(), candidato.getMonth()+1, 0).getDate();
+candidato.setDate(Math.min(dia, ultimo));
+candidato = proximoUtil(candidato);
+let diff = Math.round((candidato - hoje2) / 86400000);
+// se já passou este mês, próximo ciclo
+if(diff < 0){
+const c2 = new Date(hoje2.getFullYear(), hoje2.getMonth() + 1 + pagMes, dia);
+const ul2 = new Date(c2.getFullYear(), c2.getMonth()+1, 0).getDate();
+c2.setDate(Math.min(dia, ul2));
+diff = Math.round((proximoUtil(c2) - hoje2) / 86400000);
+}
+if(diff >= 0 && diff < melhorDias){
+// calcular valor esperado: soma dos shifts deste local não pagos no mês de caixa
+const valEsp = S.shifts.filter(s=>s.localId===l.id && counts(s) && !s.pago)
+.reduce((a,s)=>a+liq(s), 0);
+melhorDias = diff;
+melhor = { dias: diff, nome: l.nome, val: valEsp };
+}
+}
+const el = $('#h-banner-prox');
+if(melhor && melhor.val > 0){
+const quando = melhor.dias===0 ? 'Hoje' : melhor.dias===1 ? 'Amanhã' : `Em ${melhor.dias} dias`;
+el.style.display = 'block';
+el.innerHTML = `${quando} · <span>${brl(melhor.val)}</span> a receber`;
+} else {
+el.style.display = 'none';
+}
+})();
 renderNext();
 renderCal(list);
 renderDia();
@@ -2169,7 +2334,7 @@ $('#meta-wrap').innerHTML=meta?`
 stroke-dasharray="${dash} ${gap}" stroke-linecap="round"
 transform="rotate(-90 ${cx} ${cy})" style="transition:stroke-dasharray .5s ease"/>
 <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
-font-size="15" font-weight="800" fill="${corArc}" font-family="'Bricolage Grotesque',sans-serif">${pct}%</text>
+font-size="15" font-weight="800" fill="${corArc}" font-family="'Inter',sans-serif">${pct}%</text>
 </svg>
 <div class="mr-txt">
 <b>${brl(fat)}</b>
@@ -2581,7 +2746,74 @@ if(editingLocal) Object.assign(editingLocal, dados);
 else S.locais.push({ id:uid(), ...dados });
 await store.save(S); closeSheets(); render(); toast('Local salvo');
 }
+/* ── Wrapped: Seu Ano em Números ── */
+function renderWrapped(){
+const ano = new Date().getFullYear();
+document.getElementById('wr-ano').textContent = ano + ' em números';
+const MES_SIGLA = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const todos = S.shifts.filter(counts);
+const doAno = todos.filter(s => s.data && s.data.startsWith(String(ano)));
+const totalAno = doAno.reduce((a,s)=>a+liq(s), 0);
+document.getElementById('wr-total').textContent = brl(totalAno);
+const nPl = doAno.length;
+document.getElementById('wr-sub').textContent = nPl > 0
+? nPl + ' plantão' + (nPl>1?'ões':'') + ' registrado' + (nPl>1?'s':'')
+: 'Nenhum lançamento no ano';
+const horas = doAno.reduce((a,s)=>a+(+s.duracao||0), 0);
+document.getElementById('wr-horas').textContent = horas > 0 ? horas + 'h' : '—';
+document.getElementById('wr-horas-sub').textContent = horas > 0
+? 'equivale a ' + Math.round(horas/24) + ' dias trabalhados' : '';
+const porLocal = {};
+for(const s of doAno){ const k=s.localId||'outros'; porLocal[k]=(porLocal[k]||0)+liq(s); }
+const topL = Object.entries(porLocal).sort((a,b)=>b[1]-a[1])[0];
+document.getElementById('wr-top-local').textContent = topL ? localName(topL[0]) : '—';
+document.getElementById('wr-top-local-sub').textContent = topL ? brl(topL[1]) + ' recebidos' : '';
+const porMes = {};
+for(const s of doAno){ if(!s.data) continue; const m=s.data.slice(0,7); porMes[m]=(porMes[m]||0)+liq(s); }
+const topM = Object.entries(porMes).sort((a,b)=>b[1]-a[1])[0];
+if(topM){
+const [y,mm] = topM[0].split('-');
+document.getElementById('wr-mes-top').textContent = MES_SIGLA[parseInt(mm)-1] + ' ' + y;
+document.getElementById('wr-mes-top-sub').textContent = brl(topM[1]) + ' neste mês';
+} else { document.getElementById('wr-mes-top').textContent = '—'; document.getElementById('wr-mes-top-sub').textContent=''; }
+document.getElementById('wr-qtd').textContent = nPl > 0 ? nPl : '—';
+const pagosPct = nPl > 0 ? Math.round(doAno.filter(s=>s.pago).length/nPl*100) : 0;
+document.getElementById('wr-qtd-sub').textContent = nPl > 0 ? pagosPct + '% já recebidos' : '';
+const ticket = nPl > 0 ? Math.round(totalAno / nPl) : 0;
+document.getElementById('wr-ticket').textContent = ticket > 0 ? brl(ticket) : '—';
+document.getElementById('wr-ticket-sub').textContent = ticket > 0 ? 'valor líquido médio por plantão' : '';
+}
+function openWrapped(){
+renderWrapped();
+document.getElementById('wrapped-sheet').classList.add('open');
+document.body.style.overflow = 'hidden';
+}
+function closeWrapped(){
+document.getElementById('wrapped-sheet').classList.remove('open');
+document.body.style.overflow = '';
+}
+function compartilharAno(){
+const ano = new Date().getFullYear();
+const doAno = S.shifts.filter(counts).filter(s=>s.data&&s.data.startsWith(String(ano)));
+const total = doAno.reduce((a,s)=>a+liq(s),0);
+const horas = doAno.reduce((a,s)=>a+(+s.duracao||0),0);
+const n = doAno.length;
+const txt = '🏥 Meu ' + ano + ' em plantões\n\n'
++ '💰 ' + brl(total) + ' faturados\n'
++ '⏱ ' + horas + 'h trabalhadas\n'
++ '🔢 ' + n + ' plantão' + (n>1?'ões':'') + '\n\n'
++ 'via Plantões · plantoes-asevedo.vercel.app';
+if(navigator.share){ navigator.share({ text: txt }).catch(()=>{}); }
+else { navigator.clipboard.writeText(txt).then(()=>toast('Copiado ✓')).catch(()=>toast('Erro ao copiar')); }
+}
 /* ================= eventos ================= */
+// ── Wrapped handlers ──
+const wrBtn = $('#wrapped-btn');
+if(wrBtn) wrBtn.addEventListener('click', openWrapped);
+const wrClose = $('#wr-close');
+if(wrClose) wrClose.addEventListener('click', closeWrapped);
+const wrShare = $('#wr-share');
+if(wrShare) wrShare.addEventListener('click', compartilharAno);
 // ── pull-to-refresh ──
 (function(){
 const IND   = document.getElementById('ptr-indicator');
@@ -2959,7 +3191,9 @@ const s = S.shifts.find(x=>x.id===pay.dataset.pay);
 s.pago = !s.pago;
 s.pagoEm = s.pago ? (s.pagoEm || iso(new Date())) : '';
 await store.save(S); render();
-toast(s.pago ? 'Marcado como pago' : 'Marcado como pendente'); return;
+if(s.pago){ confettiPay(liq(s)); toast('💰 '+brl(liq(s))+' confirmado'); }
+else { toast('Desmarcado'); }
+return;
 }
 const row = e.target.closest('.shift');
 if(row) openSheet(S.shifts.find(x=>x.id===row.dataset.id));
@@ -3148,10 +3382,20 @@ if(nx) setTimeout(()=>openSheet(nx),300);
 }
 })();
 </script>
-<script>
-if('serviceWorker' in navigator && location.protocol === 'https:') {
-window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
-}
-</script>
+<canvas id="pay-canvas" style="display:none"></canvas>
+<div id="wrapped-sheet">
+<button class="wr-close" id="wr-close">Fechar</button>
+<div class="wr-hero">
+<div class="yr" id="wr-ano">2026</div>
+<div class="total" id="wr-total">R$ 0</div>
+<div class="sub" id="wr-sub">—</div>
+</div>
+<div class="wr-card"><div class="wr-ico">⏱</div><div><div class="wr-lbl">Horas trabalhadas</div><div class="wr-val" id="wr-horas">—</div><div class="wr-sub" id="wr-horas-sub"></div></div></div>
+<div class="wr-card"><div class="wr-ico">🏥</div><div><div class="wr-lbl">Hospital que mais pagou</div><div class="wr-val" id="wr-top-local">—</div><div class="wr-sub" id="wr-top-local-sub"></div></div></div>
+<div class="wr-card"><div class="wr-ico">📅</div><div><div class="wr-lbl">Mês mais forte</div><div class="wr-val" id="wr-mes-top">—</div><div class="wr-sub" id="wr-mes-top-sub"></div></div></div>
+<div class="wr-card"><div class="wr-ico">🔢</div><div><div class="wr-lbl">Plantões realizados</div><div class="wr-val" id="wr-qtd">—</div><div class="wr-sub" id="wr-qtd-sub"></div></div></div>
+<div class="wr-card"><div class="wr-ico">💰</div><div><div class="wr-lbl">Ticket médio por plantão</div><div class="wr-val" id="wr-ticket">—</div><div class="wr-sub" id="wr-ticket-sub"></div></div></div>
+<button class="wr-share" id="wr-share">✦ Compartilhar meu ano</button>
+</div>
 </body>
 </html>
