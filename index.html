@@ -1723,9 +1723,14 @@ function renderMes(){
   const cxPrev = noMesCx.filter(s=>!s.pago).reduce((a,s)=>a+liq(s),0);
   const cxTot  = cxRec + cxPrev;
 
-  // sparkline animada dos últimos 6 meses
+  // sparkline animada dos últimos 6 meses até o cursor
   (function(){
-    const sm=mesesRetroativos(6);
+    // usa cursor como referência, não "hoje" — assim a curva muda ao navegar entre meses
+    const sm=[];
+    for(let i=5;i>=0;i--){
+      const ref=new Date(cursor.getFullYear(),cursor.getMonth()-i,1);
+      sm.push({y:ref.getFullYear(),m:ref.getMonth()});
+    }
     const sv=sm.map(m=>S.shifts.filter(s=>counts(s)&&parseDate(dataCaixa(s)).getMonth()===m.m&&parseDate(dataCaixa(s)).getFullYear()===m.y).reduce((a,s)=>a+liq(s),0));
     const mx=Math.max(...sv,1); const W=64,H=20;
     const pts=sv.map((v,i)=>`${(i/(sv.length-1)*W).toFixed(1)},${(H-2-v/mx*(H-4)).toFixed(1)}`).join(' ');
