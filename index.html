@@ -776,8 +776,8 @@ nav button.on .nav-ico { transform: translateY(-1px); }
   font-size: 30px; box-shadow: 0 8px 24px rgba(99,102,241,.35);
   animation: splashPulse 1.2s ease-in-out infinite;
 }
-.splash-name { font-size: 22px; font-weight: 800; letter-spacing: -.03em; color: var(--accent); }
-.splash-tag { font-size: 13px; color: var(--dim); font-weight: 500; }
+.splash-name { font-size: 22px; font-weight: 800; letter-spacing: -.03em; color: var(--accent); animation: splashFadeUp .5s .3s ease both; }
+.splash-tag { font-size: 13px; color: var(--dim); font-weight: 500; animation: splashFadeUp .5s .45s ease both; }
 .splash-dots { display: flex; gap: 6px; margin-top: 8px; }
 .splash-dots span {
   width: 6px; height: 6px; border-radius: 99px; background: var(--accent);
@@ -785,9 +785,17 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 }
 .splash-dots span:nth-child(2) { animation-delay: .2s; }
 .splash-dots span:nth-child(3) { animation-delay: .4s; }
-@keyframes splashPulse {
-  0%,100% { box-shadow: 0 8px 24px rgba(99,102,241,.35); }
-  50%      { box-shadow: 0 12px 36px rgba(99,102,241,.55); }
+@keyframes splashBounceIn {
+  0%   { opacity: 0; transform: scale(.5) translateY(30px); }
+  60%  { opacity: 1; }
+  100% { transform: scale(1) translateY(0); }
+}
+@keyframes splashFadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes dotFade {
+  0%,100% { opacity: .2; } 50% { opacity: 1; }
 }
 @keyframes dotFade {
   0%,100% { opacity: .2; } 50% { opacity: 1; }
@@ -826,12 +834,12 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 }
 #wrapped-splash.out { opacity: 0; transform: scale(1.05); pointer-events: none; }
 .wsp-logo {
-  width: 120px; height: 120px; display: grid; place-items: center;
+  width: 180px; display: grid; place-items: center;
   animation: splashBounceIn .6s cubic-bezier(.34,1.56,.64,1) both;
 }
 .wsp-logo img {
-  width: 120px; height: 120px; object-fit: contain;
-  filter: drop-shadow(0 6px 16px rgba(0,0,0,.2));
+  width: 180px; height: auto; object-fit: contain;
+  filter: drop-shadow(0 6px 18px rgba(0,0,0,.25));
 }
 .wsp-title { font-size: 24px; font-weight: 800; letter-spacing: -.03em; color: #fff; }
 .wsp-sub { font-size: 13px; color: rgba(255,255,255,.7); font-weight: 500; }
@@ -900,7 +908,6 @@ nav button.on .nav-ico { transform: translateY(-1px); }
   <div class="splash-logo">
     <img src="./icon-512.png" alt="Plantaê!">
   </div>
-  <div class="splash-name">Plantaê!</div>
   <div class="splash-tag">Sua renda, organizada.</div>
   <div class="splash-dots"><span></span><span></span><span></span></div>
 </div>
