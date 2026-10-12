@@ -18,7 +18,7 @@
 /* ── Limpeza forçada de caches obsoletos ── */
 (function(){
   if(!('caches' in window)) return;
-  const CURRENT = 'plantoes-v40';
+  const CURRENT = 'plantoes-v41';
   caches.keys().then(keys => {
     keys.forEach(k => { if(k !== CURRENT) caches.delete(k); });
   });
@@ -858,11 +858,13 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 }
 #wrapped-sheet.open { display: flex; }
 .wr-close {
-  position: fixed; top: 16px; right: 20px;
+  position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); right: 20px;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: 99px; padding: 6px 16px; font-size: 14px; font-weight: 600;
-  cursor: pointer; color: var(--ink); z-index: 801; font-family: inherit;
+  cursor: pointer; color: var(--ink); z-index: 1100; font-family: inherit;
+  display: none; box-shadow: 0 2px 8px rgba(0,0,0,.12);
 }
+.wr-close.visible { display: block; }
 .wr-hero { text-align: center; padding: 32px 0 24px; }
 .wr-hero .yr { font-size: 13px; letter-spacing: .1em; font-weight: 700;
   color: var(--dim); text-transform: uppercase; margin-bottom: 8px; }
@@ -3189,7 +3191,9 @@ function renderWrapped(){
 function openWrapped(){
   const sheet = document.getElementById('wrapped-sheet');
   const splash = document.getElementById('wrapped-splash');
+  const btn = document.getElementById('wr-close');
   sheet.classList.add('open');
+  if(btn) btn.classList.add('visible');
   document.body.style.overflow = 'hidden';
   if(splash){
     splash.style.display = 'flex';
@@ -3205,6 +3209,8 @@ function openWrapped(){
 }
 function closeWrapped(){
   document.getElementById('wrapped-sheet').classList.remove('open');
+  const btn = document.getElementById('wr-close');
+  if(btn) btn.classList.remove('visible');
   document.body.style.overflow = '';
 }
 
@@ -3353,38 +3359,48 @@ function compartilharAno(){
   try {
     const cvs = gerarCanvasAno(ano, total, horas, n, ticket);
 
-    // iOS Safari: toBlob é assíncrono e perde o user-gesture token.
-    // Solução: gerar blob → object URL → disparar download imediato.
-    // Se canShare(files) estiver disponível, tenta share antes do download.
-    cvs.toBlob(async blob => {
-      if(!blob){
-        if(navigator.share) navigator.share({text:txt}).catch(()=>{});
-        else navigator.clipboard.writeText(txt).then(()=>toast('Texto copiado ✓')).catch(()=>{});
+    // iOS Safari: toBlob() é assíncrono — perde o user-gesture token antes de share/download.
+    // Solução: toDataURL() é SÍNCRONO — mantém o token intacto.
+    const dataUrl = cvs.toDataURL('image/png');
+
+    // Tenta Web Share API com arquivo (Android Chrome / alguns iOS)
+    if(navigator.share && navigator.canShare){
+      const byteStr = atob(dataUrl.split(',')[1]);
+      const arr = new Uint8Array(byteStr.length);
+      for(let i=0;i<byteStr.length;i++) arr[i]=byteStr.charCodeAt(i);
+      const blob = new Blob([arr], {type:'image/png'});
+      const file = new File([blob], 'plantae-'+ano+'.png', {type:'image/png'});
+      if(navigator.canShare({files:[file]})){
+        navigator.share({files:[file], title:'Plantaê! '+ano, text:txt}).catch(err=>{
+          if(err && err.name==='AbortError') return;
+          const w = window.open('', '_blank');
+          if(w){ w.document.write('<img src="'+dataUrl+'" style="max-width:100%"><p style="font-family:sans-serif;text-align:center">Segure a imagem para salvar</p>'); }
+          else { toast('Segure a imagem para salvar ✓'); }
+        });
         return;
       }
+    }
 
-      const file = new File([blob], 'plantae-'+ano+'.png', {type:'image/png'});
-
-      // Tenta Web Share API com arquivo (Android Chrome, alguns iOS 15+)
-      if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-        try {
-          await navigator.share({files:[file], title:'Plantaê! '+ano, text:txt});
-          return;
-        } catch(shareErr){
-          // Usuário cancelou ou share falhou — cai no download
-          if(shareErr.name === 'AbortError') return; // cancelou, não faz nada
-        }
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+    if(isIOS){
+      const w = window.open('', '_blank');
+      if(w){
+        w.document.write('<html><body style="margin:0;background:#000"><img src="'+dataUrl+'" style="width:100%;display:block"><p style="color:#fff;font-family:sans-serif;text-align:center;padding:12px;font-size:14px">Segure a imagem e escolha \"Salvar\" para compartilhar</p></body></html>');
+        w.document.close();
+        toast('Segure a imagem na nova aba para salvar ✓');
+      } else {
+        const a = document.createElement('a');
+        a.href = dataUrl; a.download = 'plantae-'+ano+'.png';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        toast('Imagem gerada ✓');
       }
+      return;
+    }
 
-      // Fallback universal: salva a imagem no dispositivo
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'plantae-'+ano+'.png';
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      setTimeout(()=>URL.revokeObjectURL(url), 5000);
-      toast('Imagem salva — compartilhe pelo app de fotos ✓');
-    }, 'image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl; a.download = 'plantae-'+ano+'.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    toast('Imagem salva ✓');
   } catch(e){
     if(navigator.share) navigator.share({text:txt}).catch(()=>{});
     else navigator.clipboard.writeText(txt).then(()=>toast('Texto copiado ✓')).catch(()=>{});
@@ -4028,6 +4044,9 @@ function normalize(d){
 <!-- splash movido para o topo do body -->
 <canvas id="pay-canvas" style="display:none"></canvas>
 
+<!-- Botão fechar do wrapped — fora do sheet para evitar problema de z-index/scroll no iOS -->
+<button class="wr-close" id="wr-close">Fechar</button>
+
 <!-- ===== WRAPPED SHEET ===== -->
 <div id="wrapped-sheet">
   <!-- splash de entrada do wrapped -->
@@ -4046,7 +4065,6 @@ function normalize(d){
     <div class="wsp-sub">Calculando seus números…</div>
     <div class="wsp-dots"><span></span><span></span><span></span></div>
   </div>
-  <button class="wr-close" id="wr-close">Fechar</button>
   <div class="wr-hero">
     <div class="yr" id="wr-ano">2026</div>
     <div class="total" id="wr-total">R$ 0</div>
