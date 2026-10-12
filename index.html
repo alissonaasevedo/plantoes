@@ -1063,6 +1063,17 @@ nav button.on .nav-ico { transform: translateY(-1px); }
     <!-- TROCAS (simplificado) -->
     <div class="sec" style="margin-top:8px"><h2>Plantões de colegas</h2></div>
     <div id="res-trocas"></div>
+
+    <!-- RESUMO ANUAL -->
+    <div class="sec" style="margin-top:26px">
+      <h2>Ano de <span id="yr">—</span></h2>
+    </div>
+    <div id="year-stats"></div>
+    <div class="sec" style="margin-top:26px"><h2>Distribuição por local</h2></div>
+    <div id="year-loc"></div>
+    <div style="margin-top:20px">
+      <button id="wrapped-btn">✦ <span>Seu ano em números</span></button>
+    </div>
   </section>
 
   <!-- ===== LOCAIS ===== -->
@@ -1073,14 +1084,7 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 
   <!-- ===== AJUSTES ===== -->
   <section id="v-ajustes" class="hidden">
-    <div style="margin-bottom:8px">
-      <button id="wrapped-btn">✦ <span>Seu ano em números</span></button>
-    </div>
-    <div class="sec"><h2>Ano de <span id="yr">—</span></h2></div>
-    <div id="year-stats"></div>
-    <div class="sec" style="margin-top:26px"><h2>Distribuição por local</h2></div>
-    <div id="year-loc"></div>
-    <div class="sec" style="margin-top:26px"><h2>Renda fixa da residência</h2></div>
+    <div class="sec" style="margin-top:0"><h2>Renda fixa da residência</h2></div>
     <div class="row2">
       <label class="f"><span>Parcela 1 (R$)</span><input type="number" id="b-v1" step="0.01" value="410.61" inputmode="decimal"></label>
       <label class="f"><span>Parcela 2 (R$)</span><input type="number" id="b-v2" step="0.01" value="3654.42" inputmode="decimal"></label>
