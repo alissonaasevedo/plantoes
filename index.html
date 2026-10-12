@@ -826,9 +826,12 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 }
 #wrapped-splash.out { opacity: 0; transform: scale(1.05); pointer-events: none; }
 .wsp-logo {
-  width: 72px; height: 72px; border-radius: 20px;
-  background: rgba(255,255,255,.15); display: grid; place-items: center;
-  animation: splashPulse 1.2s ease-in-out infinite;
+  width: 120px; height: 120px; display: grid; place-items: center;
+  animation: splashBounceIn .6s cubic-bezier(.34,1.56,.64,1) both;
+}
+.wsp-logo img {
+  width: 120px; height: 120px; object-fit: contain;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,.2));
 }
 .wsp-title { font-size: 24px; font-weight: 800; letter-spacing: -.03em; color: #fff; }
 .wsp-sub { font-size: 13px; color: rgba(255,255,255,.7); font-weight: 500; }
@@ -895,21 +898,7 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 <!-- ===== SPLASH SCREEN ===== -->
 <div id="splash">
   <div class="splash-logo">
-    <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <!-- fêmur estilizado: cabeça + colo + diáfise + côndilo -->
-      <!-- cabeça femoral -->
-      <circle cx="10" cy="8.5" r="5.5" fill="white" opacity="0.95"/>
-      <!-- colo femoral -->
-      <path d="M14.5 11.5 L19 18" stroke="white" stroke-width="3.2" stroke-linecap="round"/>
-      <!-- diáfise (corpo) -->
-      <path d="M19 18 L22 30" stroke="white" stroke-width="4" stroke-linecap="round"/>
-      <!-- côndilo lateral -->
-      <ellipse cx="24.5" cy="32.5" rx="4" ry="3" fill="white" opacity="0.95"/>
-      <!-- côndilo medial -->
-      <ellipse cx="18.5" cy="33.5" rx="3.2" ry="2.5" fill="white" opacity="0.85"/>
-      <!-- trocânter maior -->
-      <ellipse cx="23.5" cy="14" rx="3" ry="4" fill="white" opacity="0.7" transform="rotate(-15 23.5 14)"/>
-    </svg>
+    <img src="./icon-512.png" alt="Plantaê!">
   </div>
   <div class="splash-name">Plantaê!</div>
   <div class="splash-tag">Sua renda, organizada.</div>
@@ -4052,14 +4041,7 @@ function normalize(d){
   <!-- splash de entrada do wrapped -->
   <div id="wrapped-splash" style="display:none">
     <div class="wsp-logo">
-      <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <circle cx="10" cy="8.5" r="5.5" fill="white" opacity="0.95"/>
-        <path d="M14.5 11.5 L19 18" stroke="white" stroke-width="3.2" stroke-linecap="round"/>
-        <path d="M19 18 L22 30" stroke="white" stroke-width="4" stroke-linecap="round"/>
-        <ellipse cx="24.5" cy="32.5" rx="4" ry="3" fill="white" opacity="0.95"/>
-        <ellipse cx="18.5" cy="33.5" rx="3.2" ry="2.5" fill="white" opacity="0.85"/>
-        <ellipse cx="23.5" cy="14" rx="3" ry="4" fill="white" opacity="0.7" transform="rotate(-15 23.5 14)"/>
-      </svg>
+      <img src="./icon-512.png" alt="Plantaê!">
     </div>
     <div class="wsp-title">Plantaê!</div>
     <div class="wsp-sub">Calculando seus números…</div>
