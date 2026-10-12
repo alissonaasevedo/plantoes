@@ -3186,6 +3186,15 @@ function renderWrapped(){
   document.getElementById('wr-ticket-sub').textContent = ticket > 0 ? 'valor líquido médio por plantão' : '';
 }
 
+// Pré-carrega o ícone real para uso no canvas do resumo anual
+(function(){
+  const img = new Image();
+  img.src = './icon-512.png';
+  img.onload = function(){ window._appIcon = img; };
+  // Tenta carregar imediatamente; se já estiver em cache, complete=true instantaneamente
+  if(img.complete) window._appIcon = img;
+})();
+
 function openWrapped(){
   const sheet = document.getElementById('wrapped-sheet');
   const splash = document.getElementById('wrapped-splash');
@@ -3244,20 +3253,22 @@ function gerarCanvasAno(ano, total, horas, n, ticket){
   ctx.fillStyle=radGrad; ctx.fillRect(0,200,W,600);
 
   // ── Logo / Ícone topo ──
-  // Pastilha roxa com o fêmur SVG desenhado no canvas
+  // Pastilha roxa de fundo
   ctx.fillStyle='rgba(120,90,255,0.22)';
   roundRect(ctx,W/2-54,62,108,108,28); ctx.fill();
-  // Fêmur simplificado como linhas brancas
-  ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=7; ctx.lineCap='round';
-  // cabeça femoral
-  ctx.beginPath(); ctx.arc(W/2-12,84,16,0,Math.PI*2); ctx.stroke();
-  // diáfise
-  ctx.beginPath(); ctx.moveTo(W/2-4,98); ctx.lineTo(W/2+8,148); ctx.stroke();
-  // côndilos
-  ctx.beginPath(); ctx.arc(W/2,158,12,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(W/2+22,152,10,0,Math.PI*2); ctx.stroke();
+  // Usa ícone real pré-carregado (sem fundo)
+  if(window._appIcon && window._appIcon.complete){
+    ctx.drawImage(window._appIcon, W/2-46, 70, 92, 92);
+  } else {
+    // fallback: fêmur simplificado
+    ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=7; ctx.lineCap='round';
+    ctx.beginPath(); ctx.arc(W/2-12,84,16,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W/2-4,98); ctx.lineTo(W/2+8,148); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W/2,158,12,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W/2+22,152,10,0,Math.PI*2); ctx.stroke();
+  }
 
-  // ── Nome do app ──
+    // ── Nome do app ──
   ctx.fillStyle='#fff'; ctx.textAlign='center';
   ctx.font='700 54px Inter,system-ui,sans-serif';
   ctx.fillText('Plantaê!', W/2, 218);
