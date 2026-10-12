@@ -3494,26 +3494,27 @@ function compartilharAno(){
     // Solução: toDataURL() é SÍNCRONO — mantém o token intacto.
     const dataUrl = cvs.toDataURL('image/png');
 
-    // Tenta Web Share API com arquivo (Android Chrome / alguns iOS)
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+
+    // Tenta Web Share API com arquivo
     if(navigator.share && navigator.canShare){
       const byteStr = atob(dataUrl.split(',')[1]);
-      const arr = new Uint8Array(byteStr.length);
-      for(let i=0;i<byteStr.length;i++) arr[i]=byteStr.charCodeAt(i);
-      const blob = new Blob([arr], {type:'image/png'});
+      const ab = new Uint8Array(byteStr.length);
+      for(let i=0;i<byteStr.length;i++) ab[i]=byteStr.charCodeAt(i);
+      const blob = new Blob([ab], {type:'image/png'});
       const file = new File([blob], 'plantae-'+ano+'.png', {type:'image/png'});
       if(navigator.canShare({files:[file]})){
         navigator.share({files:[file], title:'Plantaê! '+ano, text:txt}).catch(err=>{
           if(err && err.name==='AbortError') return;
-          const w = window.open('', '_blank');
-          if(w){ w.document.write('<img src="'+dataUrl+'" style="max-width:100%"><p style="font-family:sans-serif;text-align:center">Segure a imagem para salvar</p>'); }
-          else { toast('Segure a imagem para salvar ✓'); }
+          // share falhou — mostra overlay no iOS, download em outros
+          if(isIOS) mostrarImagemOverlay(dataUrl, ano);
+          else { const a=document.createElement('a'); a.href=dataUrl; a.download='plantae-'+ano+'.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
         });
         return;
       }
     }
 
     // iOS/PWA: window.open bloqueado e <a download> não funciona — mostrar a imagem no próprio app
-    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
     if(isIOS){
       mostrarImagemOverlay(dataUrl, ano);
       return;
@@ -4219,6 +4220,24 @@ function normalize(d){
   <button class="wr-share" id="wr-share">✦ Compartilhar meu ano</button>
 </div>
 
-<script>if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");</script>
+<script>
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js").then(reg=>{
+    // força verificação de atualização a cada carregamento
+    reg.update();
+    reg.addEventListener('updatefound',()=>{
+      const nw=reg.installing;
+      if(!nw) return;
+      nw.addEventListener('statechange',()=>{
+        if(nw.state==='installed' && navigator.serviceWorker.controller){
+          // nova versão pronta — recarrega silenciosamente
+          nw.postMessage({type:'SKIP_WAITING'});
+          navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
+        }
+      });
+    });
+  });
+}
+</script>
 </body>
 </html>
