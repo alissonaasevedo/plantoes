@@ -3278,8 +3278,9 @@ function roundRect(ctx, x, y, w, h, r){
   ctx.closePath();
 }
 
-/* ── Gera canvas do resumo anual — sem drawImage (evita canvas taint no iOS PWA) ── */
-function gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa){
+/* ── Gera canvas do resumo anual ── */
+/* icone: Image() com crossOrigin=anonymous carregada antes — null usa fallback desenhado */
+function gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa, icone){
   const W=1080, H=1350;
   const cvs = document.createElement('canvas');
   cvs.width=W; cvs.height=H;
@@ -3301,27 +3302,34 @@ function gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa){
   rg.addColorStop(0,'rgba(120,80,255,0.16)'); rg.addColorStop(1,'rgba(120,80,255,0)');
   ctx.fillStyle=rg; ctx.fillRect(0,180,W,680);
 
-  // ── CABEÇALHO: ícone folha + "Plantaê!" ──
+  // ── CABEÇALHO: ícone + "Plantaê!" ──
   ctx.save();
-  // Folha decorativa desenhada (substituindo drawImage)
-  const lx=W/2-230, ly=100;
-  // Caule
-  ctx.strokeStyle='rgba(140,200,90,0.85)'; ctx.lineWidth=8; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(lx+50,ly+110); ctx.lineTo(lx+50,ly+30); ctx.stroke();
-  // Folha principal
-  ctx.fillStyle='rgba(110,200,80,0.9)';
-  ctx.beginPath();
-  ctx.moveTo(lx+50,ly+30);
-  ctx.bezierCurveTo(lx+80,ly-10,lx+110,ly+20,lx+90,ly+70);
-  ctx.bezierCurveTo(lx+70,ly+95,lx+50,ly+90,lx+50,ly+30);
-  ctx.fill();
-  // Folha secundária
-  ctx.fillStyle='rgba(80,170,60,0.75)';
-  ctx.beginPath();
-  ctx.moveTo(lx+50,ly+55);
-  ctx.bezierCurveTo(lx+20,ly+20,lx-8,ly+42,lx+18,ly+82);
-  ctx.bezierCurveTo(lx+34,ly+95,lx+50,ly+85,lx+50,ly+55);
-  ctx.fill();
+  const icoSz=120, icoX=W/2-230, icoY=90;
+  if(icone){
+    // Ícone real com máscara circular
+    ctx.save();
+    ctx.beginPath(); ctx.arc(icoX+icoSz/2, icoY+icoSz/2, icoSz/2, 0, Math.PI*2);
+    ctx.clip();
+    ctx.drawImage(icone, icoX, icoY, icoSz, icoSz);
+    ctx.restore();
+  } else {
+    // Fallback: folha desenhada
+    const lx=icoX, ly=icoY;
+    ctx.strokeStyle='rgba(140,200,90,0.85)'; ctx.lineWidth=8; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(lx+50,ly+110); ctx.lineTo(lx+50,ly+30); ctx.stroke();
+    ctx.fillStyle='rgba(110,200,80,0.9)';
+    ctx.beginPath();
+    ctx.moveTo(lx+50,ly+30);
+    ctx.bezierCurveTo(lx+80,ly-10,lx+110,ly+20,lx+90,ly+70);
+    ctx.bezierCurveTo(lx+70,ly+95,lx+50,ly+90,lx+50,ly+30);
+    ctx.fill();
+    ctx.fillStyle='rgba(80,170,60,0.75)';
+    ctx.beginPath();
+    ctx.moveTo(lx+50,ly+55);
+    ctx.bezierCurveTo(lx+20,ly+20,lx-8,ly+42,lx+18,ly+82);
+    ctx.bezierCurveTo(lx+34,ly+95,lx+50,ly+85,lx+50,ly+55);
+    ctx.fill();
+  }
   ctx.restore();
 
   // "Plantaê!" wordmark
@@ -3418,6 +3426,24 @@ function gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa){
   ctx.font='400 20px system-ui,-apple-system,sans-serif';
   ctx.fillText('plantoes-asevedo.vercel.app', 48, H-16);
 
+  // Marca d'água: ícone pequeno no canto inferior direito
+  const wmSz=64, wmX=W-wmSz-44, wmY=H-wmSz-22;
+  if(icone){
+    ctx.save();
+    ctx.globalAlpha=0.72;
+    ctx.beginPath(); ctx.arc(wmX+wmSz/2, wmY+wmSz/2, wmSz/2, 0, Math.PI*2);
+    ctx.clip();
+    ctx.drawImage(icone, wmX, wmY, wmSz, wmSz);
+    ctx.restore();
+  } else {
+    // Fallback: folha mini
+    ctx.save(); ctx.globalAlpha=0.55;
+    ctx.translate(wmX+wmSz/2, wmY+wmSz/2);
+    ctx.fillStyle='rgba(140,200,90,0.9)';
+    ctx.beginPath(); ctx.ellipse(0,-4,13,20,0.2,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
   return cvs;
 }
 
@@ -3465,40 +3491,43 @@ function compartilharAno(){
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
     (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
 
-  // Gera o canvas — erros aparecem em toast para depuração
-  let dataUrl;
-  try {
-    const cvs = gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa);
-    dataUrl = cvs.toDataURL('image/png');
-  } catch(e){
-    toast('Erro ao gerar imagem: ' + e.message);
-    return;
+  function gerarECompartilhar(icone){
+    let dataUrl;
+    try {
+      const cvs = gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa, icone);
+      dataUrl = cvs.toDataURL('image/png');
+    } catch(e){
+      toast('Erro ao gerar imagem: ' + e.message);
+      return;
+    }
+    if(isIOS){
+      mostrarImagemOverlay(dataUrl, ano);
+      return;
+    }
+    const byteStr=atob(dataUrl.split(',')[1]);
+    const ab=new Uint8Array(byteStr.length);
+    for(let i=0;i<byteStr.length;i++) ab[i]=byteStr.charCodeAt(i);
+    const blob=new Blob([ab],{type:'image/png'});
+    const file=new File([blob],'plantae-'+ano+'.png',{type:'image/png'});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:'Plantaê! '+ano}).catch(err=>{
+        if(err?.name==='AbortError') return;
+        const a=document.createElement('a');a.href=dataUrl;a.download='plantae-'+ano+'.png';
+        document.body.appendChild(a);a.click();document.body.removeChild(a);
+      });
+    } else {
+      const a=document.createElement('a');a.href=dataUrl;a.download='plantae-'+ano+'.png';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      toast('Imagem salva ✓');
+    }
   }
 
-  // iOS: sempre mostra overlay interno — share nativo com arquivo não funciona em PWA
-  if(isIOS){
-    mostrarImagemOverlay(dataUrl, ano);
-    return;
-  }
-
-  // Não-iOS: tenta share com arquivo, cai em download se não suportado
-  const byteStr = atob(dataUrl.split(',')[1]);
-  const ab = new Uint8Array(byteStr.length);
-  for(let i=0;i<byteStr.length;i++) ab[i]=byteStr.charCodeAt(i);
-  const blob = new Blob([ab], {type:'image/png'});
-  const file = new File([blob], 'plantae-'+ano+'.png', {type:'image/png'});
-
-  if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-    navigator.share({files:[file], title:'Plantaê! '+ano}).catch(err=>{
-      if(err?.name==='AbortError') return;
-      const a=document.createElement('a'); a.href=dataUrl; a.download='plantae-'+ano+'.png';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    });
-  } else {
-    const a=document.createElement('a'); a.href=dataUrl; a.download='plantae-'+ano+'.png';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    toast('Imagem salva ✓');
-  }
+  // Carrega o ícone com crossOrigin=anonymous para não contaminar o canvas
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => gerarECompartilhar(img);
+  img.onerror = () => gerarECompartilhar(null); // fallback sem ícone
+  img.src = './icon-512.png?' + Date.now(); // cache-bust garante que o header CORS seja aplicado
 }
 
 /* ================= eventos ================= */
