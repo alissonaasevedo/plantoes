@@ -843,6 +843,30 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 </head>
 <body>
 
+<!-- ===== SPLASH SCREEN ===== -->
+<div id="splash">
+  <div class="splash-logo">
+    <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <!-- fêmur estilizado: cabeça + colo + diáfise + côndilo -->
+      <!-- cabeça femoral -->
+      <circle cx="10" cy="8.5" r="5.5" fill="white" opacity="0.95"/>
+      <!-- colo femoral -->
+      <path d="M14.5 11.5 L19 18" stroke="white" stroke-width="3.2" stroke-linecap="round"/>
+      <!-- diáfise (corpo) -->
+      <path d="M19 18 L22 30" stroke="white" stroke-width="4" stroke-linecap="round"/>
+      <!-- côndilo lateral -->
+      <ellipse cx="24.5" cy="32.5" rx="4" ry="3" fill="white" opacity="0.95"/>
+      <!-- côndilo medial -->
+      <ellipse cx="18.5" cy="33.5" rx="3.2" ry="2.5" fill="white" opacity="0.85"/>
+      <!-- trocânter maior -->
+      <ellipse cx="23.5" cy="14" rx="3" ry="4" fill="white" opacity="0.7" transform="rotate(-15 23.5 14)"/>
+    </svg>
+  </div>
+  <div class="splash-name">Plantões</div>
+  <div class="splash-tag">Sua renda, organizada.</div>
+  <div class="splash-dots"><span></span><span></span><span></span></div>
+</div>
+
 <div class="wrap">
   <div id="ptr-indicator" style="
   position:fixed;top:0;left:0;right:0;z-index:100;
@@ -3745,13 +3769,19 @@ function normalize(d){
   const saved = await store.load();
   if(saved && Array.isArray(saved.shifts)) S = normalize(saved);
   render();
-  // dismiss splash screen
-  const splash = document.getElementById('splash');
-  if(splash){
+  // dismiss splash screen — usa RAF para garantir que o elemento existe no DOM
+  function dismissSplash(){
+    const splash = document.getElementById('splash');
+    if(!splash) return;
     setTimeout(()=>{
       splash.classList.add('out');
       setTimeout(()=>{ if(splash.parentNode) splash.parentNode.removeChild(splash); }, 380);
     }, 820);
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', dismissSplash, {once:true});
+  } else {
+    dismissSplash();
   }
   if(Notification.permission==='granted') agendarNotificacoes();
   // App Shortcuts: tratar URL params
@@ -3763,13 +3793,7 @@ function normalize(d){
   }
 })();
 </script>
-<!-- ===== SPLASH SCREEN ===== -->
-<div id="splash">
-  <div class="splash-logo">💊</div>
-  <div class="splash-name">Plantões</div>
-  <div class="splash-tag">Sua renda, organizada.</div>
-  <div class="splash-dots"><span></span><span></span><span></span></div>
-</div>
+<!-- splash movido para o topo do body -->
 <canvas id="pay-canvas" style="display:none"></canvas>
 
 <!-- ===== WRAPPED SHEET ===== -->
