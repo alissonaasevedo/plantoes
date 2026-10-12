@@ -3468,7 +3468,7 @@ function mostrarImagemOverlay(dataUrl, ano){
   document.body.appendChild(ov);
 }
 
-/* ── Compartilha o resumo anual — fix iOS: download direto + share assíncrono ── */
+/* ── Compartilha o resumo anual ── */
 function compartilharAno(){
   const ano = new Date().getFullYear();
   const doAno = S.shifts.filter(counts).filter(s=>s.data&&s.data.startsWith(String(ano)));
@@ -3476,59 +3476,45 @@ function compartilharAno(){
   const horas = doAno.reduce((a,s)=>a+(+s.duracao||0),0);
   const n = doAno.length;
   const ticket = n > 0 ? Math.round(total/n) : 0;
-  // Renda fixa separada
   const rendaFixaAno = S.shifts.filter(ehBolsa).filter(s=>s.data&&s.data.startsWith(String(ano)));
   const totalRendaFixa = rendaFixaAno.reduce((a,s)=>a+(s.liquido||s.valor||0),0);
 
-  const txt = '🏥 Meu ' + ano + ' em plantões\n\n'
-    + '💰 ' + brl(total) + ' em plantões\n'
-    + (totalRendaFixa > 0 ? '🏦 ' + brl(totalRendaFixa) + ' em renda fixa\n' : '')
-    + '⏱ ' + horas + 'h trabalhadas\n'
-    + '🔢 ' + n + ' plantão' + (n>1?'ões':'') + '\n\n'
-    + 'via Plantaê! · plantoes-asevedo.vercel.app';
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
 
+  // Gera o canvas — erros aparecem em toast para depuração
+  let dataUrl;
   try {
     const cvs = gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa);
-    const dataUrl = cvs.toDataURL('image/png');
+    dataUrl = cvs.toDataURL('image/png');
+  } catch(e){
+    toast('Erro ao gerar imagem: ' + e.message);
+    return;
+  }
 
-    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  // iOS: sempre mostra overlay interno — share nativo com arquivo não funciona em PWA
+  if(isIOS){
+    mostrarImagemOverlay(dataUrl, ano);
+    return;
+  }
 
-    // Monta o arquivo antes de qualquer decisão
-    const byteStr = atob(dataUrl.split(',')[1]);
-    const ab = new Uint8Array(byteStr.length);
-    for(let i=0;i<byteStr.length;i++) ab[i]=byteStr.charCodeAt(i);
-    const blob = new Blob([ab], {type:'image/png'});
-    const file = new File([blob], 'plantae-'+ano+'.png', {type:'image/png'});
+  // Não-iOS: tenta share com arquivo, cai em download se não suportado
+  const byteStr = atob(dataUrl.split(',')[1]);
+  const ab = new Uint8Array(byteStr.length);
+  for(let i=0;i<byteStr.length;i++) ab[i]=byteStr.charCodeAt(i);
+  const blob = new Blob([ab], {type:'image/png'});
+  const file = new File([blob], 'plantae-'+ano+'.png', {type:'image/png'});
 
-    // Verifica se o browser consegue compartilhar o ARQUIVO (não apenas texto)
-    const podeShareArquivo = !!(navigator.share && navigator.canShare && navigator.canShare({files:[file]}));
-
-    if(podeShareArquivo){
-      // Consegue compartilhar com imagem — usa o share nativo com arquivo
-      navigator.share({files:[file], title:'Plantaê! '+ano, text:txt}).catch(err=>{
-        if(err && err.name==='AbortError') return; // usuário cancelou — não faz nada
-        // share com arquivo falhou: mostra overlay no iOS, download em outros
-        if(isIOS) mostrarImagemOverlay(dataUrl, ano);
-        else { const a=document.createElement('a'); a.href=dataUrl; a.download='plantae-'+ano+'.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
-      });
-      return;
-    }
-
-    // iOS/PWA: canShare com arquivo = false — mostra imagem em overlay interno
-    if(isIOS){
-      mostrarImagemOverlay(dataUrl, ano);
-      return;
-    }
-
-    // Android/Desktop sem share com arquivo: download direto
-    const a = document.createElement('a');
-    a.href = dataUrl; a.download = 'plantae-'+ano+'.png';
+  if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+    navigator.share({files:[file], title:'Plantaê! '+ano}).catch(err=>{
+      if(err?.name==='AbortError') return;
+      const a=document.createElement('a'); a.href=dataUrl; a.download='plantae-'+ano+'.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    });
+  } else {
+    const a=document.createElement('a'); a.href=dataUrl; a.download='plantae-'+ano+'.png';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     toast('Imagem salva ✓');
-  } catch(e){
-    // Último recurso: compartilha só o texto
-    if(navigator.share) navigator.share({text:txt}).catch(()=>{});
-    else navigator.clipboard.writeText(txt).then(()=>toast('Texto copiado ✓')).catch(()=>{});
   }
 }
 
