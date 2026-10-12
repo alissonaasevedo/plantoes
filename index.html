@@ -3489,42 +3489,44 @@ function compartilharAno(){
 
   try {
     const cvs = gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa);
-
-    // iOS Safari: toBlob() é assíncrono — perde o user-gesture token antes de share/download.
-    // Solução: toDataURL() é SÍNCRONO — mantém o token intacto.
     const dataUrl = cvs.toDataURL('image/png');
 
     const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
 
-    // Tenta Web Share API com arquivo
-    if(navigator.share && navigator.canShare){
-      const byteStr = atob(dataUrl.split(',')[1]);
-      const ab = new Uint8Array(byteStr.length);
-      for(let i=0;i<byteStr.length;i++) ab[i]=byteStr.charCodeAt(i);
-      const blob = new Blob([ab], {type:'image/png'});
-      const file = new File([blob], 'plantae-'+ano+'.png', {type:'image/png'});
-      if(navigator.canShare({files:[file]})){
-        navigator.share({files:[file], title:'Plantaê! '+ano, text:txt}).catch(err=>{
-          if(err && err.name==='AbortError') return;
-          // share falhou — mostra overlay no iOS, download em outros
-          if(isIOS) mostrarImagemOverlay(dataUrl, ano);
-          else { const a=document.createElement('a'); a.href=dataUrl; a.download='plantae-'+ano+'.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
-        });
-        return;
-      }
+    // Monta o arquivo antes de qualquer decisão
+    const byteStr = atob(dataUrl.split(',')[1]);
+    const ab = new Uint8Array(byteStr.length);
+    for(let i=0;i<byteStr.length;i++) ab[i]=byteStr.charCodeAt(i);
+    const blob = new Blob([ab], {type:'image/png'});
+    const file = new File([blob], 'plantae-'+ano+'.png', {type:'image/png'});
+
+    // Verifica se o browser consegue compartilhar o ARQUIVO (não apenas texto)
+    const podeShareArquivo = !!(navigator.share && navigator.canShare && navigator.canShare({files:[file]}));
+
+    if(podeShareArquivo){
+      // Consegue compartilhar com imagem — usa o share nativo com arquivo
+      navigator.share({files:[file], title:'Plantaê! '+ano, text:txt}).catch(err=>{
+        if(err && err.name==='AbortError') return; // usuário cancelou — não faz nada
+        // share com arquivo falhou: mostra overlay no iOS, download em outros
+        if(isIOS) mostrarImagemOverlay(dataUrl, ano);
+        else { const a=document.createElement('a'); a.href=dataUrl; a.download='plantae-'+ano+'.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+      });
+      return;
     }
 
-    // iOS/PWA: window.open bloqueado e <a download> não funciona — mostrar a imagem no próprio app
+    // iOS/PWA: canShare com arquivo = false — mostra imagem em overlay interno
     if(isIOS){
       mostrarImagemOverlay(dataUrl, ano);
       return;
     }
 
+    // Android/Desktop sem share com arquivo: download direto
     const a = document.createElement('a');
     a.href = dataUrl; a.download = 'plantae-'+ano+'.png';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     toast('Imagem salva ✓');
   } catch(e){
+    // Último recurso: compartilha só o texto
     if(navigator.share) navigator.share({text:txt}).catch(()=>{});
     else navigator.clipboard.writeText(txt).then(()=>toast('Texto copiado ✓')).catch(()=>{});
   }
