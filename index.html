@@ -3252,25 +3252,42 @@ function gerarCanvasAno(ano, total, horas, n, ticket){
   radGrad.addColorStop(0,'rgba(100,75,255,0.18)'); radGrad.addColorStop(1,'rgba(100,75,255,0)');
   ctx.fillStyle=radGrad; ctx.fillRect(0,200,W,600);
 
-  // ── Logo / Ícone topo ──
-  // Pastilha roxa de fundo
-  ctx.fillStyle='rgba(120,90,255,0.22)';
-  roundRect(ctx,W/2-54,62,108,108,28); ctx.fill();
-  // Usa ícone real pré-carregado (sem fundo)
+    // ── Logo / Header topo (logo grande, sem fundo) ──
+  const logoH = 180;
+  // Glow suave atrás da área do header
+  const lgGlow = ctx.createRadialGradient(W/2, 60 + logoH/2, 0, W/2, 60 + logoH/2, 300);
+  lgGlow.addColorStop(0, 'rgba(124,92,252,0.18)');
+  lgGlow.addColorStop(1, 'rgba(124,92,252,0)');
+  ctx.fillStyle = lgGlow;
+  ctx.fillRect(0, 0, W, 60 + logoH + 40);
+  // Ícone real (icon-512.png) — à esquerda do wordmark, sem fundo
+  const iconSizeLg = 120;
+  const iconX = W/2 - 240;
+  const iconY = 60 + (logoH - iconSizeLg)/2;
   if(window._appIcon && window._appIcon.complete){
-    ctx.drawImage(window._appIcon, W/2-46, 70, 92, 92);
+    ctx.drawImage(window._appIcon, iconX, iconY, iconSizeLg, iconSizeLg);
   } else {
-    // fallback: fêmur simplificado
-    ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=7; ctx.lineCap='round';
-    ctx.beginPath(); ctx.arc(W/2-12,84,16,0,Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(W/2-4,98); ctx.lineTo(W/2+8,148); ctx.stroke();
-    ctx.beginPath(); ctx.arc(W/2,158,12,0,Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(W/2+22,152,10,0,Math.PI*2); ctx.stroke();
+    // fallback folha estilizada
+    ctx.save(); ctx.translate(iconX + iconSizeLg/2, iconY + iconSizeLg/2);
+    ctx.fillStyle='rgba(140,200,100,0.9)';
+    ctx.beginPath(); ctx.ellipse(0,-8,30,48,0.2,0,Math.PI*2); ctx.fill();
+    ctx.restore();
   }
-
-    // ── Nome do app ──
-  ctx.fillStyle='#fff'; ctx.textAlign='center';
-  ctx.font='700 54px Inter,system-ui,sans-serif';
+  // Wordmark "Plantaê!" em grande
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 110px sans-serif';
+  ctx.fillText('Plantaê!', W/2 - 100, 60 + logoH/2 + 4);
+  // Linha de destaque roxa abaixo do wordmark
+  const ulX = W/2 - 100, ulW = 420;
+  const ulGrad = ctx.createLinearGradient(ulX, 0, ulX + ulW, 0);
+  ulGrad.addColorStop(0, 'rgba(124,92,252,0.9)');
+  ulGrad.addColorStop(0.6, 'rgba(167,139,250,0.5)');
+  ulGrad.addColorStop(1, 'rgba(167,139,250,0)');
+  ctx.fillStyle = ulGrad;
+  ctx.fillRect(ulX, 60 + logoH/2 + 62, ulW, 4);
+  ctx.textBaseline = 'alphabetic';
   ctx.fillText('Plantaê!', W/2, 218);
   ctx.fillStyle='rgba(255,255,255,0.45)';
   ctx.font='400 26px Inter,system-ui,sans-serif';
@@ -3342,12 +3359,22 @@ function gerarCanvasAno(ano, total, horas, n, ticket){
   ctx.fillText('plantoes-asevedo.vercel.app', 48, H-20);
   // Ícone fêmur pequeno à direita
   ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=4; ctx.lineCap='round';
-  const ix=W-84, iy=H-68;
-  ctx.beginPath(); ctx.arc(ix-5,iy-14,9,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(ix-2,iy-6); ctx.lineTo(ix+4,iy+18); ctx.stroke();
-  ctx.beginPath(); ctx.arc(ix+3,iy+24,7,0,Math.PI*2); ctx.stroke();
+  // ── Ícone pequeno no canto inferior direito (sem fundo) ──
+  const iconSmSz = 72;
+  const iconSmX = W - iconSmSz - 48;
+  const iconSmY = H - iconSmSz - 48;
+  if(window._appIcon && window._appIcon.complete){
+    ctx.globalAlpha = 0.75;
+    ctx.drawImage(window._appIcon, iconSmX, iconSmY, iconSmSz, iconSmSz);
+    ctx.globalAlpha = 1.0;
+  } else {
+    // fallback folha
+    ctx.save(); ctx.globalAlpha=0.6; ctx.translate(iconSmX+iconSmSz/2, iconSmY+iconSmSz/2);
+    ctx.fillStyle='rgba(140,200,100,0.85)';
+    ctx.beginPath(); ctx.ellipse(0,-4,14,22,0.2,0,Math.PI*2); ctx.fill();
+    ctx.restore(); ctx.globalAlpha=1.0;
+  }
 
-  return cvs;
 }
 
 /* ── Compartilha o resumo anual — fix iOS: download direto + share assíncrono ── */
