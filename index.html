@@ -3242,15 +3242,6 @@ function renderWrapped(){
   document.getElementById('wr-ticket-sub').textContent = ticket > 0 ? 'valor líquido médio por plantão' : '';
 }
 
-// Pré-carrega o ícone real para uso no canvas do resumo anual
-(function(){
-  const img = new Image();
-  img.src = './icon-512.png';
-  img.onload = function(){ window._appIcon = img; };
-  // Tenta carregar imediatamente; se já estiver em cache, complete=true instantaneamente
-  if(img.complete) window._appIcon = img;
-})();
-
 function openWrapped(){
   const sheet = document.getElementById('wrapped-sheet');
   const splash = document.getElementById('wrapped-splash');
@@ -3287,166 +3278,147 @@ function roundRect(ctx, x, y, w, h, r){
   ctx.closePath();
 }
 
-/* ── Gera canvas do resumo anual ── */
+/* ── Gera canvas do resumo anual — sem drawImage (evita canvas taint no iOS PWA) ── */
 function gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa){
   const W=1080, H=1350;
   const cvs = document.createElement('canvas');
   cvs.width=W; cvs.height=H;
   const ctx = cvs.getContext('2d');
 
-  // Fundo: gradiente escuro profundo com tom médico
+  // ── Fundo gradiente escuro profundo ──
   const grad = ctx.createLinearGradient(0,0,0,H);
-  grad.addColorStop(0,'#0F0C1E'); grad.addColorStop(0.5,'#1A1040'); grad.addColorStop(1,'#0D0B1A');
+  grad.addColorStop(0,'#0D0B1C'); grad.addColorStop(0.45,'#150F38'); grad.addColorStop(1,'#0A0818');
   ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
 
   // Malha de pontos sutil
-  ctx.fillStyle='rgba(255,255,255,0.025)';
-  for(let x=0;x<W;x+=36) for(let y=0;y<H;y+=36) { ctx.beginPath(); ctx.arc(x,y,1.5,0,Math.PI*2); ctx.fill(); }
-
-  // Círculo de destaque atrás do valor principal
-  const radGrad = ctx.createRadialGradient(W/2,460,0,W/2,460,360);
-  radGrad.addColorStop(0,'rgba(100,75,255,0.18)'); radGrad.addColorStop(1,'rgba(100,75,255,0)');
-  ctx.fillStyle=radGrad; ctx.fillRect(0,200,W,600);
-
-    // ── Logo / Header topo (logo grande, sem fundo) ──
-  const logoH = 180;
-  // Glow suave atrás da área do header
-  const lgGlow = ctx.createRadialGradient(W/2, 60 + logoH/2, 0, W/2, 60 + logoH/2, 300);
-  lgGlow.addColorStop(0, 'rgba(124,92,252,0.18)');
-  lgGlow.addColorStop(1, 'rgba(124,92,252,0)');
-  ctx.fillStyle = lgGlow;
-  ctx.fillRect(0, 0, W, 60 + logoH + 40);
-  // Ícone real (icon-512.png) — à esquerda do wordmark, sem fundo
-  const iconSizeLg = 120;
-  const iconX = W/2 - 240;
-  const iconY = 60 + (logoH - iconSizeLg)/2;
-  if(window._appIcon && window._appIcon.complete){
-    ctx.drawImage(window._appIcon, iconX, iconY, iconSizeLg, iconSizeLg);
-  } else {
-    // fallback folha estilizada
-    ctx.save(); ctx.translate(iconX + iconSizeLg/2, iconY + iconSizeLg/2);
-    ctx.fillStyle='rgba(140,200,100,0.9)';
-    ctx.beginPath(); ctx.ellipse(0,-8,30,48,0.2,0,Math.PI*2); ctx.fill();
-    ctx.restore();
+  ctx.fillStyle='rgba(255,255,255,0.022)';
+  for(let x=36;x<W;x+=36) for(let y=36;y<H;y+=36){
+    ctx.beginPath(); ctx.arc(x,y,1.4,0,Math.PI*2); ctx.fill();
   }
-  // Wordmark "Plantaê!" em grande
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 110px sans-serif';
-  ctx.fillText('Plantaê!', W/2 - 100, 60 + logoH/2 + 4);
-  // Linha de destaque roxa abaixo do wordmark
-  const ulX = W/2 - 100, ulW = 420;
-  const ulGrad = ctx.createLinearGradient(ulX, 0, ulX + ulW, 0);
-  ulGrad.addColorStop(0, 'rgba(124,92,252,0.9)');
-  ulGrad.addColorStop(0.6, 'rgba(167,139,250,0.5)');
-  ulGrad.addColorStop(1, 'rgba(167,139,250,0)');
-  ctx.fillStyle = ulGrad;
-  ctx.fillRect(ulX, 60 + logoH/2 + 62, ulW, 4);
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText('Plantaê!', W/2, 218);
-  ctx.fillStyle='rgba(255,255,255,0.45)';
-  ctx.font='400 26px Inter,system-ui,sans-serif';
-  ctx.fillText(ano + '  ·  Seu ano em números', W/2, 256);
 
-  // Linha divisória com gradiente
-  const lineGrad = ctx.createLinearGradient(W/2-200,0,W/2+200,0);
-  lineGrad.addColorStop(0,'rgba(255,255,255,0)');
-  lineGrad.addColorStop(0.5,'rgba(255,255,255,0.25)');
-  lineGrad.addColorStop(1,'rgba(255,255,255,0)');
-  ctx.fillStyle=lineGrad; ctx.fillRect(W/2-220,278,440,1);
+  // Glow radial central (atrás dos números)
+  const rg = ctx.createRadialGradient(W/2,500,0,W/2,500,420);
+  rg.addColorStop(0,'rgba(120,80,255,0.16)'); rg.addColorStop(1,'rgba(120,80,255,0)');
+  ctx.fillStyle=rg; ctx.fillRect(0,180,W,680);
 
-  // ── Valor total ──
-  const totalStr = brl(total);
-  const fsize = totalStr.length > 13 ? 76 : totalStr.length > 10 ? 88 : 100;
-  ctx.fillStyle='#fff';
-  ctx.font='800 '+fsize+'px Inter,system-ui,sans-serif';
-  ctx.fillText(totalStr, W/2, 390);
-  ctx.fillStyle='rgba(255,255,255,0.4)';
-  ctx.font='400 27px Inter,system-ui,sans-serif';
-  ctx.fillText('receita bruta · ' + ano, W/2, 432);
+  // ── CABEÇALHO: ícone folha + "Plantaê!" ──
+  ctx.save();
+  // Folha decorativa desenhada (substituindo drawImage)
+  const lx=W/2-230, ly=100;
+  // Caule
+  ctx.strokeStyle='rgba(140,200,90,0.85)'; ctx.lineWidth=8; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(lx+50,ly+110); ctx.lineTo(lx+50,ly+30); ctx.stroke();
+  // Folha principal
+  ctx.fillStyle='rgba(110,200,80,0.9)';
+  ctx.beginPath();
+  ctx.moveTo(lx+50,ly+30);
+  ctx.bezierCurveTo(lx+80,ly-10,lx+110,ly+20,lx+90,ly+70);
+  ctx.bezierCurveTo(lx+70,ly+95,lx+50,ly+90,lx+50,ly+30);
+  ctx.fill();
+  // Folha secundária
+  ctx.fillStyle='rgba(80,170,60,0.75)';
+  ctx.beginPath();
+  ctx.moveTo(lx+50,ly+55);
+  ctx.bezierCurveTo(lx+20,ly+20,lx-8,ly+42,lx+18,ly+82);
+  ctx.bezierCurveTo(lx+34,ly+95,lx+50,ly+85,lx+50,ly+55);
+  ctx.fill();
+  ctx.restore();
 
-  // ── 3 cards métricas ──
+  // "Plantaê!" wordmark
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillStyle='#FFFFFF';
+  ctx.font='800 108px system-ui,-apple-system,sans-serif';
+  ctx.fillText('Plantaê!', W/2-160, 150);
+
+  // Linha accent abaixo do wordmark
+  const ulX=W/2-160;
+  const ulG=ctx.createLinearGradient(ulX,0,ulX+450,0);
+  ulG.addColorStop(0,'rgba(130,100,255,0.95)');
+  ulG.addColorStop(0.65,'rgba(170,145,255,0.4)');
+  ulG.addColorStop(1,'rgba(170,145,255,0)');
+  ctx.fillStyle=ulG; ctx.fillRect(ulX,208,450,5);
+
+  // Subtítulo
+  ctx.fillStyle='rgba(255,255,255,0.42)';
+  ctx.font='400 28px system-ui,-apple-system,sans-serif';
+  ctx.fillText('Seu ano em números · '+ano, W/2-160, 248);
+
+  // Linha divisória
+  ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(60,284,W-120,1);
+
+  // ── TOTAL ──
+  const totalStr=brl(total);
+  const fs=totalStr.length>14?72:totalStr.length>11?86:100;
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#FFFFFF';
+  ctx.font='800 '+fs+'px system-ui,-apple-system,sans-serif';
+  ctx.fillText(totalStr, W/2, 396);
+  ctx.fillStyle='rgba(255,255,255,0.38)';
+  ctx.font='400 28px system-ui,-apple-system,sans-serif';
+  ctx.fillText('receita bruta de plantões · '+ano, W/2, 440);
+
+  // ── CARDS MÉTRICAS ──
   const cards=[
-    {ico:'⏱',label:'HORAS TRABALHADAS',val:horas>0?horas+'h':'—',sub:horas>0?Math.round(horas/24)+' dia'+(Math.round(horas/24)!==1?'s':''):'' },
-    {ico:'🏥',label:'PLANTÕES REALIZADOS',val:n>0?String(n):'—',sub:n>0?(n>1?'plantões':'plantão')+' no ano':'' },
-    {ico:'💰',label:'TICKET MÉDIO',val:ticket>0?brl(ticket):'—',sub:ticket>0?'por plantão':'' },
+    {ico:'⏱',lbl:'HORAS TRABALHADAS',  val:horas>0?horas+'h':'—', sub:horas>0?'equivale a '+Math.round(horas/24)+' dia'+(Math.round(horas/24)!==1?'s':''):''},
+    {ico:'🏥',lbl:'PLANTÕES REALIZADOS',val:n>0?String(n):'—',     sub:n>0?(n>1?'plantões':'plantão')+' no ano':''},
+    {ico:'💰',lbl:'TICKET MÉDIO',       val:ticket>0?brl(ticket):'—',sub:ticket>0?'valor líquido médio':''},
   ];
-  const cH=162, cW=W-80, cX=40;
+  const cH=160, cW=W-80, cX=40;
   cards.forEach((c,i)=>{
-    const cy=480+i*(cH+20);
-    // Card com borda sutil
-    ctx.fillStyle='rgba(255,255,255,0.055)';
-    roundRect(ctx,cX,cy,cW,cH,24); ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1.5;
-    roundRect(ctx,cX,cy,cW,cH,24); ctx.stroke();
-    // Emoji ícone
-    ctx.font='46px system-ui,sans-serif'; ctx.textAlign='left';
-    ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fillText(c.ico,cX+28,cy+cH/2+16);
+    const cy=476+i*(cH+18);
+    // Fundo do card
+    ctx.fillStyle='rgba(255,255,255,0.05)';
+    roundRect(ctx,cX,cy,cW,cH,22); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.09)'; ctx.lineWidth=1.5;
+    roundRect(ctx,cX,cy,cW,cH,22); ctx.stroke();
+    // Emoji
+    ctx.font='44px system-ui,sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(255,255,255,0.88)'; ctx.fillText(c.ico,cX+26,cy+cH/2);
     // Label
-    ctx.fillStyle='rgba(255,255,255,0.38)';
-    ctx.font='600 20px Inter,system-ui,sans-serif';
-    ctx.fillText(c.label,cX+100,cy+46);
+    ctx.fillStyle='rgba(255,255,255,0.36)';
+    ctx.font='600 19px system-ui,-apple-system,sans-serif';
+    ctx.fillText(c.lbl,cX+96,cy+42);
     // Valor
-    ctx.fillStyle='#fff';
-    ctx.font='700 40px Inter,system-ui,sans-serif';
-    ctx.fillText(c.val,cX+100,cy+100);
+    ctx.fillStyle='#FFFFFF';
+    ctx.font='700 42px system-ui,-apple-system,sans-serif';
+    ctx.fillText(c.val,cX+96,cy+98);
     // Sub
     if(c.sub){
-      ctx.fillStyle='rgba(255,255,255,0.38)';
-      ctx.font='400 20px Inter,system-ui,sans-serif';
-      ctx.fillText(c.sub,cX+100,cy+132);
+      ctx.fillStyle='rgba(255,255,255,0.36)';
+      ctx.font='400 20px system-ui,-apple-system,sans-serif';
+      ctx.fillText(c.sub,cX+96,cy+130);
     }
   });
 
-  // ── Renda Fixa (se houver) ──
-  if(totalRendaFixa > 0){
-    const rfY = 480 + 3*(162+20) + 10; // logo abaixo dos 3 cards
-    ctx.fillStyle='rgba(124,92,252,0.10)';
-    roundRect(ctx,40,rfY,W-80,72,16); ctx.fill();
-    ctx.strokeStyle='rgba(124,92,252,0.28)'; ctx.lineWidth=1.2;
-    roundRect(ctx,40,rfY,W-80,72,16); ctx.stroke();
-    ctx.textAlign='left'; ctx.fillStyle='rgba(255,255,255,0.45)';
-    ctx.font='500 20px Inter,system-ui,sans-serif';
-    ctx.fillText('🏦  RENDA FIXA (Bolsa-Residência + Auxílio-Moradia)', 68, rfY+28);
-    ctx.fillStyle='rgba(167,139,250,0.9)';
-    ctx.font='700 30px Inter,system-ui,sans-serif';
-    ctx.fillText(brl(totalRendaFixa), 68, rfY+58);
-    ctx.textAlign='center';
+  // ── RENDA FIXA (se houver) ──
+  if(totalRendaFixa>0){
+    const rfY=476+3*(cH+18)+10;
+    ctx.fillStyle='rgba(130,100,255,0.10)';
+    roundRect(ctx,40,rfY,W-80,76,16); ctx.fill();
+    ctx.strokeStyle='rgba(130,100,255,0.30)'; ctx.lineWidth=1.5;
+    roundRect(ctx,40,rfY,W-80,76,16); ctx.stroke();
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(255,255,255,0.42)';
+    ctx.font='500 20px system-ui,-apple-system,sans-serif';
+    ctx.fillText('🏦  Bolsa-Residência + Auxílio-Moradia', 68, rfY+26);
+    ctx.fillStyle='rgba(170,148,255,0.95)';
+    ctx.font='700 32px system-ui,-apple-system,sans-serif';
+    ctx.fillText(brl(totalRendaFixa), 68, rfY+56);
   }
 
-  // ── MARCA D'ÁGUA / rodapé ──
-  // Faixa escura inferior
-  const wmGrad = ctx.createLinearGradient(0,H-140,0,H);
-  wmGrad.addColorStop(0,'rgba(0,0,0,0)'); wmGrad.addColorStop(1,'rgba(0,0,0,0.55)');
-  ctx.fillStyle=wmGrad; ctx.fillRect(0,H-140,W,140);
-  // Linha separadora da marca
-  ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(0,H-92,W,1);
-  // Logo texto + URL
-  ctx.fillStyle='rgba(255,255,255,0.55)';
-  ctx.font='700 28px Inter,system-ui,sans-serif'; ctx.textAlign='left';
-  ctx.fillText('Plantaê!', 48, H-48);
-  ctx.fillStyle='rgba(255,255,255,0.28)';
-  ctx.font='400 22px Inter,system-ui,sans-serif';
-  ctx.fillText('plantoes-asevedo.vercel.app', 48, H-20);
-  // Ícone fêmur pequeno à direita
-  ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=4; ctx.lineCap='round';
-  // ── Ícone pequeno no canto inferior direito (sem fundo) ──
-  const iconSmSz = 72;
-  const iconSmX = W - iconSmSz - 48;
-  const iconSmY = H - iconSmSz - 48;
-  if(window._appIcon && window._appIcon.complete){
-    ctx.globalAlpha = 0.75;
-    ctx.drawImage(window._appIcon, iconSmX, iconSmY, iconSmSz, iconSmSz);
-    ctx.globalAlpha = 1.0;
-  } else {
-    // fallback folha
-    ctx.save(); ctx.globalAlpha=0.6; ctx.translate(iconSmX+iconSmSz/2, iconSmY+iconSmSz/2);
-    ctx.fillStyle='rgba(140,200,100,0.85)';
-    ctx.beginPath(); ctx.ellipse(0,-4,14,22,0.2,0,Math.PI*2); ctx.fill();
-    ctx.restore(); ctx.globalAlpha=1.0;
-  }
+  // ── RODAPÉ ──
+  const wg=ctx.createLinearGradient(0,H-120,0,H);
+  wg.addColorStop(0,'rgba(0,0,0,0)'); wg.addColorStop(1,'rgba(0,0,0,0.6)');
+  ctx.fillStyle=wg; ctx.fillRect(0,H-120,W,120);
+  ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(0,H-80,W,1);
+  ctx.fillStyle='rgba(255,255,255,0.52)';
+  ctx.font='700 26px system-ui,-apple-system,sans-serif'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.fillText('Plantaê!', 48, H-42);
+  ctx.fillStyle='rgba(255,255,255,0.26)';
+  ctx.font='400 20px system-ui,-apple-system,sans-serif';
+  ctx.fillText('plantoes-asevedo.vercel.app', 48, H-16);
 
+  return cvs;
 }
 
 /* ── Overlay para mostrar imagem no iOS PWA (window.open bloqueado) ── */
