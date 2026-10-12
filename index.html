@@ -3406,14 +3406,12 @@ function compartilharAno(){
 }
 
 /* ================= eventos ================= */
-// ── Wrapped handlers ──
-const wrBtn = $('#wrapped-btn');
-if(wrBtn) wrBtn.addEventListener('click', openWrapped);
-const wrClose = $('#wr-close');
-if(wrClose) wrClose.addEventListener('click', closeWrapped);
-const wrShare = $('#wr-share');
-if(wrShare) wrShare.addEventListener('click', compartilharAno);
-
+// ── Wrapped handlers (delegation — funciona mesmo se os elementos são inseridos depois) ──
+document.addEventListener('click', function(e){
+  if(e.target.closest('#wr-close'))    closeWrapped();
+  if(e.target.closest('#wr-share'))    compartilharAno();
+  if(e.target.closest('#wrapped-btn')) openWrapped();
+});
 // ── pull-to-refresh ──
 (function(){
   const IND   = document.getElementById('ptr-indicator');
