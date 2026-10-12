@@ -793,6 +793,30 @@ nav button.on .nav-ico { transform: translateY(-1px); }
   display: none;
 }
 #h-banner-prox span { font-weight: 600; color: var(--ok); }
+/* ─── Wrapped splash de entrada ─── */
+#wrapped-splash {
+  position: fixed; inset: 0; z-index: 850;
+  background: var(--accent);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+  transition: opacity .4s ease, transform .4s ease;
+}
+#wrapped-splash.out { opacity: 0; transform: scale(1.05); pointer-events: none; }
+.wsp-logo {
+  width: 72px; height: 72px; border-radius: 20px;
+  background: rgba(255,255,255,.15); display: grid; place-items: center;
+  animation: splashPulse 1.2s ease-in-out infinite;
+}
+.wsp-title { font-size: 24px; font-weight: 800; letter-spacing: -.03em; color: #fff; }
+.wsp-sub { font-size: 13px; color: rgba(255,255,255,.7); font-weight: 500; }
+.wsp-dots { display: flex; gap: 6px; margin-top: 6px; }
+.wsp-dots span {
+  width: 6px; height: 6px; border-radius: 99px; background: #fff;
+  opacity: .35; animation: dotFade 1.2s ease-in-out infinite;
+}
+.wsp-dots span:nth-child(2) { animation-delay: .2s; }
+.wsp-dots span:nth-child(3) { animation-delay: .4s; }
+
 /* ─── Wrapped ─── */
 #wrapped-btn {
   width: 100%; border: 1.5px dashed var(--line-2);
@@ -3136,27 +3160,147 @@ function renderWrapped(){
 }
 
 function openWrapped(){
-  renderWrapped();
-  document.getElementById('wrapped-sheet').classList.add('open');
+  const sheet = document.getElementById('wrapped-sheet');
+  const splash = document.getElementById('wrapped-splash');
+  sheet.classList.add('open');
   document.body.style.overflow = 'hidden';
+  if(splash){
+    splash.style.display = 'flex';
+    splash.classList.remove('out');
+    setTimeout(()=>{ renderWrapped(); }, 100);
+    setTimeout(()=>{
+      splash.classList.add('out');
+      setTimeout(()=>{ splash.style.display = 'none'; }, 420);
+    }, 1000);
+  } else {
+    renderWrapped();
+  }
 }
 function closeWrapped(){
   document.getElementById('wrapped-sheet').classList.remove('open');
   document.body.style.overflow = '';
 }
+
+/* helper: retângulo com cantos arredondados no canvas */
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+}
+
+/* ── Gera imagem do resumo anual via canvas e compartilha ── */
 function compartilharAno(){
   const ano = new Date().getFullYear();
   const doAno = S.shifts.filter(counts).filter(s=>s.data&&s.data.startsWith(String(ano)));
   const total = doAno.reduce((a,s)=>a+liq(s),0);
   const horas = doAno.reduce((a,s)=>a+(+s.duracao||0),0);
   const n = doAno.length;
+  const ticket = n > 0 ? Math.round(total/n) : 0;
+
   const txt = '🏥 Meu ' + ano + ' em plantões\n\n'
     + '💰 ' + brl(total) + ' faturados\n'
     + '⏱ ' + horas + 'h trabalhadas\n'
     + '🔢 ' + n + ' plantão' + (n>1?'ões':'') + '\n\n'
-    + 'via Plantões · plantoes-asevedo.vercel.app';
-  if(navigator.share){ navigator.share({ text: txt }).catch(()=>{}); }
-  else { navigator.clipboard.writeText(txt).then(()=>toast('Copiado ✓')).catch(()=>toast('Erro ao copiar')); }
+    + 'via Plantões · plantoes-eta.vercel.app';
+
+  function fallbackShare(){
+    if(navigator.share){ navigator.share({ text: txt }).catch(()=>{}); }
+    else { navigator.clipboard.writeText(txt).then(()=>toast('Copiado ✓')).catch(()=>toast('Erro ao copiar')); }
+  }
+
+  try {
+    const W=1080, H=1350;
+    const cvs = document.createElement('canvas');
+    cvs.width=W; cvs.height=H;
+    const ctx = cvs.getContext('2d');
+
+    // Fundo gradiente roxo
+    const grad = ctx.createLinearGradient(0,0,W,H);
+    grad.addColorStop(0,'#6366F1'); grad.addColorStop(1,'#4338CA');
+    ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+
+    // Pontos decorativos
+    ctx.fillStyle='rgba(255,255,255,0.04)';
+    for(let x=0;x<W;x+=40) for(let y=0;y<H;y+=40) ctx.fillRect(x,y,3,3);
+
+    // Ícone topo
+    ctx.fillStyle='rgba(255,255,255,0.15)';
+    roundRect(ctx,W/2-52,70,104,104,28); ctx.fill();
+    ctx.font='54px system-ui'; ctx.textAlign='center';
+    ctx.fillText('🦴',W/2,154);
+
+    // Título
+    ctx.fillStyle='#fff';
+    ctx.font='bold 60px Inter,system-ui';
+    ctx.fillText('Plantões '+ano,W/2,250);
+    ctx.fillStyle='rgba(255,255,255,0.6)';
+    ctx.font='500 32px Inter,system-ui';
+    ctx.fillText('Seu ano em números',W/2,302);
+
+    // Separador
+    ctx.fillStyle='rgba(255,255,255,0.18)';
+    ctx.fillRect(W/2-140,330,280,2);
+
+    // Valor total em destaque
+    ctx.fillStyle='#fff';
+    const totalStr=brl(total);
+    // ajusta tamanho da fonte pelo comprimento
+    const fsize = totalStr.length > 12 ? 80 : 96;
+    ctx.font='bold '+fsize+'px Inter,system-ui';
+    ctx.fillText(totalStr,W/2,440);
+    ctx.fillStyle='rgba(255,255,255,0.55)';
+    ctx.font='500 28px Inter,system-ui';
+    ctx.fillText('receita bruta no ano',W/2,488);
+
+    // 3 cards de dados
+    const cards=[
+      {ico:'⏱',label:'HORAS TRABALHADAS',val:horas>0?horas+'h':'—',sub:horas>0?Math.round(horas/24)+' dias':'' },
+      {ico:'🔢',label:'PLANTÕES REALIZADOS',val:n>0?String(n):'—',sub:n>0?(n>1?'plantões':'plantão')+' no ano':'' },
+      {ico:'💰',label:'TICKET MÉDIO',val:ticket>0?brl(ticket):'—',sub:ticket>0?'por plantão':'' },
+    ];
+    const cH=168, cW=W-96, cX=48;
+    cards.forEach((c,i)=>{
+      const cy=538+i*(cH+22);
+      ctx.fillStyle='rgba(255,255,255,0.11)';
+      roundRect(ctx,cX,cy,cW,cH,26); ctx.fill();
+      ctx.font='52px system-ui'; ctx.textAlign='left';
+      ctx.fillStyle='rgba(255,255,255,1)'; ctx.fillText(c.ico,cX+30,cy+cH/2+18);
+      ctx.fillStyle='rgba(255,255,255,0.55)';
+      ctx.font='600 22px Inter,system-ui';
+      ctx.fillText(c.label,cX+104,cy+50);
+      ctx.fillStyle='#fff';
+      ctx.font='bold 44px Inter,system-ui';
+      ctx.fillText(c.val,cX+104,cy+104);
+      if(c.sub){
+        ctx.fillStyle='rgba(255,255,255,0.45)';
+        ctx.font='400 22px Inter,system-ui';
+        ctx.fillText(c.sub,cX+104,cy+140);
+      }
+    });
+
+    // Rodapé
+    ctx.fillStyle='rgba(255,255,255,0.35)';
+    ctx.font='400 24px Inter,system-ui';
+    ctx.textAlign='center';
+    ctx.fillText('plantoes-eta.vercel.app',W/2,H-44);
+
+    cvs.toBlob(blob=>{
+      if(!blob){ fallbackShare(); return; }
+      const file=new File([blob],'plantoes-'+ano+'.png',{type:'image/png'});
+      if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+        navigator.share({files:[file],title:'Plantões '+ano,text:txt}).catch(()=>fallbackShare());
+      } else if(navigator.share){
+        navigator.share({text:txt}).catch(()=>fallbackShare());
+      } else {
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob); a.download='plantoes-'+ano+'.png'; a.click();
+        URL.revokeObjectURL(a.href); toast('Imagem salva ✓');
+      }
+    },'image/png');
+  } catch(e){ fallbackShare(); }
 }
 
 /* ================= eventos ================= */
@@ -3798,6 +3942,22 @@ function normalize(d){
 
 <!-- ===== WRAPPED SHEET ===== -->
 <div id="wrapped-sheet">
+  <!-- splash de entrada do wrapped -->
+  <div id="wrapped-splash" style="display:none">
+    <div class="wsp-logo">
+      <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="10" cy="8.5" r="5.5" fill="white" opacity="0.95"/>
+        <path d="M14.5 11.5 L19 18" stroke="white" stroke-width="3.2" stroke-linecap="round"/>
+        <path d="M19 18 L22 30" stroke="white" stroke-width="4" stroke-linecap="round"/>
+        <ellipse cx="24.5" cy="32.5" rx="4" ry="3" fill="white" opacity="0.95"/>
+        <ellipse cx="18.5" cy="33.5" rx="3.2" ry="2.5" fill="white" opacity="0.85"/>
+        <ellipse cx="23.5" cy="14" rx="3" ry="4" fill="white" opacity="0.7" transform="rotate(-15 23.5 14)"/>
+      </svg>
+    </div>
+    <div class="wsp-title">Seu ano</div>
+    <div class="wsp-sub">Calculando seus números…</div>
+    <div class="wsp-dots"><span></span><span></span><span></span></div>
+  </div>
   <button class="wr-close" id="wr-close">Fechar</button>
   <div class="wr-hero">
     <div class="yr" id="wr-ano">2026</div>
