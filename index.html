@@ -2336,9 +2336,9 @@ function renderResumo(){
       </div></div>`;
   }).join('') || '<div class="empty">Nenhum lançamento no período.</div>';
 
-  // por turno
+  // por turno — exclui renda fixa (bolsa), que não tem turno real
   const porTurno = {diurno:{fat:0,n:0},noturno:{fat:0,n:0}};
-  arr.forEach(s=>{ const t=s.turno||'diurno'; porTurno[t].fat+=liq(s); porTurno[t].n++; });
+  arr.filter(s=>!ehBolsa(s)).forEach(s=>{ const t=s.turno||'diurno'; porTurno[t].fat+=liq(s); porTurno[t].n++; });
   $('#res-turnos').innerHTML = Object.entries(porTurno).filter(([,d])=>d.n>0).map(([t,d])=>`
     <div class="row"><div class="txt"><b>${t==='diurno'?'☀️ Diurno':'🌙 Noturno'}</b><small>${d.n} plantão${d.n!==1?'es':''}</small></div><div class="val">${brl(d.fat)}</div></div>`).join('') || '<div class="empty">—</div>';
 
@@ -3438,6 +3438,36 @@ function gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa){
 
 }
 
+/* ── Overlay para mostrar imagem no iOS PWA (window.open bloqueado) ── */
+function mostrarImagemOverlay(dataUrl, ano){
+  // Remove overlay anterior se existir
+  const prev = document.getElementById('img-overlay');
+  if(prev) prev.remove();
+
+  const ov = document.createElement('div');
+  ov.id = 'img-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;box-sizing:border-box';
+
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.style.cssText = 'max-width:100%;max-height:72vh;border-radius:12px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,0.6)';
+
+  const hint = document.createElement('p');
+  hint.textContent = 'Segure a imagem para salvar ou compartilhar';
+  hint.style.cssText = 'color:rgba(255,255,255,0.7);font-size:14px;text-align:center;margin:0;font-family:system-ui,sans-serif';
+
+  const btn = document.createElement('button');
+  btn.textContent = 'Fechar';
+  btn.style.cssText = 'background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:24px;padding:10px 32px;font-size:15px;cursor:pointer;font-family:system-ui,sans-serif';
+  btn.onclick = ()=>ov.remove();
+
+  ov.appendChild(img);
+  ov.appendChild(hint);
+  ov.appendChild(btn);
+  ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
 /* ── Compartilha o resumo anual — fix iOS: download direto + share assíncrono ── */
 function compartilharAno(){
   const ano = new Date().getFullYear();
@@ -3482,19 +3512,10 @@ function compartilharAno(){
       }
     }
 
+    // iOS/PWA: window.open bloqueado e <a download> não funciona — mostrar a imagem no próprio app
     const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
     if(isIOS){
-      const w = window.open('', '_blank');
-      if(w){
-        w.document.write('<html><body style="margin:0;background:#000"><img src="'+dataUrl+'" style="width:100%;display:block"><p style="color:#fff;font-family:sans-serif;text-align:center;padding:12px;font-size:14px">Segure a imagem e escolha \"Salvar\" para compartilhar</p></body></html>');
-        w.document.close();
-        toast('Segure a imagem na nova aba para salvar ✓');
-      } else {
-        const a = document.createElement('a');
-        a.href = dataUrl; a.download = 'plantae-'+ano+'.png';
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        toast('Imagem gerada ✓');
-      }
+      mostrarImagemOverlay(dataUrl, ano);
       return;
     }
 
