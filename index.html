@@ -699,17 +699,28 @@ textarea { min-height: 62px; resize: vertical; }
 }
 @media(prefers-color-scheme:dark){
   :root{
-    --bg:#1C1C1A; --bg-soft:#222220; --surface:#242422; --surface-2:#2C2C2A;
-    --line:#333331; --line-2:#454542;
-    --ink:#F0EDE6; --dim:#8A8780; --dim-2:#5E5D5A;
-    --accent-soft:rgba(10,95,95,.22); --ok-soft:rgba(10,107,58,.18);
-    --due-soft:rgba(155,27,27,.18); --amber-soft:rgba(192,118,5,.18);
-    --sh:0 1px 4px rgba(0,0,0,.4),0 2px 10px rgba(0,0,0,.35);
-    --sh-md:0 4px 20px rgba(0,0,0,.55);
+    /* Fundo: cinza muito escuro quente — não preto puro */
+    --bg:#18181B; --bg-soft:#1F1F23; --surface:#27272A; --surface-2:#303034;
+    --line:#3F3F46; --line-2:#52525B;
+    /* Texto: branco quente legível */
+    --ink:#F4F4F5; --dim:#A1A1AA; --dim-2:#71717A;
+    /* Accent: índigo levemente mais brilhante no dark */
+    --accent:#818CF8; --accent-2:#6366F1;
+    --accent-soft:rgba(129,140,248,.15);
+    --amber:#FBBF24; --amber-soft:rgba(251,191,36,.15);
+    /* Status — versões mais brilhantes para contrastar no dark */
+    --ok:#34D399; --ok-soft:rgba(52,211,153,.15);
+    --due:#FB923C; --due-soft:rgba(251,146,60,.15);
+    --noite:#818CF8;
+    /* Nav */
+    --nav-bg:rgba(24,24,27,.96);
+    /* Sombras */
+    --sh:0 1px 4px rgba(0,0,0,.5),0 2px 10px rgba(0,0,0,.4);
+    --sh-md:0 4px 20px rgba(0,0,0,.65);
   }
-  header{background:rgba(9,9,11,.95);}
-  nav{background:rgba(9,9,11,.97);}
-  .sheet,.scrim{--bg:#09090B;}
+  header{background:var(--nav-bg); backdrop-filter:blur(16px);}
+  nav{background:var(--nav-bg); backdrop-filter:blur(16px);}
+  .sheet,.scrim{--bg:#18181B;}
   .sheet{background:var(--bg);}
   #shift-list { border-color: var(--line); }
   input,select,textarea{background:var(--surface-2);color:var(--ink);border-color:var(--line-2);}
@@ -718,7 +729,7 @@ textarea { min-height: 62px; resize: vertical; }
   .segs{background:var(--surface-2);}
   .segs button.on{background:var(--surface);}
   .shift,.cal,.chart-wrap,.proj-card,.meta-ring,.next{background:var(--surface);border-color:var(--line);}
-  .fab{box-shadow:0 6px 20px rgba(0,0,0,.55);}
+  .fab{box-shadow:0 6px 20px rgba(0,0,0,.65);}
   .quick-banner{background:var(--accent);}
 }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
@@ -1095,7 +1106,7 @@ nav button.on .nav-ico { transform: translateY(-1px); }
     <div class="sec" style="margin-top:26px"><h2>Distribuição por local</h2></div>
     <div id="year-loc"></div>
     <div style="margin-top:20px">
-      <button id="wrapped-btn">✦ <span>Seu ano em números</span></button>
+      <button id="wrapped-btn" onclick="openWrapped()">✦ <span>Seu ano em números</span></button>
     </div>
   </section>
 
@@ -4182,7 +4193,7 @@ function normalize(d){
 <canvas id="pay-canvas" style="display:none"></canvas>
 
 <!-- Botão fechar do wrapped — fora do sheet para evitar problema de z-index/scroll no iOS -->
-<button class="wr-close" id="wr-close">Fechar</button>
+<button class="wr-close" id="wr-close" onclick="closeWrapped()">Fechar</button>
 
 <!-- ===== WRAPPED SHEET ===== -->
 <div id="wrapped-sheet">
@@ -4205,7 +4216,7 @@ function normalize(d){
   <div class="wr-card"><div class="wr-ico">📅</div><div><div class="wr-lbl">Mês mais forte</div><div class="wr-val" id="wr-mes-top">—</div><div class="wr-sub" id="wr-mes-top-sub"></div></div></div>
   <div class="wr-card"><div class="wr-ico">🔢</div><div><div class="wr-lbl">Plantões realizados</div><div class="wr-val" id="wr-qtd">—</div><div class="wr-sub" id="wr-qtd-sub"></div></div></div>
   <div class="wr-card"><div class="wr-ico">💰</div><div><div class="wr-lbl">Ticket médio por plantão</div><div class="wr-val" id="wr-ticket">—</div><div class="wr-sub" id="wr-ticket-sub"></div></div></div>
-  <button class="wr-share" id="wr-share">✦ Compartilhar meu ano</button>
+  <button class="wr-share" id="wr-share" onclick="compartilharAno()">✦ Compartilhar meu ano</button>
 </div>
 
 <script>
