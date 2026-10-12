@@ -14,6 +14,29 @@
 <meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#09090B" media="(prefers-color-scheme: dark)">
 <title>Plantões</title>
+<script>
+/* ── Limpeza forçada de caches obsoletos ── */
+(function(){
+  if(!('caches' in window)) return;
+  const CURRENT = 'plantoes-v39';
+  caches.keys().then(keys => {
+    keys.forEach(k => { if(k !== CURRENT) caches.delete(k); });
+  });
+  /* Se SW registrado tiver redirect ou falhar, cancela e re-registra */
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(reg => {
+        const sw = reg.active || reg.installing || reg.waiting;
+        if(sw && sw.scriptURL && !sw.scriptURL.includes(location.origin)){
+          reg.unregister().then(() => {
+            navigator.serviceWorker.register('./sw.js');
+          });
+        }
+      });
+    });
+  }
+})();
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap');
 
