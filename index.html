@@ -8,17 +8,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Plantões">
+<meta name="apple-mobile-web-app-title" content="Plantaê!">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#09090B" media="(prefers-color-scheme: dark)">
-<title>Plantões</title>
+<title>Plantaê!</title>
 <script>
 /* ── Limpeza forçada de caches obsoletos ── */
 (function(){
   if(!('caches' in window)) return;
-  const CURRENT = 'plantoes-v39';
+  const CURRENT = 'plantoes-v40';
   caches.keys().then(keys => {
     keys.forEach(k => { if(k !== CURRENT) caches.delete(k); });
   });
@@ -909,7 +909,7 @@ nav button.on .nav-ico { transform: translateY(-1px); }
       <ellipse cx="23.5" cy="14" rx="3" ry="4" fill="white" opacity="0.7" transform="rotate(-15 23.5 14)"/>
     </svg>
   </div>
-  <div class="splash-name">Plantões</div>
+  <div class="splash-name">Plantaê!</div>
   <div class="splash-tag">Sua renda, organizada.</div>
   <div class="splash-dots"><span></span><span></span><span></span></div>
 </div>
@@ -3218,7 +3218,124 @@ function roundRect(ctx, x, y, w, h, r){
   ctx.closePath();
 }
 
-/* ── Gera imagem do resumo anual via canvas e compartilha ── */
+/* ── Gera canvas do resumo anual ── */
+function gerarCanvasAno(ano, total, horas, n, ticket){
+  const W=1080, H=1350;
+  const cvs = document.createElement('canvas');
+  cvs.width=W; cvs.height=H;
+  const ctx = cvs.getContext('2d');
+
+  // Fundo: gradiente escuro profundo com tom médico
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#0F0C1E'); grad.addColorStop(0.5,'#1A1040'); grad.addColorStop(1,'#0D0B1A');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+
+  // Malha de pontos sutil
+  ctx.fillStyle='rgba(255,255,255,0.025)';
+  for(let x=0;x<W;x+=36) for(let y=0;y<H;y+=36) { ctx.beginPath(); ctx.arc(x,y,1.5,0,Math.PI*2); ctx.fill(); }
+
+  // Círculo de destaque atrás do valor principal
+  const radGrad = ctx.createRadialGradient(W/2,460,0,W/2,460,360);
+  radGrad.addColorStop(0,'rgba(100,75,255,0.18)'); radGrad.addColorStop(1,'rgba(100,75,255,0)');
+  ctx.fillStyle=radGrad; ctx.fillRect(0,200,W,600);
+
+  // ── Logo / Ícone topo ──
+  // Pastilha roxa com o fêmur SVG desenhado no canvas
+  ctx.fillStyle='rgba(120,90,255,0.22)';
+  roundRect(ctx,W/2-54,62,108,108,28); ctx.fill();
+  // Fêmur simplificado como linhas brancas
+  ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=7; ctx.lineCap='round';
+  // cabeça femoral
+  ctx.beginPath(); ctx.arc(W/2-12,84,16,0,Math.PI*2); ctx.stroke();
+  // diáfise
+  ctx.beginPath(); ctx.moveTo(W/2-4,98); ctx.lineTo(W/2+8,148); ctx.stroke();
+  // côndilos
+  ctx.beginPath(); ctx.arc(W/2,158,12,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W/2+22,152,10,0,Math.PI*2); ctx.stroke();
+
+  // ── Nome do app ──
+  ctx.fillStyle='#fff'; ctx.textAlign='center';
+  ctx.font='700 54px Inter,system-ui,sans-serif';
+  ctx.fillText('Plantaê!', W/2, 218);
+  ctx.fillStyle='rgba(255,255,255,0.45)';
+  ctx.font='400 26px Inter,system-ui,sans-serif';
+  ctx.fillText(ano + '  ·  Seu ano em números', W/2, 256);
+
+  // Linha divisória com gradiente
+  const lineGrad = ctx.createLinearGradient(W/2-200,0,W/2+200,0);
+  lineGrad.addColorStop(0,'rgba(255,255,255,0)');
+  lineGrad.addColorStop(0.5,'rgba(255,255,255,0.25)');
+  lineGrad.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=lineGrad; ctx.fillRect(W/2-220,278,440,1);
+
+  // ── Valor total ──
+  const totalStr = brl(total);
+  const fsize = totalStr.length > 13 ? 76 : totalStr.length > 10 ? 88 : 100;
+  ctx.fillStyle='#fff';
+  ctx.font='800 '+fsize+'px Inter,system-ui,sans-serif';
+  ctx.fillText(totalStr, W/2, 390);
+  ctx.fillStyle='rgba(255,255,255,0.4)';
+  ctx.font='400 27px Inter,system-ui,sans-serif';
+  ctx.fillText('receita bruta · ' + ano, W/2, 432);
+
+  // ── 3 cards métricas ──
+  const cards=[
+    {ico:'⏱',label:'HORAS TRABALHADAS',val:horas>0?horas+'h':'—',sub:horas>0?Math.round(horas/24)+' dia'+(Math.round(horas/24)!==1?'s':''):'' },
+    {ico:'🏥',label:'PLANTÕES REALIZADOS',val:n>0?String(n):'—',sub:n>0?(n>1?'plantões':'plantão')+' no ano':'' },
+    {ico:'💰',label:'TICKET MÉDIO',val:ticket>0?brl(ticket):'—',sub:ticket>0?'por plantão':'' },
+  ];
+  const cH=162, cW=W-80, cX=40;
+  cards.forEach((c,i)=>{
+    const cy=480+i*(cH+20);
+    // Card com borda sutil
+    ctx.fillStyle='rgba(255,255,255,0.055)';
+    roundRect(ctx,cX,cy,cW,cH,24); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1.5;
+    roundRect(ctx,cX,cy,cW,cH,24); ctx.stroke();
+    // Emoji ícone
+    ctx.font='46px system-ui,sans-serif'; ctx.textAlign='left';
+    ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fillText(c.ico,cX+28,cy+cH/2+16);
+    // Label
+    ctx.fillStyle='rgba(255,255,255,0.38)';
+    ctx.font='600 20px Inter,system-ui,sans-serif';
+    ctx.fillText(c.label,cX+100,cy+46);
+    // Valor
+    ctx.fillStyle='#fff';
+    ctx.font='700 40px Inter,system-ui,sans-serif';
+    ctx.fillText(c.val,cX+100,cy+100);
+    // Sub
+    if(c.sub){
+      ctx.fillStyle='rgba(255,255,255,0.38)';
+      ctx.font='400 20px Inter,system-ui,sans-serif';
+      ctx.fillText(c.sub,cX+100,cy+132);
+    }
+  });
+
+  // ── MARCA D'ÁGUA / rodapé ──
+  // Faixa escura inferior
+  const wmGrad = ctx.createLinearGradient(0,H-140,0,H);
+  wmGrad.addColorStop(0,'rgba(0,0,0,0)'); wmGrad.addColorStop(1,'rgba(0,0,0,0.55)');
+  ctx.fillStyle=wmGrad; ctx.fillRect(0,H-140,W,140);
+  // Linha separadora da marca
+  ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(0,H-92,W,1);
+  // Logo texto + URL
+  ctx.fillStyle='rgba(255,255,255,0.55)';
+  ctx.font='700 28px Inter,system-ui,sans-serif'; ctx.textAlign='left';
+  ctx.fillText('Plantaê!', 48, H-48);
+  ctx.fillStyle='rgba(255,255,255,0.28)';
+  ctx.font='400 22px Inter,system-ui,sans-serif';
+  ctx.fillText('plantoes-asevedo.vercel.app', 48, H-20);
+  // Ícone fêmur pequeno à direita
+  ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=4; ctx.lineCap='round';
+  const ix=W-84, iy=H-68;
+  ctx.beginPath(); ctx.arc(ix-5,iy-14,9,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ix-2,iy-6); ctx.lineTo(ix+4,iy+18); ctx.stroke();
+  ctx.beginPath(); ctx.arc(ix+3,iy+24,7,0,Math.PI*2); ctx.stroke();
+
+  return cvs;
+}
+
+/* ── Compartilha o resumo anual — fix iOS: download direto + share assíncrono ── */
 function compartilharAno(){
   const ano = new Date().getFullYear();
   const doAno = S.shifts.filter(counts).filter(s=>s.data&&s.data.startsWith(String(ano)));
@@ -3231,103 +3348,47 @@ function compartilharAno(){
     + '💰 ' + brl(total) + ' faturados\n'
     + '⏱ ' + horas + 'h trabalhadas\n'
     + '🔢 ' + n + ' plantão' + (n>1?'ões':'') + '\n\n'
-    + 'via Plantões · plantoes-eta.vercel.app';
-
-  function fallbackShare(){
-    if(navigator.share){ navigator.share({ text: txt }).catch(()=>{}); }
-    else { navigator.clipboard.writeText(txt).then(()=>toast('Copiado ✓')).catch(()=>toast('Erro ao copiar')); }
-  }
+    + 'via Plantaê! · plantoes-asevedo.vercel.app';
 
   try {
-    const W=1080, H=1350;
-    const cvs = document.createElement('canvas');
-    cvs.width=W; cvs.height=H;
-    const ctx = cvs.getContext('2d');
+    const cvs = gerarCanvasAno(ano, total, horas, n, ticket);
 
-    // Fundo gradiente roxo
-    const grad = ctx.createLinearGradient(0,0,W,H);
-    grad.addColorStop(0,'#6366F1'); grad.addColorStop(1,'#4338CA');
-    ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
-
-    // Pontos decorativos
-    ctx.fillStyle='rgba(255,255,255,0.04)';
-    for(let x=0;x<W;x+=40) for(let y=0;y<H;y+=40) ctx.fillRect(x,y,3,3);
-
-    // Ícone topo
-    ctx.fillStyle='rgba(255,255,255,0.15)';
-    roundRect(ctx,W/2-52,70,104,104,28); ctx.fill();
-    ctx.font='54px system-ui'; ctx.textAlign='center';
-    ctx.fillText('🦴',W/2,154);
-
-    // Título
-    ctx.fillStyle='#fff';
-    ctx.font='bold 60px Inter,system-ui';
-    ctx.fillText('Plantões '+ano,W/2,250);
-    ctx.fillStyle='rgba(255,255,255,0.6)';
-    ctx.font='500 32px Inter,system-ui';
-    ctx.fillText('Seu ano em números',W/2,302);
-
-    // Separador
-    ctx.fillStyle='rgba(255,255,255,0.18)';
-    ctx.fillRect(W/2-140,330,280,2);
-
-    // Valor total em destaque
-    ctx.fillStyle='#fff';
-    const totalStr=brl(total);
-    // ajusta tamanho da fonte pelo comprimento
-    const fsize = totalStr.length > 12 ? 80 : 96;
-    ctx.font='bold '+fsize+'px Inter,system-ui';
-    ctx.fillText(totalStr,W/2,440);
-    ctx.fillStyle='rgba(255,255,255,0.55)';
-    ctx.font='500 28px Inter,system-ui';
-    ctx.fillText('receita bruta no ano',W/2,488);
-
-    // 3 cards de dados
-    const cards=[
-      {ico:'⏱',label:'HORAS TRABALHADAS',val:horas>0?horas+'h':'—',sub:horas>0?Math.round(horas/24)+' dias':'' },
-      {ico:'🔢',label:'PLANTÕES REALIZADOS',val:n>0?String(n):'—',sub:n>0?(n>1?'plantões':'plantão')+' no ano':'' },
-      {ico:'💰',label:'TICKET MÉDIO',val:ticket>0?brl(ticket):'—',sub:ticket>0?'por plantão':'' },
-    ];
-    const cH=168, cW=W-96, cX=48;
-    cards.forEach((c,i)=>{
-      const cy=538+i*(cH+22);
-      ctx.fillStyle='rgba(255,255,255,0.11)';
-      roundRect(ctx,cX,cy,cW,cH,26); ctx.fill();
-      ctx.font='52px system-ui'; ctx.textAlign='left';
-      ctx.fillStyle='rgba(255,255,255,1)'; ctx.fillText(c.ico,cX+30,cy+cH/2+18);
-      ctx.fillStyle='rgba(255,255,255,0.55)';
-      ctx.font='600 22px Inter,system-ui';
-      ctx.fillText(c.label,cX+104,cy+50);
-      ctx.fillStyle='#fff';
-      ctx.font='bold 44px Inter,system-ui';
-      ctx.fillText(c.val,cX+104,cy+104);
-      if(c.sub){
-        ctx.fillStyle='rgba(255,255,255,0.45)';
-        ctx.font='400 22px Inter,system-ui';
-        ctx.fillText(c.sub,cX+104,cy+140);
+    // iOS Safari: toBlob é assíncrono e perde o user-gesture token.
+    // Solução: gerar blob → object URL → disparar download imediato.
+    // Se canShare(files) estiver disponível, tenta share antes do download.
+    cvs.toBlob(async blob => {
+      if(!blob){
+        if(navigator.share) navigator.share({text:txt}).catch(()=>{});
+        else navigator.clipboard.writeText(txt).then(()=>toast('Texto copiado ✓')).catch(()=>{});
+        return;
       }
-    });
 
-    // Rodapé
-    ctx.fillStyle='rgba(255,255,255,0.35)';
-    ctx.font='400 24px Inter,system-ui';
-    ctx.textAlign='center';
-    ctx.fillText('plantoes-eta.vercel.app',W/2,H-44);
+      const file = new File([blob], 'plantae-'+ano+'.png', {type:'image/png'});
 
-    cvs.toBlob(blob=>{
-      if(!blob){ fallbackShare(); return; }
-      const file=new File([blob],'plantoes-'+ano+'.png',{type:'image/png'});
+      // Tenta Web Share API com arquivo (Android Chrome, alguns iOS 15+)
       if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-        navigator.share({files:[file],title:'Plantões '+ano,text:txt}).catch(()=>fallbackShare());
-      } else if(navigator.share){
-        navigator.share({text:txt}).catch(()=>fallbackShare());
-      } else {
-        const a=document.createElement('a');
-        a.href=URL.createObjectURL(blob); a.download='plantoes-'+ano+'.png'; a.click();
-        URL.revokeObjectURL(a.href); toast('Imagem salva ✓');
+        try {
+          await navigator.share({files:[file], title:'Plantaê! '+ano, text:txt});
+          return;
+        } catch(shareErr){
+          // Usuário cancelou ou share falhou — cai no download
+          if(shareErr.name === 'AbortError') return; // cancelou, não faz nada
+        }
       }
-    },'image/png');
-  } catch(e){ fallbackShare(); }
+
+      // Fallback universal: salva a imagem no dispositivo
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'plantae-'+ano+'.png';
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url), 5000);
+      toast('Imagem salva — compartilhe pelo app de fotos ✓');
+    }, 'image/png');
+  } catch(e){
+    if(navigator.share) navigator.share({text:txt}).catch(()=>{});
+    else navigator.clipboard.writeText(txt).then(()=>toast('Texto copiado ✓')).catch(()=>{});
+  }
 }
 
 /* ================= eventos ================= */
@@ -3981,7 +4042,7 @@ function normalize(d){
         <ellipse cx="23.5" cy="14" rx="3" ry="4" fill="white" opacity="0.7" transform="rotate(-15 23.5 14)"/>
       </svg>
     </div>
-    <div class="wsp-title">Seu ano</div>
+    <div class="wsp-title">Plantaê!</div>
     <div class="wsp-sub">Calculando seus números…</div>
     <div class="wsp-dots"><span></span><span></span><span></span></div>
   </div>
