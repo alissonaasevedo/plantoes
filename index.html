@@ -1108,16 +1108,27 @@ nav button.on .nav-ico { transform: translateY(-1px); }
   <!-- ===== AJUSTES ===== -->
   <section id="v-ajustes" class="hidden">
     <div class="sec" style="margin-top:0"><h2>Renda Fixa</h2></div>
-    <div class="row2">
-      <label class="f"><span>Auxílio-Moradia (R$)</span><input type="number" id="b-v1" step="0.01" value="410.61" inputmode="decimal"></label>
-      <label class="f"><span>Bolsa-Residência (R$)</span><input type="number" id="b-v2" step="0.01" value="3654.42" inputmode="decimal"></label>
+    <p class="hint" style="margin-top:0;margin-bottom:12px">Configure cada parcela individualmente. "Até" em branco = gera 12 meses à frente. Rodar de novo não duplica o que já existe.</p>
+
+    <div style="border:1px solid rgba(255,255,255,0.09);border-radius:12px;padding:14px 16px;margin-bottom:12px">
+      <p style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:10px">Bolsa-Residência</p>
+      <div class="row2">
+        <label class="f"><span>Valor (R$)</span><input type="number" id="b-v2" step="0.01" value="3654.42" inputmode="decimal"></label>
+        <label class="f"><span>Desde o mês</span><input type="month" id="b-ini2" value="2025-04"></label>
+      </div>
+      <label class="f"><span>Até o mês (ou vazio)</span><input type="month" id="b-fim2" value="2028-02"></label>
     </div>
-    <div class="row2">
-      <label class="f"><span>Desde o mês</span><input type="month" id="b-ini" value="2025-04"></label>
-      <label class="f"><span>Até o mês (ou vazio)</span><input type="month" id="b-fim" value="2028-02"></label>
+
+    <div style="border:1px solid rgba(255,255,255,0.09);border-radius:12px;padding:14px 16px;margin-bottom:14px">
+      <p style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:10px">Auxílio-Moradia</p>
+      <div class="row2">
+        <label class="f"><span>Valor (R$)</span><input type="number" id="b-v1" step="0.01" value="410.61" inputmode="decimal"></label>
+        <label class="f"><span>Desde o mês</span><input type="month" id="b-ini1" value="2025-12"></label>
+      </div>
+      <label class="f"><span>Até o mês (ou vazio)</span><input type="month" id="b-fim1" value="2028-02"></label>
     </div>
+
     <button class="btn sm wide" id="b-gerar">Gerar entradas mensais</button>
-    <p class="hint" style="margin-top:14px">Cria duas entradas de renda fixa por mês no segundo dia útil. Deixe "Até o mês" em branco para gerar sem prazo definido (gera 12 meses à frente). Rodar de novo não duplica o que já existe.</p>
 
     <div class="sec" style="margin-top:26px"><h2>Referência tributária</h2></div>
     <div id="tax-panel"></div>
@@ -3819,21 +3830,36 @@ $('#f-liquido').oninput = ()=> liqTouched = true;
   $(sel).oninput = ()=>{ if(chipGet('#f-cat')==='ambulatorio') calcAmb(); };
 });
 
-// bolsa da residência: duas parcelas por mês, no segundo dia útil
+// bolsa da residência: duas parcelas por mês, com datas de início separadas
 $('#b-gerar').onclick = async ()=>{
   const v1 = parseFloat($('#b-v1').value)||0, v2 = parseFloat($('#b-v2').value)||0;
   if(!v1 && !v2){ toast('Informe ao menos uma parcela'); return; }
 
-  // Sem mês limite → gera 12 meses a partir do início
-  const alvoVal = $('#b-fim').value;
-  let ay, am;
-  if(alvoVal){
-    [ay, am] = alvoVal.split('-').map(Number);
-  } else {
-    const hoje = new Date();
-    ay = hoje.getFullYear(); am = hoje.getMonth() + 1 + 12;
-    if(am > 12){ ay += Math.floor((am-1)/12); am = ((am-1)%12)+1; }
+  // Helper: resolve intervalo de uma parcela
+  function resolveIntervalo(iniId, fimId, fallbackIni){
+    const iniVal = $(iniId).value || fallbackIni;
+    const [iy, im] = iniVal.split('-').map(Number);
+    const fimVal = $(fimId).value;
+    let fy, fm;
+    if(fimVal){
+      [fy, fm] = fimVal.split('-').map(Number);
+    } else {
+      const hoje = new Date();
+      fy = hoje.getFullYear(); fm = hoje.getMonth() + 1 + 12;
+      if(fm > 12){ fy += Math.floor((fm-1)/12); fm = ((fm-1)%12)+1; }
+    }
+    return { iy, im, fy, fm };
   }
+
+  const bolsa  = v2 ? resolveIntervalo('#b-ini2','#b-fim2','2025-04') : null;
+  const auxilio = v1 ? resolveIntervalo('#b-ini1','#b-fim1','2025-12') : null;
+
+  // Intervalo global para iterar (mínimo de inícios, máximo de fins)
+  let globalIy = 9999, globalIm = 12, globalFy = 0, globalFm = 0;
+  [bolsa, auxilio].filter(Boolean).forEach(i => {
+    if(i.iy < globalIy || (i.iy === globalIy && i.im < globalIm)){ globalIy = i.iy; globalIm = i.im; }
+    if(i.fy > globalFy || (i.fy === globalFy && i.fm > globalFm)){ globalFy = i.fy; globalFm = i.fm; }
+  });
 
   let l = S.locais.find(x=>x.nome === 'Renda Fixa da Residência' || x.nome === 'Bolsa da residência');
   if(!l){
@@ -3843,14 +3869,18 @@ $('#b-gerar').onclick = async ()=>{
     S.locais.push(l);
   }
 
-  const iniVal = $('#b-ini').value || '2025-04';
-  const [iy, im] = iniVal.split('-').map(Number);
-  let y = iy, m = im - 1, criados = 0;
-  while(y < ay || (y === ay && m <= am - 1)){
+  let y = globalIy, m = globalIm - 1, criados = 0;
+  while(y < globalFy || (y === globalFy && m <= globalFm - 1)){
     const d = iso(nEsimoUtil(y, m, 2));
-    [[v1,'Auxílio-Moradia'], [v2,'Bolsa-Residência']].forEach(([v, rot])=>{
+    const mesNum = y * 12 + m; // número absoluto de mês para comparar intervalos
+
+    const parcelas = [
+      bolsa  && mesNum >= bolsa.iy  * 12 + bolsa.im  - 1 && mesNum <= bolsa.fy  * 12 + bolsa.fm  - 1 ? [v2,'Bolsa-Residência']  : null,
+      auxilio && mesNum >= auxilio.iy * 12 + auxilio.im - 1 && mesNum <= auxilio.fy * 12 + auxilio.fm - 1 ? [v1,'Auxílio-Moradia'] : null,
+    ].filter(Boolean);
+
+    parcelas.forEach(([v, rot])=>{
       if(!v) return;
-      // verifica duplicata também pelo nome antigo para retrocompatibilidade
       const existe = S.shifts.some(s=>ehBolsa(s) && s.data === d && (s.obs === rot || (rot==='Auxílio-Moradia' && s.obs==='Bolsa') || (rot==='Bolsa-Residência' && s.obs==='Complementação')));
       if(existe) return;
       S.shifts.push({ id:uid(), categoria:'bolsa', data:d, localId:l.id, turno:'diurno',
