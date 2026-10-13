@@ -216,6 +216,8 @@ body { overflow-x: hidden; }
 .stat-card.sc-ok .sc-val    { color: var(--ok); }
 .stat-card.sc-amber .sc-val { color: var(--amber); }
 .stat-card .sc-sub { font-size: 11px; color: var(--dim); margin-top: 1px; }
+.stat-card.sc-click { transition: transform .12s, box-shadow .12s; }
+.stat-card.sc-click:active { transform: scale(.96); box-shadow: none; }
 
 /* ── Calendário ── */
 .cal {
@@ -1235,6 +1237,16 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 
 <div class="scrim" id="scrim"></div>
 
+<!-- ===== SHEET DETAIL (cards interativos) ===== -->
+<div class="sheet" id="sheet-detail">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <h2 id="sd-title">Detalhes</h2>
+    <button class="btn ghost sm" id="sd-close">Fechar</button>
+  </div>
+  <div id="sd-body"></div>
+</div>
+
 <!-- ===== SHEET PLANTÃO ===== -->
 <div class="sheet" id="sheet">
   <div class="grab"></div>
@@ -1884,36 +1896,117 @@ function renderMes(){
 
   // ── Grade 2×2 de métricas ──
   (function(){
-    const soPlantoes = list.filter(s => s.tipo === 'remunerado' || !s.tipo);
+    // soPlantoes: apenas plantões reais (exclui ambulatório, bolsa, residência, bloqueio, passei)
+    const soPlantoes = list.filter(s => counts(s) && !ehAmb(s) && !ehBolsa(s));
     const nPlantoes = soPlantoes.length;
-    const nDiurnos  = soPlantoes.filter(s => s.turno !== 'noturno').length;
+    const nDiurnos  = soPlantoes.filter(s => (s.turno||'diurno') !== 'noturno').length;
     const nNoturnos = soPlantoes.filter(s => s.turno === 'noturno').length;
-    const ticket = nPlantoes > 0 ? Math.round(total / nPlantoes) : 0;
+    const totPlantoes = soPlantoes.reduce((a,s)=>a+liq(s),0);
+    const hPlantoes   = soPlantoes.reduce((a,s)=>a+(+s.duracao||0),0);
+    const ticket = nPlantoes > 0 ? Math.round(totPlantoes / nPlantoes) : 0;
     const sgEl = $('#h-stat-grid');
-    if(sgEl){
-      sgEl.innerHTML = `<div class="stat-grid">
-        <div class="stat-card sc-accent">
-          <div class="sc-lbl">Plantões no mês</div>
-          <div class="sc-val">${nPlantoes}</div>
-          <div class="sc-sub">${nDiurnos}d · ${nNoturnos}n${nPlantoes===0?' · nenhum planejado':''}</div>
+    if(!sgEl) return;
+
+    sgEl.innerHTML = `<div class="stat-grid">
+      <div class="stat-card sc-accent sc-click" id="sc-plantoes" style="cursor:pointer;user-select:none">
+        <div class="sc-lbl">Plantões no mês</div>
+        <div class="sc-val">${nPlantoes}</div>
+        <div class="sc-sub">${nDiurnos}d · ${nNoturnos}n${nPlantoes===0?' · nenhum planejado':''}</div>
+      </div>
+      <div class="stat-card sc-click" id="sc-horas" style="cursor:pointer;user-select:none">
+        <div class="sc-lbl">Horas escaladas</div>
+        <div class="sc-val">${hPlantoes}h</div>
+        <div class="sc-sub">${nPlantoes ? Math.round(hPlantoes/nPlantoes)+'h por plantão' : 'sem plantões'}</div>
+      </div>
+      <div class="stat-card sc-ok sc-click" id="sc-recebido" style="cursor:pointer;user-select:none">
+        <div class="sc-lbl">Recebido</div>
+        <div class="sc-val">${brl(cxRec)}</div>
+        <div class="sc-sub">${cxTot ? Math.round(cxRec/cxTot*100)+'% do previsto' : '—'}</div>
+      </div>
+      <div class="stat-card sc-amber sc-click" id="sc-ticket" style="cursor:pointer;user-select:none">
+        <div class="sc-lbl">Ticket médio</div>
+        <div class="sc-val">${ticket ? brl(ticket) : '—'}</div>
+        <div class="sc-sub">por plantão</div>
+      </div>
+    </div>`;
+
+    // ── helpers para o sheet de detalhes ──
+    function openDetail(title, html){
+      $('#sd-title').textContent = title;
+      $('#sd-body').innerHTML = html;
+      $('#sheet-detail').classList.add('open');
+      $('#scrim').classList.add('open');
+    }
+
+    function rowPlantao(s){
+      const d = parseDate(s.data);
+      const diaSem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
+      const turnoIco = (s.turno==='noturno') ? '🌙' : '☀️';
+      const loc = esc(localName(s.localId));
+      const dur = s.duracao ? `${s.duracao}h` : '';
+      const val = liq(s) ? `<span class="pill pago">${brl(liq(s))}</span>` : '';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
+        <div style="font-size:20px;line-height:1">${turnoIco}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${loc}</div>
+          <div style="font-size:12px;color:var(--dim)">${diaSem} ${pad2(d.getDate())}/${pad2(d.getMonth()+1)} ${dur ? '· '+dur : ''}</div>
         </div>
-        <div class="stat-card">
-          <div class="sc-lbl">Horas escaladas</div>
-          <div class="sc-val">${horas}h</div>
-          <div class="sc-sub">${nPlantoes ? Math.round(horas/nPlantoes)+'h por plantão' : 'sem plantões'}</div>
-        </div>
-        <div class="stat-card sc-ok">
-          <div class="sc-lbl">Recebido</div>
-          <div class="sc-val">${brl(cxRec)}</div>
-          <div class="sc-sub">${cxTot ? Math.round(cxRec/cxTot*100)+'% do previsto' : '—'}</div>
-        </div>
-        <div class="stat-card sc-amber">
-          <div class="sc-lbl">Ticket médio</div>
-          <div class="sc-val">${ticket ? brl(ticket) : '—'}</div>
-          <div class="sc-sub">por plantão</div>
-        </div>
+        ${val}
       </div>`;
     }
+
+    function rowCaixa(s){
+      const d = parseDate(dataCaixa(s));
+      const loc = esc(localName(s.localId));
+      const pago = s.pago;
+      const pill = pago
+        ? `<span class="pill pago">${brl(liq(s))}</span>`
+        : `<span class="pill pend">${brl(liq(s))}</span>`;
+      const status = pago ? 'Recebido' : 'Pendente';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${loc}</div>
+          <div style="font-size:12px;color:var(--dim)">${status} · ${pad2(d.getDate())}/${pad2(d.getMonth()+1)}</div>
+        </div>
+        ${pill}
+      </div>`;
+    }
+
+    // card: Plantões no mês
+    $('#sc-plantoes').onclick = () => {
+      const mes = MES[cursor.getMonth()]+' '+cursor.getFullYear();
+      const rows = soPlantoes.length
+        ? soPlantoes.map(rowPlantao).join('')
+        : `<div style="text-align:center;padding:24px 0;color:var(--dim)">Nenhum plantão em ${mes}</div>`;
+      openDetail(`Plantões · ${mes}`, rows);
+    };
+
+    // card: Horas escaladas (mesma lista, foco diferente)
+    $('#sc-horas').onclick = () => {
+      const mes = MES[cursor.getMonth()]+' '+cursor.getFullYear();
+      const rows = soPlantoes.length
+        ? soPlantoes.map(rowPlantao).join('')
+        : `<div style="text-align:center;padding:24px 0;color:var(--dim)">Nenhum plantão em ${mes}</div>`;
+      openDetail(`Horas · ${mes}`, rows);
+    };
+
+    // card: Recebido — todas as entradas de caixa do mês
+    $('#sc-recebido').onclick = () => {
+      const mes = MES[cursor.getMonth()]+' '+cursor.getFullYear();
+      const rows = noMesCx.length
+        ? noMesCx.map(rowCaixa).join('')
+        : `<div style="text-align:center;padding:24px 0;color:var(--dim)">Nenhuma entrada em ${mes}</div>`;
+      openDetail(`Recebido · ${mes}`, rows);
+    };
+
+    // card: Ticket médio — mesma lista de caixa
+    $('#sc-ticket').onclick = () => {
+      const mes = MES[cursor.getMonth()]+' '+cursor.getFullYear();
+      const rows = noMesCx.length
+        ? noMesCx.map(rowCaixa).join('')
+        : `<div style="text-align:center;padding:24px 0;color:var(--dim)">Nenhuma entrada em ${mes}</div>`;
+      openDetail(`Ticket médio · ${mes}`, rows);
+    };
   })();
 
   // mini-gauge da meta no hero
@@ -2997,6 +3090,7 @@ function closeSheets(){
   $('#sheet').classList.remove('open');
   $('#sheet2').classList.remove('open');
   $('#sheet3').classList.remove('open');
+  $('#sheet-detail').classList.remove('open');
   $('#scrim').classList.remove('open');
   editing = null; editingLocal = null; calAlvo = null;
 }
@@ -3833,6 +3927,7 @@ $$('#view-toggle button').forEach(b=>{
 });
 $('#add-top').onclick = novoItem;
 $('#scrim').onclick = closeSheets;
+$('#sd-close').onclick = closeSheets;
 $('#sh-close').onclick = closeSheets;
 $('#l-close').onclick = closeSheets;
 $('#sh-save').onclick = saveShift;
