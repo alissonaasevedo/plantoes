@@ -149,6 +149,9 @@ section { display: block; }
 /* pill de valor também fica oculto */
 .saldo-oculto .pill.pago,
 .saldo-oculto .pill.pend { filter: blur(5px); }
+/* stat-cards com dinheiro ficam ocultos */
+.saldo-oculto .stat-card.sc-ok .sc-val,
+.saldo-oculto .stat-card.sc-amber .sc-val { filter: blur(7px); user-select: none; pointer-events: none; transition: filter .2s ease; }
 
 /* barra de controles da lista — não transborda em telas pequenas */
 .ctrl-bar {
@@ -197,6 +200,22 @@ body { overflow-x: hidden; }
 .split > div:last-child .k::before { background: var(--amber); }
 .split .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .v.ok { color: var(--ok); } .v.due { color: var(--amber); }
+
+/* ── Grade de métricas 2×2 ── */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-block: 14px 0; }
+.stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 13px 14px; box-shadow: var(--sh); display: flex; flex-direction: column; gap: 3px; }
+.stat-card.sc-accent { background: var(--accent-soft); border-color: rgba(99,102,241,.18); }
+.stat-card.sc-ok    { background: var(--ok-soft);     border-color: rgba(5,150,105,.15); }
+.stat-card.sc-amber { background: var(--amber-soft);  border-color: rgba(217,119,6,.15); }
+.stat-card .sc-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
+.stat-card.sc-accent .sc-lbl { color: var(--accent-2); }
+.stat-card.sc-ok .sc-lbl    { color: var(--ok); }
+.stat-card.sc-amber .sc-lbl { color: var(--amber); }
+.stat-card .sc-val { font-size: 24px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--ink); }
+.stat-card.sc-accent .sc-val { color: var(--accent); }
+.stat-card.sc-ok .sc-val    { color: var(--ok); }
+.stat-card.sc-amber .sc-val { color: var(--amber); }
+.stat-card .sc-sub { font-size: 11px; color: var(--dim); margin-top: 1px; }
 
 /* ── Calendário ── */
 .cal {
@@ -984,6 +1003,7 @@ nav button.on .nav-ico { transform: translateY(-1px); }
       <div><div class="k">Já caiu</div><div class="v ok" id="h-pago">R$ 0</div></div>
       <div><div class="k">Ainda vem</div><div class="v due" id="h-pend">R$ 0</div></div>
     </div>
+    <div id="h-stat-grid"></div>
     <div id="h-meta-hero"></div>
     <div id="h-sequencia" style="display:none"></div>
     <div id="h-banner-prox"></div>
@@ -1861,6 +1881,40 @@ function renderMes(){
   $('#h-bar').style.width = (cxTot ? Math.min(100, cxRec/cxTot*100) : 0)+'%';
   $('#h-pago').textContent = brl(cxRec);
   $('#h-pend').textContent = brl(cxPrev);
+
+  // ── Grade 2×2 de métricas ──
+  (function(){
+    const soPlantoes = list.filter(s => s.tipo === 'remunerado' || !s.tipo);
+    const nPlantoes = soPlantoes.length;
+    const nDiurnos  = soPlantoes.filter(s => s.turno !== 'noturno').length;
+    const nNoturnos = soPlantoes.filter(s => s.turno === 'noturno').length;
+    const ticket = nPlantoes > 0 ? Math.round(total / nPlantoes) : 0;
+    const sgEl = $('#h-stat-grid');
+    if(sgEl){
+      sgEl.innerHTML = `<div class="stat-grid">
+        <div class="stat-card sc-accent">
+          <div class="sc-lbl">Plantões no mês</div>
+          <div class="sc-val">${nPlantoes}</div>
+          <div class="sc-sub">${nDiurnos}d · ${nNoturnos}n${nPlantoes===0?' · nenhum planejado':''}</div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-lbl">Horas escaladas</div>
+          <div class="sc-val">${horas}h</div>
+          <div class="sc-sub">${nPlantoes ? Math.round(horas/nPlantoes)+'h por plantão' : 'sem plantões'}</div>
+        </div>
+        <div class="stat-card sc-ok">
+          <div class="sc-lbl">Recebido</div>
+          <div class="sc-val">${brl(cxRec)}</div>
+          <div class="sc-sub">${cxTot ? Math.round(cxRec/cxTot*100)+'% do previsto' : '—'}</div>
+        </div>
+        <div class="stat-card sc-amber">
+          <div class="sc-lbl">Ticket médio</div>
+          <div class="sc-val">${ticket ? brl(ticket) : '—'}</div>
+          <div class="sc-sub">por plantão</div>
+        </div>
+      </div>`;
+    }
+  })();
 
   // mini-gauge da meta no hero
   const metaV = S.metaMensal||0;
