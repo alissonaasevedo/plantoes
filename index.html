@@ -1903,7 +1903,7 @@ function renderMes(){
     const nNoturnos = soPlantoes.filter(s => s.turno === 'noturno').length;
     const totPlantoes = soPlantoes.reduce((a,s)=>a+liq(s),0);
     const hPlantoes   = soPlantoes.reduce((a,s)=>a+(+s.duracao||0),0);
-    const ticket = nPlantoes > 0 ? Math.round(totPlantoes / nPlantoes) : 0;
+    const valHora = hPlantoes > 0 ? Math.round(totPlantoes / hPlantoes) : 0;
     const sgEl = $('#h-stat-grid');
     if(!sgEl) return;
 
@@ -1924,9 +1924,9 @@ function renderMes(){
         <div class="sc-sub">${cxTot ? Math.round(cxRec/cxTot*100)+'% do previsto' : '—'}</div>
       </div>
       <div class="stat-card sc-amber sc-click" id="sc-ticket" style="cursor:pointer;user-select:none">
-        <div class="sc-lbl">Ticket médio</div>
-        <div class="sc-val">${ticket ? brl(ticket) : '—'}</div>
-        <div class="sc-sub">por plantão</div>
+        <div class="sc-lbl">Valor da hora</div>
+        <div class="sc-val">${valHora ? brl(valHora) : '—'}</div>
+        <div class="sc-sub">por hora trabalhada</div>
       </div>
     </div>`;
 
@@ -1999,13 +1999,13 @@ function renderMes(){
       openDetail(`Recebido · ${mes}`, rows);
     };
 
-    // card: Ticket médio — mesma lista de caixa
+    // card: Valor da hora — lista de plantões com valor e duração
     $('#sc-ticket').onclick = () => {
       const mes = MES[cursor.getMonth()]+' '+cursor.getFullYear();
-      const rows = noMesCx.length
-        ? noMesCx.map(rowCaixa).join('')
-        : `<div style="text-align:center;padding:24px 0;color:var(--dim)">Nenhuma entrada em ${mes}</div>`;
-      openDetail(`Ticket médio · ${mes}`, rows);
+      const rows = soPlantoes.length
+        ? soPlantoes.map(rowPlantao).join('')
+        : `<div style="text-align:center;padding:24px 0;color:var(--dim)">Nenhum plantão em ${mes}</div>`;
+      openDetail(`Valor da hora · ${mes}`, rows);
     };
   })();
 
