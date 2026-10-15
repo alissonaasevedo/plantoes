@@ -312,30 +312,6 @@ body { overflow-x: hidden; }
 .shift.bloqueio-card::before { background: var(--dim-2); }
 
 /* ── Swipe-to-action ── */
-.shift-wrap {
-  position: relative; overflow: hidden; border-radius: var(--r);
-  margin-bottom: 7px;
-  /* transfere o espaçamento do .shift */
-}
-.shift-wrap .shift { margin-bottom: 0; border-radius: var(--r); position: relative; z-index: 1;
-  will-change: transform; transition: transform .25s cubic-bezier(.4,0,.2,1), box-shadow .2s; }
-.shift-wrap .shift.swiping { transition: none; }
-.shift-actions {
-  position: absolute; right: 0; top: 0; bottom: 0;
-  display: flex; align-items: stretch; border-radius: 0 var(--r) var(--r) 0;
-  overflow: hidden; z-index: 0;
-}
-.shift-actions .sa-btn {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px; width: 72px; border: 0; cursor: pointer; font-family: inherit;
-  font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-  color: #fff; padding: 0 10px;
-  transition: filter .15s;
-}
-.shift-actions .sa-btn:active { filter: brightness(.88); }
-.shift-actions .sa-pago  { background: var(--ok); }
-.shift-actions .sa-edit  { background: var(--accent); }
-.shift-actions .sa-icon  { font-size: 18px; line-height: 1; }
 
 .daycol { width: 36px; flex: none; text-align: center; }
 .daycol .d { font-size: 22px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); }
@@ -433,7 +409,7 @@ label.f, .f { display: block; margin-bottom: 14px; }
 label.f > span, .f > span { display: block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin-bottom: 7px; }
 input, select, textarea {
   width: 100%; background: var(--surface); border: 1px solid var(--line-2); color: var(--ink);
-  border-radius: 10px; padding: 12px 14px; font-size: 15px; font-family: inherit;
+  border-radius: 10px; padding: 12px 14px; font-size: 16px; font-family: inherit;
 }
 input::placeholder, textarea::placeholder { color: var(--dim-2); }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -522,22 +498,10 @@ textarea { min-height: 62px; resize: vertical; }
 .taxbar i { display: block; height: 100%; background: var(--accent); transition: width .4s ease; }
 /* timeline da aba Caixa */
 .tl-cx { padding: 4px 0; }
-.tl-cx-item { display: flex; gap: 14px; padding-bottom: 4px; cursor: pointer; position: relative; overflow: hidden; }
+.tl-cx-item { display: flex; gap: 14px; padding-bottom: 4px; cursor: pointer; }
 .tl-cx-item:hover .tl-cx-body { background: var(--surface-2); }
-.tl-cx-line { display: flex; flex-direction: column; align-items: center; width: 16px; flex: none; padding-top: 14px; position: relative; z-index: 1; }
-/* swipe da Caixa */
-.tl-cx-inner { display: flex; flex: 1; min-width: 0; position: relative; z-index: 1;
-  will-change: transform;
-  transition: transform .25s cubic-bezier(.4,0,.2,1); }
-.tl-cx-inner.cx-swiping { transition: none; }
-.tl-cx-action {
-  position: absolute; right: 0; top: 0; bottom: 0; width: 80px; z-index: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--ok); border-radius: 0 10px 10px 0;
-  font-size: 11px; font-weight: 800; color: #fff; letter-spacing: .04em;
-  text-transform: uppercase; gap: 4px; flex-direction: column;
-}
-.tl-cx-action .tl-cx-icon { font-size: 18px; line-height: 1; }
+.tl-cx-line { display: flex; flex-direction: column; align-items: center; width: 16px; flex: none; padding-top: 14px; }
+.tl-cx-inner { display: flex; flex: 1; min-width: 0; }
 .tl-cx-dot { width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid; flex: none; transition: background .2s; }
 .tl-cx-vline { width: 2px; flex: 1; min-height: 24px; background: var(--line); margin-top: 4px; border-radius: 99px; }
 .tl-cx-vline.hidden { visibility: hidden; }
@@ -2437,16 +2401,7 @@ function renderMes(){
     const pill = (off || resid) ? '' : `<div class="pill ${s.pago?'pago':'pend'}" data-pay="${s.id}">${s.pago?'Pago':'Pendente'}</div>`;
     const dinheiro = (resid||bloq) ? `<div class="money" style="color:var(--dim-2);font-size:12.5px">${bloq?'—':'bloqueado'}</div>` : `<div class="money">${brl(liq(s))}</div>`;
     const animDelay = `animation-delay:${Math.min(shiftIdx++, 8) * 35}ms`;
-    const pagoLabel = s.pago ? 'Pago' : 'Marcar<br>pago';
-    const pagoIcon  = s.pago ? '✓' : '💰';
-    // bloqueios e residência não têm ação de pago — só editar
-    const acoesBtns = (resid||bloq)
-      ? `<button class="sa-btn sa-edit" data-sa-edit="${s.id}"><div class="sa-icon">✏️</div>Editar</button>`
-      : `<button class="sa-btn sa-pago" data-sa-pago="${s.id}"><div class="sa-icon">${pagoIcon}</div>${pagoLabel}</button>
-         <button class="sa-btn sa-edit" data-sa-edit="${s.id}"><div class="sa-icon">✏️</div>Editar</button>`;
-    return sep + `<div class="shift-wrap">
-      <div class="shift-actions" aria-hidden="true">${acoesBtns}</div>
-      <div class="shift animate-in ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${animDelay}">
+    return sep + `<div class="shift animate-in ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${animDelay}">
         <div class="daycol ${s.data===t?'is-today':''}"><div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div></div>
         <div class="info">
           <div class="place">${ehBolsa(s)?'':(s.turno==='noturno'?ICON_MOON:ICON_SUN)}<span>${esc(localName(s.localId))}</span></div>
@@ -2454,8 +2409,7 @@ function renderMes(){
           ${tag}
         </div>
         <div class="right">${dinheiro}${pill}</div>
-      </div>
-    </div>`;
+      </div>`;
   }).join('');
 }
 
@@ -2731,8 +2685,7 @@ function renderCaixa(){
             <div class="tl-cx-dot" style="background:${s.pago?'var(--ok)':'var(--line-2)'}; border-color:${localCor(s.localId)}"></div>
             <div class="tl-cx-vline ${i===noMes.length-1?'hidden':''}"></div>
           </div>
-          <div class="tl-cx-inner" data-cxswipe="${s.id}">
-            ${!s.pago ? `<div class="tl-cx-action" aria-hidden="true"><div class="tl-cx-icon">✅</div>Caiu</div>` : ''}
+          <div class="tl-cx-inner">
             <div class="tl-cx-body">
               <div class="tl-cx-top">
                 <div class="txt"><b>${esc(localName(s.localId))}</b><small>${dataStr} · lançamento ${pad2(t0.getDate())}/${pad2(t0.getMonth()+1)}</small></div>
@@ -4652,12 +4605,7 @@ $('#shift-list').addEventListener('click', async e=>{
     return;
   }
   const row = e.target.closest('.shift');
-  if(row){
-    // não abre o sheet se o card estava ou está aberto pelo swipe
-    const wrap = row.closest('.shift-wrap');
-    if(wrap && wrap._swipeOpen){ wrap._swipeOpen=false; row.style.transition=''; row.style.transform=''; return; }
-    openSheet(S.shifts.find(x=>x.id===row.dataset.id));
-  }
+  if(row) openSheet(S.shifts.find(x=>x.id===row.dataset.id));
 });
 
 $('#next-card').addEventListener('click', e=>{
@@ -4689,214 +4637,6 @@ $('#cal-grid').addEventListener('click', e=>{
     }else openSheet(null, iso(d));
   }
 });
-
-// ── Swipe-to-action ──────────────────────────────────────────────
-(function initSwipe(){
-  const THRESHOLD   = 60;   // px para confirmar o swipe
-  const MAX_SLIDE   = 144;  // px máximos revelados (largura dos dois botões)
-  const SNAP_FRAC   = 0.45; // fração para snap para aberto vs fechado
-
-  let active = null; // { wrap, card, startX, startY, dx, open }
-
-  function setTranslate(card, x, instant){
-    card.classList.toggle('swiping', !instant);
-    card.style.transform = x ? `translateX(${x}px)` : '';
-    if(instant) card.offsetHeight; // force reflow
-  }
-
-  function snapClose(card){
-    card.classList.remove('swiping');
-    card.style.transform = '';
-  }
-
-  function snapOpen(card, w){
-    card.classList.remove('swiping');
-    card.style.transform = `translateX(${-w}px)`;
-  }
-
-  // fecha qualquer card aberto exceto o passado
-  function closeOthers(exceptWrap){
-    document.querySelectorAll('.shift-wrap').forEach(w=>{
-      if(w === exceptWrap) return;
-      const c = w.querySelector('.shift');
-      if(c && c.style.transform) snapClose(c);
-      if(w._swipeOpen) w._swipeOpen = false;
-    });
-  }
-
-  // touchstart no shift-wrap com passive:false para permitir preventDefault no move
-  document.addEventListener('touchstart', e=>{
-    // "toque fora" fecha tudo
-    if(!e.target.closest('.shift-wrap')){ closeOthers(null); return; }
-
-    const card = e.target.closest('.shift-wrap .shift');
-    if(!card) return;
-    const wrap = card.closest('.shift-wrap');
-    const actions = wrap.querySelector('.shift-actions');
-    if(!actions) return;
-
-    const actionsW = Math.min(actions.scrollWidth, MAX_SLIDE);
-
-    active = {
-      wrap, card, actions, actionsW,
-      startX: e.touches[0].clientX,
-      startY: e.touches[0].clientY,
-      dx: 0,
-      open: !!wrap._swipeOpen,
-      decided: false,
-    };
-  }, { passive: false }); // false obrigatório: permite preventDefault no touchmove
-
-  document.addEventListener('touchmove', e=>{
-    if(!active) return;
-    const dx = e.touches[0].clientX - active.startX;
-    const dy = e.touches[0].clientY - active.startY;
-
-    if(!active.decided){
-      if(Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
-      active.decided = true;
-      active.isHoriz = Math.abs(dx) > Math.abs(dy) * 0.8;
-    }
-    if(!active.isHoriz){ active = null; return; } // é scroll vertical — libera e desiste
-
-    e.preventDefault(); // bloqueia scroll da página durante swipe horizontal
-
-    active.dx = dx;
-    const base = active.open ? -active.actionsW : 0;
-    let x = base + dx;
-    x = Math.max(-active.actionsW, Math.min(0, x));
-    if(base + dx < -active.actionsW){
-      const over = (base + dx) + active.actionsW;
-      x = -active.actionsW + over * 0.2;
-    }
-    setTranslate(active.card, x, false);
-  }, { passive: false });
-
-  document.addEventListener('touchend', ()=>{
-    if(!active) return;
-    const {wrap, card, actionsW, dx, open} = active;
-    const committed = open
-      ? dx > actionsW * SNAP_FRAC
-      : dx < -THRESHOLD;
-
-    if(committed && !open){
-      closeOthers(wrap);
-      snapOpen(card, actionsW);
-      wrap._swipeOpen = true;
-      haptic(6);
-    } else if(committed && open){
-      snapClose(card);
-      wrap._swipeOpen = false;
-    } else {
-      if(open) snapOpen(card, actionsW); else snapClose(card);
-    }
-    active = null;
-  });
-
-  // clique nos botões de ação
-  document.addEventListener('click', async e=>{
-    const btnPago = e.target.closest('[data-sa-pago]');
-    if(btnPago){
-      e.stopPropagation();
-      const s = S.shifts.find(x=>x.id===btnPago.dataset.saPago);
-      if(!s) return;
-      s.pago = !s.pago;
-      s.pagoEm = s.pago ? (s.pagoEm || iso(new Date())) : '';
-      haptic(s.pago ? 12 : 6);
-      await store.save(S); render();
-      return;
-    }
-    const btnEdit = e.target.closest('[data-sa-edit]');
-    if(btnEdit){
-      e.stopPropagation();
-      const s = S.shifts.find(x=>x.id===btnEdit.dataset.saEdit);
-      if(s){ haptic(6); openSheet(s); }
-      return;
-    }
-  });
-})();
-
-// ── Swipe-to-action na aba Caixa ─────────────────────────────────
-(function initSwipeCaixa(){
-  const ACT_W   = 80;   // largura do botão revelado
-  const THRESHOLD = 55; // px para confirmar
-  let cx = null; // { item, inner, startX, startY, dx, decided, open }
-
-  function snapCloseCx(inner){ inner.classList.remove('cx-swiping'); inner.style.transform=''; }
-  function snapOpenCx(inner){ inner.classList.remove('cx-swiping'); inner.style.transform=`translateX(${-ACT_W}px)`; }
-
-  function closeAllCx(except){
-    document.querySelectorAll('.tl-cx-inner[data-cxswipe]').forEach(el=>{
-      if(el===except) return;
-      if(el.style.transform){ snapCloseCx(el); el._cxOpen=false; }
-    });
-  }
-
-  document.addEventListener('touchstart', e=>{
-    const inner = e.target.closest('.tl-cx-inner[data-cxswipe]');
-    if(!inner){ closeAllCx(null); return; }
-    // só swipe se o item não está pago (sem botão de ação)
-    if(!inner.querySelector('.tl-cx-action')) return;
-    cx = {
-      inner,
-      startX: e.touches[0].clientX,
-      startY: e.touches[0].clientY,
-      dx: 0, decided: false,
-      open: !!inner._cxOpen,
-    };
-  }, { passive: false });
-
-  document.addEventListener('touchmove', e=>{
-    if(!cx) return;
-    const dx = e.touches[0].clientX - cx.startX;
-    const dy = e.touches[0].clientY - cx.startY;
-    if(!cx.decided){
-      if(Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
-      cx.decided = true;
-      cx.isHoriz = Math.abs(dx) > Math.abs(dy) * 0.8;
-    }
-    if(!cx.isHoriz){ cx = null; return; }
-    e.preventDefault();
-    cx.dx = dx;
-    const base = cx.open ? -ACT_W : 0;
-    let x = Math.max(-ACT_W, Math.min(0, base + dx));
-    if(base + dx < -ACT_W){ x = -ACT_W + (base + dx + ACT_W) * 0.2; }
-    cx.inner.classList.add('cx-swiping');
-    cx.inner.style.transform = x ? `translateX(${x}px)` : '';
-  }, { passive: false });
-
-  document.addEventListener('touchend', async ()=>{
-    if(!cx) return;
-    const {inner, dx, open} = cx;
-    const committed = open ? dx > ACT_W * 0.45 : dx < -THRESHOLD;
-    if(committed && !open){
-      closeAllCx(inner); snapOpenCx(inner); inner._cxOpen = true; haptic(6);
-    } else if(committed && open){
-      snapCloseCx(inner); inner._cxOpen = false;
-      // confirmar pagamento
-      const id = inner.dataset.cxswipe;
-      const s = S.shifts.find(x=>x.id===id);
-      if(s && !s.pago){
-        s.pago = true; s.pagoEm = s.pagoEm || iso(new Date());
-        haptic(12); await store.save(S); render();
-        // verificar streak
-        const pagos = S.shifts.filter(x => counts(x) && x.pago && vencimento(x))
-          .sort((a,b) => dataCaixa(b).localeCompare(dataCaixa(a)));
-        let streak = 0;
-        for(const x of pagos){
-          const venc = parseDate(vencimento(x));
-          const cxd  = parseDate(dataCaixa(x));
-          if(Math.round((cxd-venc)/86400000) <= 7) streak++; else break;
-        }
-        if(streak >= 3 && streak % 3 === 0){ haptic(20); toast(`⚡ ${streak} pagos em dia!`); }
-        else toast('Entrada confirmada ✓');
-      }
-    } else {
-      if(open) snapOpenCx(inner); else snapCloseCx(inner);
-    }
-    cx = null;
-  });
-})();
 
 // aba Caixa
 document.addEventListener('click', async e=>{
