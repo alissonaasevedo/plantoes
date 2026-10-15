@@ -311,6 +311,32 @@ body { overflow-x: hidden; }
 .shift.resid::before { background: repeating-linear-gradient(180deg, var(--c) 0 5px, transparent 5px 9px); }
 .shift.bloqueio-card::before { background: var(--dim-2); }
 
+/* ── Swipe-to-action ── */
+.shift-wrap {
+  position: relative; overflow: hidden; border-radius: var(--r);
+  margin-bottom: 7px;
+  /* transfere o espaçamento do .shift */
+}
+.shift-wrap .shift { margin-bottom: 0; border-radius: var(--r); position: relative; z-index: 1;
+  will-change: transform; touch-action: pan-y; transition: transform .25s cubic-bezier(.4,0,.2,1), box-shadow .2s; }
+.shift-wrap .shift.swiping { transition: none; }
+.shift-actions {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  display: flex; align-items: stretch; border-radius: 0 var(--r) var(--r) 0;
+  overflow: hidden; z-index: 0;
+}
+.shift-actions .sa-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; width: 72px; border: 0; cursor: pointer; font-family: inherit;
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: #fff; padding: 0 10px;
+  transition: filter .15s;
+}
+.shift-actions .sa-btn:active { filter: brightness(.88); }
+.shift-actions .sa-pago  { background: var(--ok); }
+.shift-actions .sa-edit  { background: var(--accent); }
+.shift-actions .sa-icon  { font-size: 18px; line-height: 1; }
+
 .daycol { width: 36px; flex: none; text-align: center; }
 .daycol .d { font-size: 22px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); }
 .daycol .w { font-size: 10px; color: var(--dim); margin-top: 3px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
@@ -1892,6 +1918,9 @@ function renderMes(){
   })();
   (function animarHero(alvo){
     const el=$('#h-total');
+    // se o mês/ano exibido mudou, sempre parte do zero
+    const mesKey = cursor.getFullYear()+'-'+cursor.getMonth();
+    if(el.dataset.mesKey !== mesKey){ el.dataset.mesKey=mesKey; el.dataset.valor='0'; }
     const anterior=parseFloat((el.dataset.valor||'0').replace(/\D/g,''))||0;
     if(anterior===alvo){el.textContent=brl(alvo);return;}
     el.dataset.valor=alvo;
@@ -2319,14 +2348,24 @@ function renderMes(){
     const pill = (off || resid) ? '' : `<div class="pill ${s.pago?'pago':'pend'}" data-pay="${s.id}">${s.pago?'Pago':'Pendente'}</div>`;
     const dinheiro = (resid||bloq) ? `<div class="money" style="color:var(--dim-2);font-size:12.5px">${bloq?'—':'bloqueado'}</div>` : `<div class="money">${brl(liq(s))}</div>`;
     const animDelay = `animation-delay:${Math.min(shiftIdx++, 8) * 35}ms`;
-    return sep + `<div class="shift animate-in ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${animDelay}">
-      <div class="daycol ${s.data===t?'is-today':''}"><div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div></div>
-      <div class="info">
-        <div class="place">${ehBolsa(s)?'':(s.turno==='noturno'?ICON_MOON:ICON_SUN)}<span>${esc(localName(s.localId))}</span></div>
-        <div class="meta">${metaLinha(s, cid)}</div>
-        ${tag}
+    const pagoLabel = s.pago ? 'Pago' : 'Marcar<br>pago';
+    const pagoIcon  = s.pago ? '✓' : '💰';
+    // bloqueios e residência não têm ação de pago — só editar
+    const acoesBtns = (resid||bloq)
+      ? `<button class="sa-btn sa-edit" data-sa-edit="${s.id}"><div class="sa-icon">✏️</div>Editar</button>`
+      : `<button class="sa-btn sa-pago" data-sa-pago="${s.id}"><div class="sa-icon">${pagoIcon}</div>${pagoLabel}</button>
+         <button class="sa-btn sa-edit" data-sa-edit="${s.id}"><div class="sa-icon">✏️</div>Editar</button>`;
+    return sep + `<div class="shift-wrap">
+      <div class="shift-actions" aria-hidden="true">${acoesBtns}</div>
+      <div class="shift animate-in ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${animDelay}">
+        <div class="daycol ${s.data===t?'is-today':''}"><div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div></div>
+        <div class="info">
+          <div class="place">${ehBolsa(s)?'':(s.turno==='noturno'?ICON_MOON:ICON_SUN)}<span>${esc(localName(s.localId))}</span></div>
+          <div class="meta">${metaLinha(s, cid)}</div>
+          ${tag}
+        </div>
+        <div class="right">${dinheiro}${pill}</div>
       </div>
-      <div class="right">${dinheiro}${pill}</div>
     </div>`;
   }).join('');
 }
@@ -4310,7 +4349,12 @@ $('#shift-list').addEventListener('click', async e=>{
     return;
   }
   const row = e.target.closest('.shift');
-  if(row) openSheet(S.shifts.find(x=>x.id===row.dataset.id));
+  if(row){
+    // não abre o sheet se o card estava ou está aberto pelo swipe
+    const wrap = row.closest('.shift-wrap');
+    if(wrap && wrap._swipeOpen){ wrap._swipeOpen=false; row.style.transition=''; row.style.transform=''; return; }
+    openSheet(S.shifts.find(x=>x.id===row.dataset.id));
+  }
 });
 
 $('#next-card').addEventListener('click', e=>{
@@ -4342,6 +4386,139 @@ $('#cal-grid').addEventListener('click', e=>{
     }else openSheet(null, iso(d));
   }
 });
+
+// ── Swipe-to-action ──────────────────────────────────────────────
+(function initSwipe(){
+  const THRESHOLD   = 60;   // px para confirmar o swipe
+  const MAX_SLIDE   = 144;  // px máximos revelados (largura dos dois botões)
+  const SNAP_FRAC   = 0.45; // fração para snap para aberto vs fechado
+
+  let active = null; // { wrap, card, startX, startY, dx, open }
+
+  function setTranslate(card, x, instant){
+    card.classList.toggle('swiping', !instant);
+    card.style.transform = x ? `translateX(${x}px)` : '';
+    if(instant) card.offsetHeight; // force reflow
+  }
+
+  function snapClose(card){
+    card.classList.remove('swiping');
+    card.style.transform = '';
+  }
+
+  function snapOpen(card, w){
+    card.classList.remove('swiping');
+    card.style.transform = `translateX(${-w}px)`;
+  }
+
+  // fecha qualquer card aberto exceto o passado
+  function closeOthers(exceptWrap){
+    document.querySelectorAll('.shift-wrap').forEach(w=>{
+      if(w === exceptWrap) return;
+      const c = w.querySelector('.shift');
+      if(c && c.style.transform) snapClose(c);
+      if(w._swipeOpen) w._swipeOpen = false;
+    });
+  }
+
+  document.addEventListener('touchstart', e=>{
+    const card = e.target.closest('.shift-wrap .shift');
+    if(!card) return;
+    const wrap = card.closest('.shift-wrap');
+    const actions = wrap.querySelector('.shift-actions');
+    if(!actions) return;
+
+    // largura real dos botões
+    const actionsW = Math.min(actions.scrollWidth, MAX_SLIDE);
+
+    active = {
+      wrap, card, actions, actionsW,
+      startX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      dx: 0,
+      open: !!wrap._swipeOpen,
+      decided: false,  // scroll vertical vs swipe horizontal
+    };
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e=>{
+    if(!active) return;
+    const dx = e.touches[0].clientX - active.startX;
+    const dy = e.touches[0].clientY - active.startY;
+
+    // decidir direção na primeira movimentação significativa
+    if(!active.decided){
+      if(Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+      active.decided = true;
+      active.isHoriz = Math.abs(dx) > Math.abs(dy) * 0.8;
+    }
+    if(!active.isHoriz) return;
+
+    e.preventDefault(); // impede scroll vertical durante swipe horizontal
+
+    active.dx = dx;
+    const base = active.open ? -active.actionsW : 0;
+    let x = base + dx;
+    // limites: não desliza para direita além de 0, não desliza mais que MAX_SLIDE para esquerda
+    x = Math.max(-active.actionsW, Math.min(0, x));
+    // resistência além do limite
+    if(base + dx < -active.actionsW){
+      const over = (base + dx) + active.actionsW;
+      x = -active.actionsW + over * 0.2;
+    }
+    setTranslate(active.card, x, false);
+  }, { passive: false });
+
+  document.addEventListener('touchend', ()=>{
+    if(!active) return;
+    const {wrap, card, actionsW, dx, open} = active;
+    const net = open ? dx : dx; // deslocamento do ponto de partida
+    const committed = open
+      ? dx > actionsW * SNAP_FRAC   // estava aberto: fechar se arrastou suficientemente para direita
+      : dx < -THRESHOLD;            // estava fechado: abrir se arrastou suficientemente para esquerda
+
+    if(committed && !open){
+      closeOthers(wrap);
+      snapOpen(card, actionsW);
+      wrap._swipeOpen = true;
+      haptic(6);
+    } else if(committed && open){
+      snapClose(card);
+      wrap._swipeOpen = false;
+    } else {
+      // snap de volta ao estado anterior
+      if(open) snapOpen(card, actionsW); else snapClose(card);
+    }
+    active = null;
+  });
+
+  // toque fora fecha tudo
+  document.addEventListener('touchstart', e=>{
+    if(!e.target.closest('.shift-wrap')) closeOthers(null);
+  }, { passive: true });
+
+  // clique nos botões de ação
+  document.addEventListener('click', async e=>{
+    const btnPago = e.target.closest('[data-sa-pago]');
+    if(btnPago){
+      e.stopPropagation();
+      const s = S.shifts.find(x=>x.id===btnPago.dataset.saPago);
+      if(!s) return;
+      s.pago = !s.pago;
+      s.pagoEm = s.pago ? (s.pagoEm || iso(new Date())) : '';
+      haptic(s.pago ? 12 : 6);
+      await store.save(S); render();
+      return;
+    }
+    const btnEdit = e.target.closest('[data-sa-edit]');
+    if(btnEdit){
+      e.stopPropagation();
+      const s = S.shifts.find(x=>x.id===btnEdit.dataset.saEdit);
+      if(s){ haptic(6); openSheet(s); }
+      return;
+    }
+  });
+})();
 
 // aba Caixa
 document.addEventListener('click', async e=>{
