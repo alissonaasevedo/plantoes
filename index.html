@@ -906,6 +906,26 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 }
 #h-sequencia:hover { transform: scale(1.05); }
 @keyframes seqIn { from { opacity:0; transform:scale(.8) translateY(4px); } to { opacity:1; transform:none; } }
+/* ── Badge streak de pagamentos ── */
+#h-streak {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: linear-gradient(135deg,rgba(99,102,241,.12),rgba(99,102,241,.06));
+  border: 1px solid rgba(99,102,241,.3);
+  border-radius: 99px; padding: 3px 10px 3px 7px;
+  font-size: 12px; font-weight: 700; color: var(--accent);
+  margin-top: 4px; cursor: default;
+  animation: seqIn .4s ease both;
+}
+/* ── Badge mês pesado ── */
+#h-fadiga {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(200,56,79,.07);
+  border: 1px solid rgba(200,56,79,.22);
+  border-radius: 99px; padding: 3px 10px 3px 7px;
+  font-size: 12px; font-weight: 700; color: var(--due);
+  margin-top: 4px; cursor: default;
+  animation: seqIn .4s ease both;
+}
 /* ── Pay canvas ── */
 #pay-canvas {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -1071,6 +1091,8 @@ nav button.on .nav-ico { transform: translateY(-1px); }
     <div id="h-sparkline-card"></div>
     <div id="h-meta-hero"></div>
     <div id="h-sequencia" style="display:none"></div>
+    <div id="h-fadiga" style="display:none"></div>
+    <div id="h-streak" style="display:none"></div>
     <div id="h-banner-prox"></div>
 <div id="h-checklist"></div>
 
@@ -1135,6 +1157,8 @@ nav button.on .nav-ico { transform: translateY(-1px); }
     <div id="cx-atraso"></div>
     <div class="sec"><h2>Próximos meses</h2></div>
     <div id="cx-fut"></div>
+    <div id="cx-projecao-anual"></div>
+    <div id="cx-objetivo"></div>
    </div>
 
    <div class="pane">
@@ -1170,6 +1194,10 @@ nav button.on .nav-ico { transform: translateY(-1px); }
     <!-- POR LOCAL -->
     <div class="sec"><h2>Por local</h2></div>
     <div id="res-locais"></div>
+
+    <!-- RANKING R$/h por local -->
+    <div class="sec" style="margin-top:8px"><h2>Ranking R$/h</h2></div>
+    <div id="res-rank-hora"></div>
 
     <!-- DISTRIBUIÇÃO POR TURNO -->
     <div class="sec" style="margin-top:8px"><h2>Por turno</h2></div>
@@ -2232,6 +2260,47 @@ function renderMes(){
     }
   })();
 
+  // ── Streak de pagamentos em dia ──
+  (function(){
+    const el = $('#h-streak');
+    if(!el) return;
+    // pega plantões pagos, ordenados pelo mais recente primeiro
+    const pagos = S.shifts.filter(s => counts(s) && s.pago && vencimento(s))
+      .sort((a,b) => dataCaixa(b).localeCompare(dataCaixa(a)));
+    if(!pagos.length){ el.style.display='none'; return; }
+    // conta sequência de pagamentos onde pago chegou dentro de 7 dias do vencimento
+    let streak = 0;
+    for(const s of pagos){
+      const venc = parseDate(vencimento(s));
+      const cx   = parseDate(dataCaixa(s));
+      const diff = Math.round((cx - venc) / 86400000); // positivo = atraso
+      if(diff <= 7){ streak++; } else { break; }
+    }
+    if(streak >= 3){
+      el.style.display = 'inline-flex';
+      el.innerHTML = `⚡ ${streak} pagos em dia`;
+      el.title = `${streak} plantões consecutivos confirmados dentro do prazo`;
+    } else {
+      el.style.display = 'none';
+    }
+  })();
+
+  // ── Badge mês pesado ──
+  (function(){
+    const el = $('#h-fadiga');
+    if(!el) return;
+    // limiar configurável: S.limiarHoras || 180h por mês
+    const limiar = S.limiarHoras || 180;
+    const horasTotais = list.reduce((a,s) => a + (+s.duracao||0), 0); // todas as horas do mês
+    if(horasTotais >= limiar){
+      el.style.display = 'inline-flex';
+      el.innerHTML = `⚠️ ${horasTotais}h escaladas`;
+      el.title = `Mês com carga acima de ${limiar}h`;
+    } else {
+      el.style.display = 'none';
+    }
+  })();
+
   // checklist compacto de pendências na tela principal
   const pendentes = noMesCx.filter(s=>!s.pago);
   if(pendentes.length > 0){
@@ -2676,6 +2745,147 @@ function renderCaixa(){
     <div class="txt"><b style="text-transform:capitalize">${MES[f.ref.getMonth()]} ${f.ref.getFullYear()}</b>
       <small>${f.v ? 'previsto' : 'sem lançamentos'}</small></div>
     <div class="val" style="color:${f.v?'var(--ink)':'var(--dim-2)'}">${brl(f.v)}</div></div>`).join('');
+
+  // ── Simulador de renda anual ──
+  (function(){
+    const el = $('#cx-projecao-anual');
+    if(!el) return;
+    // média dos últimos 3 meses de caixa completos (excluindo mês atual)
+    const meses3 = [];
+    for(let i=1; i<=3; i++){
+      const ref = new Date(y, m-i, 1);
+      const v = soma(todos.filter(s=>{
+        const d = parseDate(dataCaixa(s));
+        return d.getMonth()===ref.getMonth() && d.getFullYear()===ref.getFullYear();
+      }));
+      meses3.push(v);
+    }
+    const media3 = meses3.reduce((a,v)=>a+v,0) / 3;
+    if(!media3){ el.innerHTML=''; return; }
+    const metaAnual = S.metaAnual || 0;
+    const projecao12 = Math.round(media3 * 12);
+    const progAnual = metaAnual ? Math.min(100, Math.round(projecao12/metaAnual*100)) : 0;
+    const corProj = metaAnual
+      ? (projecao12 >= metaAnual ? 'var(--ok)' : 'var(--accent)')
+      : 'var(--accent)';
+
+    el.innerHTML = `<div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px 16px;margin:8px 0 0;box-shadow:var(--sh)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)">Projeção anual</div>
+          <div style="font-size:22px;font-weight:800;color:${corProj};margin-top:2px;font-variant-numeric:tabular-nums">${brl(projecao12)}</div>
+          <div style="font-size:11.5px;color:var(--dim);margin-top:2px">média ${brl(Math.round(media3))}/mês · últimos 3 meses</div>
+        </div>
+        <button id="cx-meta-anual-btn" style="font-size:11px;font-weight:700;padding:5px 11px;border-radius:99px;border:1.5px solid var(--line-2);background:none;color:var(--dim);cursor:pointer;white-space:nowrap;margin-top:4px">
+          ${metaAnual ? brl(metaAnual) : '+ meta anual'}
+        </button>
+      </div>
+      ${metaAnual ? `
+      <div style="margin-bottom:8px">
+        <div class="gauge" style="height:6px;background:var(--line)"><i class="p" style="width:${progAnual}%;background:${corProj};transition:width .6s cubic-bezier(.4,0,.2,1)"></i></div>
+        <div style="display:flex;justify-content:space-between;margin-top:5px">
+          <span style="font-size:11px;color:var(--dim)">${progAnual}% da meta</span>
+          <span style="font-size:11px;color:${projecao12>=metaAnual?'var(--ok)':'var(--dim)'}">
+            ${projecao12>=metaAnual ? 'Meta atingida 🎉' : 'Faltam ' + brl(metaAnual-projecao12)}
+          </span>
+        </div>
+      </div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+        <div style="background:var(--bg);border-radius:10px;padding:9px 12px;text-align:center">
+          <div style="font-size:10px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Se aumentar 10%</div>
+          <div style="font-size:14px;font-weight:800;color:var(--ok);margin-top:3px;font-variant-numeric:tabular-nums">${brl(Math.round(media3*1.1*12))}</div>
+        </div>
+        <div style="background:var(--bg);border-radius:10px;padding:9px 12px;text-align:center">
+          <div style="font-size:10px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Melhor mês × 12</div>
+          <div style="font-size:14px;font-weight:800;color:var(--accent);margin-top:3px;font-variant-numeric:tabular-nums">${brl(Math.max(...meses3,tot)*12)}</div>
+        </div>
+      </div>
+    </div>`;
+
+    // input de meta anual via popover inline
+    document.getElementById('cx-meta-anual-btn')?.addEventListener('click', ()=>{
+      const atual = S.metaAnual || '';
+      const novo = prompt('Meta de renda anual (R$):', atual ? String(atual) : '');
+      if(novo === null) return;
+      const v = parseFloat(String(novo).replace(/\D/g,'')) || 0;
+      S.metaAnual = v || undefined;
+      store.save(S).then(()=>{ haptic(10); renderCaixa(); toast(v ? 'Meta anual salva' : 'Meta removida'); });
+    });
+  })();
+
+  // ── Feature 5: "Quanto falta para X" ──
+  (function(){
+    const el = $('#cx-objetivo');
+    if(!el) return;
+    const obj = S.metaObjetivo; // {nome, valor} ou undefined
+    // calcular acumulado dos últimos 3 meses completos (média mensal)
+    const meses3 = [];
+    for(let i=1; i<=3; i++){
+      const ref = new Date(y, m-i, 1);
+      const v2 = todos.filter(s=>{
+        const d = parseDate(dataCaixa(s));
+        return d.getMonth()===ref.getMonth() && d.getFullYear()===ref.getFullYear();
+      }).reduce((a,s)=>a+liq(s),0);
+      meses3.push(v2);
+    }
+    const media3 = meses3.filter(v2=>v2>0);
+    const mediaMensal = media3.length ? Math.round(media3.reduce((a,v2)=>a+v2,0)/media3.length) : 0;
+
+    if(!obj){
+      el.innerHTML = `
+        <div style="background:var(--card,var(--bg-2,rgba(0,0,0,.04)));border:1.5px dashed var(--line-2);border-radius:14px;padding:16px;margin-top:8px;text-align:center">
+          <div style="font-size:13px;color:var(--dim);margin-bottom:10px">Defina um objetivo financeiro e veja quanto falta para alcançá-lo</div>
+          <button id="cx-obj-add" style="font-size:12px;font-weight:700;padding:6px 16px;border-radius:99px;border:1.5px solid var(--accent);background:none;color:var(--accent);cursor:pointer">+ Definir objetivo</button>
+        </div>`;
+      document.getElementById('cx-obj-add')?.addEventListener('click', ()=>{
+        const nome = prompt('Nome do objetivo (ex: Viagem, Reserva, Equipamento):','');
+        if(!nome) return;
+        const vStr = prompt(`Valor alvo para "${nome}" (R$):`, '');
+        if(vStr === null) return;
+        const valor = parseFloat(String(vStr).replace(/\D/g,'')) || 0;
+        if(!valor){ toast('Valor inválido'); return; }
+        S.metaObjetivo = {nome: nome.trim(), valor};
+        store.save(S).then(()=>{ haptic(10); renderCaixa(); toast('Objetivo salvo!'); });
+      });
+      return;
+    }
+
+    const pct = mediaMensal ? Math.min(100, Math.round((mediaMensal / obj.valor) * 100)) : 0;
+    const mesesNecessarios = mediaMensal ? Math.ceil(obj.valor / mediaMensal) : null;
+    const corBar = pct >= 100 ? 'var(--ok)' : 'var(--accent)';
+
+    el.innerHTML = `
+      <div style="background:var(--card,var(--bg-2,rgba(0,0,0,.04)));border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Objetivo</div>
+            <div style="font-size:15px;font-weight:800;color:var(--fg)">${esc(obj.nome)}</div>
+            <div style="font-size:13px;color:var(--dim);margin-top:2px">${brl(obj.valor)}</div>
+          </div>
+          <button id="cx-obj-edit" style="font-size:11px;padding:4px 10px;border-radius:99px;border:1px solid var(--line-2);background:none;color:var(--dim);cursor:pointer">✏️ editar</button>
+        </div>
+        <div style="margin-bottom:6px">
+          <div class="gauge" style="height:8px;background:var(--line);border-radius:99px"><i class="p" style="width:${pct}%;background:${corBar};border-radius:99px;transition:width .6s cubic-bezier(.4,0,.2,1)"></i></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--dim)">
+          ${mediaMensal ? `<span>Economizando <b style="color:var(--fg)">${brl(mediaMensal)}/mês</b></span>` : '<span>Sem dados de caixa ainda</span>'}
+          <span style="color:${corBar};font-weight:700">${mesesNecessarios ? `${mesesNecessarios} mês${mesesNecessarios!==1?'es':''}` : '—'}</span>
+        </div>
+        ${!mediaMensal ? '' : `<div style="font-size:11px;color:var(--dim);margin-top:6px;text-align:right">
+          baseado na média dos últimos meses
+        </div>`}
+      </div>`;
+
+    document.getElementById('cx-obj-edit')?.addEventListener('click', ()=>{
+      const opcao = prompt(`Objetivo: ${obj.nome} (${brl(obj.valor)})\n\nDigite o novo valor ou deixe em branco para remover:`, String(obj.valor));
+      if(opcao === null) return;
+      if(!opcao.trim()){ S.metaObjetivo = undefined; store.save(S).then(()=>{ haptic(6); renderCaixa(); toast('Objetivo removido'); }); return; }
+      const novoValor = parseFloat(String(opcao).replace(/\D/g,'')) || 0;
+      if(!novoValor){ toast('Valor inválido'); return; }
+      S.metaObjetivo = {...obj, valor: novoValor};
+      store.save(S).then(()=>{ haptic(10); renderCaixa(); toast('Objetivo atualizado!'); });
+    });
+  })();
 }
 
 function renderResumo(){
@@ -2720,6 +2930,51 @@ function renderResumo(){
         <span style="font-size:11.5px;color:var(--dim)">${fat?Math.round(d.fat/fat*100):0}% do total</span>
       </div></div>`;
   }).join('') || '<div class="empty">Nenhum lançamento no período.</div>';
+
+  // ── Ranking R$/h por local ──
+  (function(){
+    const el = $('#res-rank-hora');
+    if(!el) return;
+    // só plantões com duração registrada (exclui bolsa/ambulatório sem horas)
+    const comHora = arr.filter(s => !ehBolsa(s) && !ehAmb(s) && (+s.duracao||0) > 0);
+    if(!comHora.length){ el.innerHTML=''; return; }
+    const porLoc = {};
+    comHora.forEach(s=>{
+      const k = s.localId||'_';
+      porLoc[k] = porLoc[k] || { fat:0, h:0, n:0 };
+      porLoc[k].fat += liq(s);
+      porLoc[k].h   += +s.duracao||0;
+      porLoc[k].n++;
+    });
+    const ranking = Object.entries(porLoc)
+      .map(([lid,d]) => ({ lid, ...d, vph: d.h ? Math.round(d.fat/d.h) : 0 }))
+      .filter(x => x.vph > 0)
+      .sort((a,b) => b.vph - a.vph);
+    if(!ranking.length){ el.innerHTML=''; return; }
+    const maxVph = ranking[0].vph;
+    el.innerHTML = ranking.map((r,i) => {
+      const l = getLocal(r.lid)||{nome:'Desconhecido',cor:'#ccc'};
+      const medal = i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : `${i+1}º`;
+      const pct = Math.round(r.vph/maxVph*100);
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px">
+          <div style="font-size:16px;line-height:1;flex:none">${medal}</div>
+          <div class="swatch" style="background:${l.cor};flex:none"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.nome)}</div>
+            <div style="font-size:11.5px;color:var(--dim)">${r.n} plantão${r.n!==1?'es':''} · ${r.h}h</div>
+          </div>
+          <div style="text-align:right;flex:none">
+            <div style="font-size:15px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums">${brl(r.vph)}<span style="font-size:10px;font-weight:500;color:var(--dim)">/h</span></div>
+            <div style="font-size:11px;color:var(--dim)">${brl(r.fat)} total</div>
+          </div>
+        </div>
+        <div style="height:4px;background:var(--line);border-radius:99px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${l.cor};border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1)"></div>
+        </div>
+      </div>`;
+    }).join('');
+  })();
 
   // por turno — exclui renda fixa (bolsa), que não tem turno real
   const porTurno = {diurno:{fat:0,n:0},noturno:{fat:0,n:0}};
@@ -4339,7 +4594,18 @@ $('#h-checklist').addEventListener('click', async e=>{
   const s = S.shifts.find(x=>x.id===b.dataset.cxpay);
   if(!s) return;
   s.pago = true; s.pagoEm = s.pagoEm || iso(new Date());
-  await store.save(S); render(); toast('Recebimento confirmado ✓');
+  await store.save(S); render();
+  // verificar streak após confirmar
+  const pagos2 = S.shifts.filter(x => counts(x) && x.pago && vencimento(x))
+    .sort((a,b) => dataCaixa(b).localeCompare(dataCaixa(a)));
+  let streak2 = 0;
+  for(const x of pagos2){
+    const venc = parseDate(vencimento(x));
+    const cx   = parseDate(dataCaixa(x));
+    if(Math.round((cx-venc)/86400000) <= 7) streak2++; else break;
+  }
+  if(streak2 >= 3 && streak2 % 3 === 0){ haptic(20); toast(`⚡ ${streak2} pagos em dia!`); }
+  else toast('Recebimento confirmado ✓');
 });
 
 $('#shift-list').addEventListener('click', async e=>{
@@ -4537,7 +4803,22 @@ document.addEventListener('click', async e=>{
     s.pagoEm = s.pago ? (s.pagoEm || iso(new Date())) : '';
     haptic(s.pago ? 12 : 6);
     await store.save(S); render();
-    toast(s.pago ? 'Entrada confirmada' : 'Voltou para previsto');
+    if(s.pago){
+      // verificar streak após confirmar
+      const pagos = S.shifts.filter(x => counts(x) && x.pago && vencimento(x))
+        .sort((a,b) => dataCaixa(b).localeCompare(dataCaixa(a)));
+      let streak = 0;
+      for(const x of pagos){
+        const venc = parseDate(vencimento(x));
+        const cx   = parseDate(dataCaixa(x));
+        if(Math.round((cx-venc)/86400000) <= 7) streak++; else break;
+      }
+      if(streak >= 3 && streak % 3 === 0){
+        haptic(20); toast(`⚡ ${streak} pagos em dia!`);
+      } else {
+        toast('Entrada confirmada');
+      }
+    } else { toast('Voltou para previsto'); }
     return;
   }
   const g = e.target.closest('[data-goto]');
