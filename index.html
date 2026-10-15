@@ -1918,12 +1918,19 @@ function renderMes(){
   })();
   (function animarHero(alvo){
     const el=$('#h-total');
-    // se o mês/ano exibido mudou, sempre parte do zero
+    // dataset.valor armazena SEMPRE como número puro (sem formatação BRL)
     const mesKey = cursor.getFullYear()+'-'+cursor.getMonth();
-    if(el.dataset.mesKey !== mesKey){ el.dataset.mesKey=mesKey; el.dataset.valor='0'; }
-    const anterior=parseFloat((el.dataset.valor||'0').replace(/\D/g,''))||0;
-    if(anterior===alvo){el.textContent=brl(alvo);return;}
-    el.dataset.valor=alvo;
+    if(el.dataset.mesKey !== mesKey){
+      // mês mudou: zera visual imediatamente E reseta o ponto de partida
+      el.dataset.mesKey = mesKey;
+      el.dataset.valor = '0';
+      el.dataset.real = brl(0);
+      if(!saldoOculto) el.textContent = brl(0);
+    }
+    // parseFloat direto — dataset.valor é número puro, sem separadores BRL
+    const anterior = parseFloat(el.dataset.valor) || 0;
+    if(anterior === alvo){ el.dataset.real=brl(alvo); if(!saldoOculto) el.textContent=brl(alvo); return; }
+    el.dataset.valor = String(alvo);
     const dur=480,ini=performance.now();
     const ease=t=>t<.5?2*t*t:(4-2*t)*t-1;
     function step(now){
