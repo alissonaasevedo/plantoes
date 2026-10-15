@@ -522,9 +522,22 @@ textarea { min-height: 62px; resize: vertical; }
 .taxbar i { display: block; height: 100%; background: var(--accent); transition: width .4s ease; }
 /* timeline da aba Caixa */
 .tl-cx { padding: 4px 0; }
-.tl-cx-item { display: flex; gap: 14px; padding-bottom: 4px; cursor: pointer; }
+.tl-cx-item { display: flex; gap: 14px; padding-bottom: 4px; cursor: pointer; position: relative; overflow: hidden; }
 .tl-cx-item:hover .tl-cx-body { background: var(--surface-2); }
-.tl-cx-line { display: flex; flex-direction: column; align-items: center; width: 16px; flex: none; padding-top: 14px; }
+.tl-cx-line { display: flex; flex-direction: column; align-items: center; width: 16px; flex: none; padding-top: 14px; position: relative; z-index: 1; }
+/* swipe da Caixa */
+.tl-cx-inner { display: flex; flex: 1; min-width: 0; position: relative; z-index: 1;
+  will-change: transform; touch-action: pan-y;
+  transition: transform .25s cubic-bezier(.4,0,.2,1); }
+.tl-cx-inner.cx-swiping { transition: none; }
+.tl-cx-action {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 80px; z-index: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--ok); border-radius: 0 10px 10px 0;
+  font-size: 11px; font-weight: 800; color: #fff; letter-spacing: .04em;
+  text-transform: uppercase; gap: 4px; flex-direction: column;
+}
+.tl-cx-action .tl-cx-icon { font-size: 18px; line-height: 1; }
 .tl-cx-dot { width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid; flex: none; transition: background .2s; }
 .tl-cx-vline { width: 2px; flex: 1; min-height: 24px; background: var(--line); margin-top: 4px; border-radius: 99px; }
 .tl-cx-vline.hidden { visibility: hidden; }
@@ -2718,15 +2731,18 @@ function renderCaixa(){
             <div class="tl-cx-dot" style="background:${s.pago?'var(--ok)':'var(--line-2)'}; border-color:${localCor(s.localId)}"></div>
             <div class="tl-cx-vline ${i===noMes.length-1?'hidden':''}"></div>
           </div>
-          <div class="tl-cx-body">
-            <div class="tl-cx-top">
-              <div class="txt"><b>${esc(localName(s.localId))}</b><small>${dataStr} · lançamento ${pad2(t0.getDate())}/${pad2(t0.getMonth()+1)}</small></div>
-              <div style="text-align:right">
-                <div class="val">${brl(liq(s))}</div>
-                <div class="pill ${s.pago?'pago':'pend'}" data-cxpay="${s.id}">${s.pago?'Caiu':'Previsto'}</div>
+          <div class="tl-cx-inner" data-cxswipe="${s.id}">
+            ${!s.pago ? `<div class="tl-cx-action" aria-hidden="true"><div class="tl-cx-icon">✅</div>Caiu</div>` : ''}
+            <div class="tl-cx-body">
+              <div class="tl-cx-top">
+                <div class="txt"><b>${esc(localName(s.localId))}</b><small>${dataStr} · lançamento ${pad2(t0.getDate())}/${pad2(t0.getMonth()+1)}</small></div>
+                <div style="text-align:right">
+                  <div class="val">${brl(liq(s))}</div>
+                  <div class="pill ${s.pago?'pago':'pend'}" data-cxpay="${s.id}">${s.pago?'Caiu':'Previsto'}</div>
+                </div>
               </div>
+              ${s.pago?`<div class="tl-cx-bar"><i style="width:${pct}%"></i><span>${brl(saldoCum[i])} acumulado</span></div>`:''}
             </div>
-            ${s.pago?`<div class="tl-cx-bar"><i style="width:${pct}%"></i><span>${brl(saldoCum[i])} acumulado</span></div>`:''}
           </div>
         </div>`;
       }).join('')}
@@ -4204,17 +4220,31 @@ document.addEventListener('click', function(e){
     }, 320);
   }
 
+  let ptrStartX = 0;
+  let ptrDecided = false; // true quando decidimos se é vertical ou horizontal
+
   document.addEventListener('touchstart', e=>{
     if(window.scrollY > 4) return;
-    startY   = e.touches[0].clientY;
-    pulling  = true;
-    released = false;
+    startY    = e.touches[0].clientY;
+    ptrStartX = e.touches[0].clientX;
+    pulling   = true;
+    released  = false;
+    ptrDecided = false;
     IND.style.transition = '';
   }, {passive:true});
 
   document.addEventListener('touchmove', e=>{
     if(!pulling || released) return;
     const dy = e.touches[0].clientY - startY;
+    const dx = e.touches[0].clientX - ptrStartX;
+    // decidir direção na primeira movimentação
+    if(!ptrDecided){
+      if(Math.abs(dy) < 4 && Math.abs(dx) < 4) return;
+      ptrDecided = true;
+      // se for swipe horizontal, desativa pull-to-refresh
+      if(Math.abs(dx) > Math.abs(dy)){ pulling = false; return; }
+    }
+    if(!pulling) return;
     if(dy <= 0) return;
     const pull = Math.min(dy * .45, MAX_PULL);
     setHeight(pull);
@@ -4694,14 +4724,17 @@ $('#cal-grid').addEventListener('click', e=>{
     });
   }
 
+  // touchstart no shift-wrap com passive:false para permitir preventDefault no move
   document.addEventListener('touchstart', e=>{
+    // "toque fora" fecha tudo
+    if(!e.target.closest('.shift-wrap')){ closeOthers(null); return; }
+
     const card = e.target.closest('.shift-wrap .shift');
     if(!card) return;
     const wrap = card.closest('.shift-wrap');
     const actions = wrap.querySelector('.shift-actions');
     if(!actions) return;
 
-    // largura real dos botões
     const actionsW = Math.min(actions.scrollWidth, MAX_SLIDE);
 
     active = {
@@ -4710,31 +4743,28 @@ $('#cal-grid').addEventListener('click', e=>{
       startY: e.touches[0].clientY,
       dx: 0,
       open: !!wrap._swipeOpen,
-      decided: false,  // scroll vertical vs swipe horizontal
+      decided: false,
     };
-  }, { passive: true });
+  }, { passive: false }); // false obrigatório: permite preventDefault no touchmove
 
   document.addEventListener('touchmove', e=>{
     if(!active) return;
     const dx = e.touches[0].clientX - active.startX;
     const dy = e.touches[0].clientY - active.startY;
 
-    // decidir direção na primeira movimentação significativa
     if(!active.decided){
       if(Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
       active.decided = true;
       active.isHoriz = Math.abs(dx) > Math.abs(dy) * 0.8;
     }
-    if(!active.isHoriz) return;
+    if(!active.isHoriz){ active = null; return; } // é scroll vertical — libera e desiste
 
-    e.preventDefault(); // impede scroll vertical durante swipe horizontal
+    e.preventDefault(); // bloqueia scroll da página durante swipe horizontal
 
     active.dx = dx;
     const base = active.open ? -active.actionsW : 0;
     let x = base + dx;
-    // limites: não desliza para direita além de 0, não desliza mais que MAX_SLIDE para esquerda
     x = Math.max(-active.actionsW, Math.min(0, x));
-    // resistência além do limite
     if(base + dx < -active.actionsW){
       const over = (base + dx) + active.actionsW;
       x = -active.actionsW + over * 0.2;
@@ -4745,10 +4775,9 @@ $('#cal-grid').addEventListener('click', e=>{
   document.addEventListener('touchend', ()=>{
     if(!active) return;
     const {wrap, card, actionsW, dx, open} = active;
-    const net = open ? dx : dx; // deslocamento do ponto de partida
     const committed = open
-      ? dx > actionsW * SNAP_FRAC   // estava aberto: fechar se arrastou suficientemente para direita
-      : dx < -THRESHOLD;            // estava fechado: abrir se arrastou suficientemente para esquerda
+      ? dx > actionsW * SNAP_FRAC
+      : dx < -THRESHOLD;
 
     if(committed && !open){
       closeOthers(wrap);
@@ -4759,16 +4788,10 @@ $('#cal-grid').addEventListener('click', e=>{
       snapClose(card);
       wrap._swipeOpen = false;
     } else {
-      // snap de volta ao estado anterior
       if(open) snapOpen(card, actionsW); else snapClose(card);
     }
     active = null;
   });
-
-  // toque fora fecha tudo
-  document.addEventListener('touchstart', e=>{
-    if(!e.target.closest('.shift-wrap')) closeOthers(null);
-  }, { passive: true });
 
   // clique nos botões de ação
   document.addEventListener('click', async e=>{
@@ -4790,6 +4813,88 @@ $('#cal-grid').addEventListener('click', e=>{
       if(s){ haptic(6); openSheet(s); }
       return;
     }
+  });
+})();
+
+// ── Swipe-to-action na aba Caixa ─────────────────────────────────
+(function initSwipeCaixa(){
+  const ACT_W   = 80;   // largura do botão revelado
+  const THRESHOLD = 55; // px para confirmar
+  let cx = null; // { item, inner, startX, startY, dx, decided, open }
+
+  function snapCloseCx(inner){ inner.classList.remove('cx-swiping'); inner.style.transform=''; }
+  function snapOpenCx(inner){ inner.classList.remove('cx-swiping'); inner.style.transform=`translateX(${-ACT_W}px)`; }
+
+  function closeAllCx(except){
+    document.querySelectorAll('.tl-cx-inner[data-cxswipe]').forEach(el=>{
+      if(el===except) return;
+      if(el.style.transform){ snapCloseCx(el); el._cxOpen=false; }
+    });
+  }
+
+  document.addEventListener('touchstart', e=>{
+    const inner = e.target.closest('.tl-cx-inner[data-cxswipe]');
+    if(!inner){ closeAllCx(null); return; }
+    // só swipe se o item não está pago (sem botão de ação)
+    if(!inner.querySelector('.tl-cx-action')) return;
+    cx = {
+      inner,
+      startX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      dx: 0, decided: false,
+      open: !!inner._cxOpen,
+    };
+  }, { passive: false });
+
+  document.addEventListener('touchmove', e=>{
+    if(!cx) return;
+    const dx = e.touches[0].clientX - cx.startX;
+    const dy = e.touches[0].clientY - cx.startY;
+    if(!cx.decided){
+      if(Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+      cx.decided = true;
+      cx.isHoriz = Math.abs(dx) > Math.abs(dy) * 0.8;
+    }
+    if(!cx.isHoriz){ cx = null; return; }
+    e.preventDefault();
+    cx.dx = dx;
+    const base = cx.open ? -ACT_W : 0;
+    let x = Math.max(-ACT_W, Math.min(0, base + dx));
+    if(base + dx < -ACT_W){ x = -ACT_W + (base + dx + ACT_W) * 0.2; }
+    cx.inner.classList.add('cx-swiping');
+    cx.inner.style.transform = x ? `translateX(${x}px)` : '';
+  }, { passive: false });
+
+  document.addEventListener('touchend', async ()=>{
+    if(!cx) return;
+    const {inner, dx, open} = cx;
+    const committed = open ? dx > ACT_W * 0.45 : dx < -THRESHOLD;
+    if(committed && !open){
+      closeAllCx(inner); snapOpenCx(inner); inner._cxOpen = true; haptic(6);
+    } else if(committed && open){
+      snapCloseCx(inner); inner._cxOpen = false;
+      // confirmar pagamento
+      const id = inner.dataset.cxswipe;
+      const s = S.shifts.find(x=>x.id===id);
+      if(s && !s.pago){
+        s.pago = true; s.pagoEm = s.pagoEm || iso(new Date());
+        haptic(12); await store.save(S); render();
+        // verificar streak
+        const pagos = S.shifts.filter(x => counts(x) && x.pago && vencimento(x))
+          .sort((a,b) => dataCaixa(b).localeCompare(dataCaixa(a)));
+        let streak = 0;
+        for(const x of pagos){
+          const venc = parseDate(vencimento(x));
+          const cxd  = parseDate(dataCaixa(x));
+          if(Math.round((cxd-venc)/86400000) <= 7) streak++; else break;
+        }
+        if(streak >= 3 && streak % 3 === 0){ haptic(20); toast(`⚡ ${streak} pagos em dia!`); }
+        else toast('Entrada confirmada ✓');
+      }
+    } else {
+      if(open) snapOpenCx(inner); else snapCloseCx(inner);
+    }
+    cx = null;
   });
 })();
 
