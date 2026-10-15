@@ -3022,7 +3022,7 @@ function janela(){
   $('#janela').textContent = t;
 }
 
-function openSheet(shift, presetDate){
+function openSheet(shift, presetDate, presetCategoria){
   editing = shift || null;
   valorTouched = !!shift;
   $('#sh-title').textContent = shift ? 'Editar plantão' : 'Novo plantão';
@@ -3036,7 +3036,7 @@ function openSheet(shift, presetDate){
     data: presetDate || iso(new Date()), localId: (S.locais[0]||{}).id || '__new',
     turno:'diurno', duracao:12, hora:'07:00', valor:'', pago:false,
     tipo:'meu', colega:'', contra:'devolver', quitado:false, obs:'',
-    categoria:'remunerado', liquido:'', urgente:false, blTipo:'ferias', blFim:''
+    categoria: presetCategoria || 'remunerado', liquido:'', urgente:false, blTipo:'ferias', blFim:''
   };
 
   fillLocalSelect(s.localId);
@@ -3862,17 +3862,18 @@ function novoItem(){
   menu.id = 'fab-menu';
   menu.style.cssText = `position:fixed;right:20px;bottom:calc(150px + env(safe-area-inset-bottom));
     background:var(--surface);border:1px solid var(--line);border-radius:14px;
-    box-shadow:var(--sh-md);z-index:31;overflow:hidden;min-width:180px;`;
+    box-shadow:var(--sh-md);z-index:31;overflow:hidden;min-width:210px;`;
+  const itemStyle = `display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;
+    padding:14px 16px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;`;
+  const sep = `border-bottom:1px solid var(--line);`;
   menu.innerHTML = `
-    <button id="fab-p" style="display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;
-      padding:14px 16px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;
-      border-bottom:1px solid var(--line)">🏥 <span>Novo plantão</span></button>
-    <button id="fab-b" style="display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;
-      padding:14px 16px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer">
-      🔒 <span>Novo bloqueio</span></button>`;
+    <button id="fab-p"  style="${itemStyle}${sep}">🏥 <span>Novo plantão</span></button>
+    <button id="fab-am" style="${itemStyle}${sep}">🩺 <span>Dia de consultório</span></button>
+    <button id="fab-b"  style="${itemStyle}">🔒 <span>Bloqueio de agenda</span></button>`;
   document.body.appendChild(menu);
-  menu.querySelector('#fab-p').onclick = ()=>{ menu.remove(); openSheet(null); };
-  menu.querySelector('#fab-b').onclick = ()=>{ menu.remove(); openBloqueio(null); };
+  menu.querySelector('#fab-p') .onclick = ()=>{ menu.remove(); openSheet(null, null, 'remunerado'); };
+  menu.querySelector('#fab-am').onclick = ()=>{ menu.remove(); openSheet(null, null, 'ambulatorio'); };
+  menu.querySelector('#fab-b') .onclick = ()=>{ menu.remove(); openBloqueio(null); };
   setTimeout(()=>document.addEventListener('click', function h(e){
     if(!menu.contains(e.target)&&e.target.id!=='fab'){ menu.remove(); document.removeEventListener('click',h); }
   }),100);
