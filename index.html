@@ -58,8 +58,8 @@
   --accent:   #6366F1;
   --accent-2: #4F46E5;
   --accent-soft: rgba(99,102,241,.1);
-  --amber:    #6366F1;
-  --amber-soft:rgba(99,102,241,.1);
+  --amber:    #D97706;
+  --amber-soft:rgba(217,119,6,.12);
 
   /* ── Status ── */
   --ok:       #059669;
@@ -149,9 +149,12 @@ section { display: block; }
 /* pill de valor também fica oculto */
 .saldo-oculto .pill.pago,
 .saldo-oculto .pill.pend { filter: blur(5px); }
-/* stat-cards com dinheiro ficam ocultos */
+/* stat-cards e ring com dinheiro ficam ocultos */
 .saldo-oculto .stat-card.sc-ok .sc-val,
 .saldo-oculto .stat-card.sc-amber .sc-val { filter: blur(7px); user-select: none; pointer-events: none; transition: filter .2s ease; }
+.saldo-oculto .pr-row-val { filter: blur(7px); user-select: none; pointer-events: none; transition: filter .2s ease; }
+.saldo-oculto .pr-ring .pr-pct { filter: blur(5px); transition: filter .2s ease; }
+.saldo-oculto #h-sparkline-card .money { filter: blur(6px); user-select: none; pointer-events: none; transition: filter .2s ease; }
 
 /* barra de controles da lista — não transborda em telas pequenas */
 .ctrl-bar {
@@ -188,6 +191,32 @@ body { overflow-x: hidden; }
   background: var(--line); margin: 18px 0 14px;
 }
 .gauge i { display: block; height: 100%; background: var(--accent); transition: width .4s ease; border-radius: 99px; }
+
+/* ── Progress ring do hero ── */
+.progress-ring-wrap {
+  display: flex; align-items: center; gap: 18px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 16px; padding: 14px 18px; margin: 10px 0 14px;
+  box-shadow: var(--sh);
+}
+.pr-ring { flex: none; position: relative; width: 72px; height: 72px; }
+.pr-ring svg { width: 72px; height: 72px; transform: rotate(-90deg); }
+.pr-ring .pr-track { fill: none; stroke: var(--line); stroke-width: 7; }
+.pr-ring .pr-fill  { fill: none; stroke: var(--ok); stroke-width: 7; stroke-linecap: round;
+  stroke-dasharray: 188.5; stroke-dashoffset: 188.5;
+  transition: stroke-dashoffset .7s cubic-bezier(.4,0,.2,1); }
+.pr-ring .pr-pct {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ok);
+}
+.pr-info { flex: 1; min-width: 0; }
+.pr-info .pr-lbl { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); margin-bottom: 4px; }
+.pr-info .pr-vals { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.pr-info .pr-row  { display: flex; align-items: center; gap: 6px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.pr-info .pr-row .pr-dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.pr-info .pr-row .pr-row-val { font-weight: 700; }
+.pr-info .pr-row .pr-row-k   { color: var(--dim); font-size: 11.5px; margin-left: 2px; }
+@keyframes ringIn { from { stroke-dashoffset: 188.5; } }
 
 .split { display: flex; gap: 20px; padding-bottom: 22px; }
 .split > div { flex: 1; }
@@ -754,7 +783,12 @@ textarea { min-height: 62px; resize: vertical; }
   .quick-banner{background:var(--accent);}
 }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
-@media(prefers-reduced-motion:reduce){ * { transition: none !important; } }
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.shift.animate-in { animation: fadeSlideUp .22s ease both; }
+@media(prefers-reduced-motion:reduce){ * { transition: none !important; animation: none !important; } }
 
 /* nav com ícones — background via variável (claro/escuro automático) */
 nav button {
@@ -1000,12 +1034,15 @@ nav button.on .nav-ico { transform: translateY(-1px); }
       </div>
       <div class="sub" id="h-sub">Nenhum lançamento previsto</div>
     </div>
-    <div class="gauge"><i class="p" id="h-bar" style="width:0%"></i></div>
-    <div class="split">
-      <div><div class="k">Já caiu</div><div class="v ok" id="h-pago">R$ 0</div></div>
-      <div><div class="k">Ainda vem</div><div class="v due" id="h-pend">R$ 0</div></div>
+    <div id="h-progress-ring"></div>
+    <div id="h-split-legacy" style="display:none">
+      <div class="split">
+        <div><div class="k">Já caiu</div><div class="v ok" id="h-pago">R$ 0</div></div>
+        <div><div class="k">Ainda vem</div><div class="v due" id="h-pend">R$ 0</div></div>
+      </div>
     </div>
     <div id="h-stat-grid"></div>
+    <div id="h-sparkline-card"></div>
     <div id="h-meta-hero"></div>
     <div id="h-sequencia" style="display:none"></div>
     <div id="h-banner-prox"></div>
@@ -1520,6 +1557,7 @@ let viewTipo = 'lista', diaAtual = new Date();
 /* ================= utilidades ================= */
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
+const haptic = (ms=8) => { try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 const brl = n => (n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const WD = ['dom','seg','ter','qua','qui','sex','sáb'];
@@ -1890,9 +1928,52 @@ function renderMes(){
   const sinal = delta>=0 ? '↑' : '↓';
   const compStr = cxAnt ? ` ${sinal} ${brl(Math.abs(delta))} vs ${MES[mesAnt.getMonth()]}` : '';
   $('#h-sub').textContent = (partesSub.join(' · ') || 'Nenhum lançamento previsto') + compStr;
-  $('#h-bar').style.width = (cxTot ? Math.min(100, cxRec/cxTot*100) : 0)+'%';
-  $('#h-pago').textContent = brl(cxRec);
-  $('#h-pend').textContent = brl(cxPrev);
+  // ── Progress Ring ──
+  (function(){
+    const pct = cxTot ? Math.min(100, Math.round(cxRec/cxTot*100)) : 0;
+    const circ = 188.5;
+    const offset = circ - (circ * pct / 100);
+    const ringEl = $('#h-progress-ring');
+    if(!ringEl) return;
+    ringEl.innerHTML = `<div class="progress-ring-wrap">
+      <div class="pr-ring">
+        <svg viewBox="0 0 72 72">
+          <circle class="pr-track" cx="36" cy="36" r="30"/>
+          <circle class="pr-fill" id="pr-fill-arc" cx="36" cy="36" r="30"
+            style="stroke-dashoffset:${circ}"/>
+        </svg>
+        <div class="pr-pct">${pct}%</div>
+      </div>
+      <div class="pr-info">
+        <div class="pr-lbl">${MES[cursor.getMonth()]} ${cursor.getFullYear()}</div>
+        <div class="pr-vals">
+          <div class="pr-row">
+            <div class="pr-dot" style="background:var(--ok)"></div>
+            <span class="pr-row-val money">${brl(cxRec)}</span>
+            <span class="pr-row-k">já recebido</span>
+          </div>
+          <div class="pr-row">
+            <div class="pr-dot" style="background:var(--amber)"></div>
+            <span class="pr-row-val money">${brl(cxPrev)}</span>
+            <span class="pr-row-k">a receber</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    // Anima após o DOM estar pronto
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const arc = $('#pr-fill-arc');
+      if(arc) arc.style.strokeDashoffset = offset;
+    }));
+    // Mantém os IDs legados funcionando (para ocultar saldo)
+    const dummy = $('#h-split-legacy');
+    if(dummy){
+      const pago = dummy.querySelector('#h-pago');
+      const pend = dummy.querySelector('#h-pend');
+      if(pago) pago.textContent = brl(cxRec);
+      if(pend) pend.textContent = brl(cxPrev);
+    }
+  })();
 
   // ── Grade 2×2 de métricas ──
   (function(){
@@ -2007,6 +2088,63 @@ function renderMes(){
         : `<div style="text-align:center;padding:24px 0;color:var(--dim)">Nenhum plantão em ${mes}</div>`;
       openDetail(`Valor da hora · ${mes}`, rows);
     };
+  })();
+
+  // ── Gráfico de barras: últimos 6 meses ──
+  (function(){
+    const sparkEl = $('#h-sparkline-card');
+    if(!sparkEl) return;
+
+    // coleta 6 meses até cursor
+    const months = [];
+    for(let i=5; i>=0; i--){
+      const ref = new Date(cursor.getFullYear(), cursor.getMonth()-i, 1);
+      months.push({ y: ref.getFullYear(), m: ref.getMonth() });
+    }
+    const vals = months.map(({y,m}) =>
+      S.shifts.filter(s => counts(s) && parseDate(dataCaixa(s)).getMonth()===m && parseDate(dataCaixa(s)).getFullYear()===y)
+               .reduce((a,s) => a+liq(s), 0)
+    );
+    const maxVal = Math.max(...vals, 1);
+    const temDados = vals.some(v=>v>0);
+    if(!temDados){ sparkEl.innerHTML=''; return; }
+
+    const isCur = (i) => months[i].m === cursor.getMonth() && months[i].y === cursor.getFullYear();
+    const BAR_H = 52; // altura máxima da barra em px
+
+    const bars = months.map(({m},i) => {
+      const pct = vals[i]/maxVal;
+      const h = Math.max(4, Math.round(pct * BAR_H));
+      const isCurrent = isCur(i);
+      const color = isCurrent ? 'var(--accent)' : 'var(--line)';
+      const labelColor = isCurrent ? 'var(--accent)' : 'var(--dim)';
+      const barStyle = `height:${h}px;width:100%;background:${color};border-radius:4px 4px 0 0;` +
+        `transition:height .45s cubic-bezier(.4,0,.2,1);align-self:flex-end;` +
+        (isCurrent ? 'box-shadow:0 0 0 2px var(--accent-soft)' : '');
+      const valStr = vals[i] >= 1000 ? `${(vals[i]/1000).toFixed(0)}k` : (vals[i]>0 ? brl(vals[i]).replace('R$ ','').replace('R$ ','') : '');
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+        <div class="money" style="font-size:9px;font-weight:700;color:${labelColor};font-variant-numeric:tabular-nums;min-height:12px;text-align:center;opacity:${isCurrent?1:.7}">${valStr}</div>
+        <div style="width:100%;height:${BAR_H}px;display:flex;align-items:flex-end">
+          <div style="${barStyle}" data-bar-h="${h}"></div>
+        </div>
+        <div style="font-size:9px;font-weight:${isCurrent?'700':'500'};color:${labelColor};letter-spacing:.02em">${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][m]}</div>
+      </div>`;
+    }).join('');
+
+    sparkEl.innerHTML = `<div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px 12px;margin:0 0 10px;box-shadow:var(--sh)">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Tendência · últimos 6 meses</div>
+      <div style="display:flex;gap:6px;align-items:flex-end">${bars}</div>
+    </div>`;
+
+    // animar as barras: começam em height:0 e crescem
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      sparkEl.querySelectorAll('[data-bar-h]').forEach((el,i)=>{
+        const targetH = el.dataset.barH;
+        el.style.height = '0px';
+        el.style.transitionDelay = `${i*45}ms`;
+        requestAnimationFrame(()=>{ el.style.height = targetH+'px'; });
+      });
+    }));
   })();
 
   // mini-gauge da meta no hero
@@ -2157,6 +2295,7 @@ function renderMes(){
   }
   // montar html com separadores de grupo
   let grupoAtual = null;
+  let shiftIdx = 0;
   el.innerHTML = shown.map(s=>{
     const grupo = grupoData(s);
     const sep = grupo !== grupoAtual
@@ -2179,7 +2318,8 @@ function renderMes(){
     if(ehBolsa(s) && s.obs) tag = `<div class="tag">${esc(s.obs)}</div>`;
     const pill = (off || resid) ? '' : `<div class="pill ${s.pago?'pago':'pend'}" data-pay="${s.id}">${s.pago?'Pago':'Pendente'}</div>`;
     const dinheiro = (resid||bloq) ? `<div class="money" style="color:var(--dim-2);font-size:12.5px">${bloq?'—':'bloqueado'}</div>` : `<div class="money">${brl(liq(s))}</div>`;
-    return sep + `<div class="shift ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)}">
+    const animDelay = `animation-delay:${Math.min(shiftIdx++, 8) * 35}ms`;
+    return sep + `<div class="shift animate-in ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${animDelay}">
       <div class="daycol ${s.data===t?'is-today':''}"><div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div></div>
       <div class="info">
         <div class="place">${ehBolsa(s)?'':(s.turno==='noturno'?ICON_MOON:ICON_SUN)}<span>${esc(localName(s.localId))}</span></div>
@@ -2300,16 +2440,50 @@ function renderNext(){
   if(!nx){ box.innerHTML = ''; return; }
   const d = parseDate(nx.data);
   const dias = Math.round((d - hoje())/86400000);
-  const quando = dias===0 ? '🔴 Hoje' : dias===1 ? '🟡 Amanhã' : dias<=3 ? `🟠 Em ${dias} dias` : `Em ${dias} dias`;
   const l = getLocal(nx.localId), url = mapsUrl(l);
+
+  // ── Countdown visual ──
+  let badgeHtml = '', countdownHtml = '';
+  if(dias === 0){
+    // Hoje: calcular horas restantes
+    const agora = new Date();
+    const [hh, mm] = (nx.hora||'07:00').split(':').map(Number);
+    const inicio = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm);
+    const diffMs = inicio - agora;
+    if(diffMs > 0){
+      const diffH = Math.floor(diffMs/3600000);
+      const diffM = Math.floor((diffMs%3600000)/60000);
+      const tempoStr = diffH > 0 ? `em ${diffH}h${diffM>0?' '+diffM+'min':''}` : `em ${diffM}min`;
+      badgeHtml = `<span style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.04em">🔴 HOJE</span>`;
+      countdownHtml = `<div style="font-size:13px;color:rgba(255,255,255,.9);margin-top:6px;font-weight:600">Começa ${tempoStr} · ${nx.hora}</div>`;
+    } else {
+      badgeHtml = `<span style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.04em">🟢 EM ANDAMENTO</span>`;
+      const diffFimMs = (inicio.getTime() + (nx.duracao||12)*3600000) - agora.getTime();
+      if(diffFimMs > 0){
+        const hFim = Math.floor(diffFimMs/3600000);
+        countdownHtml = `<div style="font-size:13px;color:rgba(255,255,255,.9);margin-top:6px;font-weight:600">Faltam ~${hFim}h para o fim</div>`;
+      }
+    }
+  } else if(dias === 1){
+    badgeHtml = `<span style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.04em">🟡 AMANHÃ</span>`;
+    countdownHtml = `<div style="font-size:13px;color:rgba(255,255,255,.9);margin-top:6px;font-weight:600">Às ${nx.hora} · ${nx.duracao}h</div>`;
+  } else if(dias <= 3){
+    badgeHtml = `<span style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.04em">🟠 EM ${dias} DIAS</span>`;
+  } else {
+    badgeHtml = `<span style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:600;letter-spacing:.03em">Em ${dias} dias</span>`;
+  }
+
   box.innerHTML = `<div class="next" style="--nc:${localCor(nx.localId)}" data-id="${nx.id}">
-    <div class="when">Próximo plantão · ${quando}</div>
+    <div class="when" style="margin-bottom:8px">${badgeHtml}</div>
     <div class="pl">${esc(localName(nx.localId))}</div>
     <div class="dt">${nx.turno==='noturno'?ICON_MOON:ICON_SUN}
       ${WD[d.getDay()]}, ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ·
       ${nx.hora} → ${fim(nx.hora,nx.duracao)} · ${nx.duracao}h${l&&l.cidade?' · '+esc(l.cidade):''}</div>
-    ${url?`<button class="go" data-map="${encodeURIComponent(url)}">${ICON_PIN} Como chegar</button>`:''}
-    <button class="go" data-cal="${nx.id}">${ICON_CAL} Agendar</button>
+    ${countdownHtml}
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      ${url?`<button class="go" data-map="${encodeURIComponent(url)}">${ICON_PIN} Como chegar</button>`:''}
+      <button class="go" data-cal="${nx.id}">${ICON_CAL} Agendar</button>
+    </div>
   </div>`;
 }
 
@@ -2356,9 +2530,16 @@ function renderCal(list){
     const bloqBg = temBloq ? 'rgba(155,27,27,.09)' : '';
     const dotsRes = arr.filter(s=>ehResid(s)).slice(0,2).map(()=>'<i class="oca"></i>').join('');
     const bloqIcon = temBloq ? `<span style="font-size:9px;line-height:1">${emojisBloq[bloqMotivosDia[d]]||'🔒'}</span>` : '';
+    // ícone de turno: noturno > diurno (prioridade)
+    const plantoesDia = arr.filter(s => counts(s));
+    const temNoturno = plantoesDia.some(s => s.turno === 'noturno');
+    const temDiurno  = plantoesDia.some(s => s.turno !== 'noturno');
+    const turnoIcon  = plantoesDia.length
+      ? `<span style="font-size:8px;line-height:1;opacity:.85">${temNoturno ? '🌙' : '☀️'}</span>`
+      : '';
     html += `<button data-day="${d}" class="${(arr.length||temBloq)?'has':''} ${isThis&&t.getDate()===d?'today':''}"
       style="${bg?`background:${bg};`:bloqBg?`background:${bloqBg};`:''}">
-      <span>${d}</span><span class="dots">${dotsRes}${bloqIcon}</span></button>`;
+      <span>${d}</span><span class="dots">${dotsRes}${turnoIcon}${bloqIcon}</span></button>`;
   }
   $('#cal-grid').innerHTML = html;
 }
@@ -2888,7 +3069,7 @@ $('#btn-notif').onclick = pedirPermissaoNotif;
 
 $('#meta-salvar').onclick=async()=>{
   const v=parseFloat($('#meta-input').value)||0;
-  S.metaMensal=v; await store.save(S); renderMeta(); toast(v?'Meta salva':'Meta removida');
+  S.metaMensal=v; await store.save(S); haptic(10); renderMeta(); toast(v?'Meta salva':'Meta removida');
 };
 
 /* ─── PROJEÇÃO 3 MESES ─── */
@@ -3293,6 +3474,7 @@ async function saveShift(){
       if(datas.length) toast(`${datas.length+1} lançamentos criados`);
     }
     await store.save(S);
+    haptic(wasEdit ? 8 : 12);
     closeSheets(); render();
     if(wasEdit) toast('Salvo ✓');
   } catch(err) {
@@ -3984,6 +4166,7 @@ document.addEventListener('click', e=>{
     }
     if(tog.id === 'f-pago'){
       const on = tog.classList.contains('on');
+      haptic(on ? 10 : 6);
       $('#f-pagoem-wrap').classList.toggle('hidden', !on);
       if(on && !$('#f-pagoem').value) $('#f-pagoem').value = iso(new Date());
     }
@@ -4139,6 +4322,7 @@ $('#next-card').addEventListener('click', e=>{
 });
 
 $('#cal-grid').addEventListener('click', e=>{
+  haptic(5);
   const btnBl = e.target.closest('button[data-day]');
   if(btnBl){
     const dBl = +btnBl.dataset.day;
@@ -4167,6 +4351,7 @@ document.addEventListener('click', async e=>{
     const s = S.shifts.find(x=>x.id===pay.dataset.cxpay);
     s.pago = !s.pago;
     s.pagoEm = s.pago ? (s.pagoEm || iso(new Date())) : '';
+    haptic(s.pago ? 12 : 6);
     await store.save(S); render();
     toast(s.pago ? 'Entrada confirmada' : 'Voltou para previsto');
     return;
