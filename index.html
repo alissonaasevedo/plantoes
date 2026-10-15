@@ -318,7 +318,7 @@ body { overflow-x: hidden; }
   /* transfere o espaçamento do .shift */
 }
 .shift-wrap .shift { margin-bottom: 0; border-radius: var(--r); position: relative; z-index: 1;
-  will-change: transform; touch-action: pan-y; transition: transform .25s cubic-bezier(.4,0,.2,1), box-shadow .2s; }
+  will-change: transform; transition: transform .25s cubic-bezier(.4,0,.2,1), box-shadow .2s; }
 .shift-wrap .shift.swiping { transition: none; }
 .shift-actions {
   position: absolute; right: 0; top: 0; bottom: 0;
@@ -527,7 +527,7 @@ textarea { min-height: 62px; resize: vertical; }
 .tl-cx-line { display: flex; flex-direction: column; align-items: center; width: 16px; flex: none; padding-top: 14px; position: relative; z-index: 1; }
 /* swipe da Caixa */
 .tl-cx-inner { display: flex; flex: 1; min-width: 0; position: relative; z-index: 1;
-  will-change: transform; touch-action: pan-y;
+  will-change: transform;
   transition: transform .25s cubic-bezier(.4,0,.2,1); }
 .tl-cx-inner.cx-swiping { transition: none; }
 .tl-cx-action {
