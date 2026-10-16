@@ -2058,6 +2058,7 @@ function renderMes(){
       $('#sd-body').innerHTML = html;
       $('#sheet-detail').classList.add('open');
       $('#scrim').classList.add('open');
+      lockScroll();
     }
 
     function rowPlantao(s){
@@ -3534,6 +3535,7 @@ function openSheet(shift, presetDate, presetCategoria){
   contraHint(); janela();
 
   $('#sheet').classList.add('open'); $('#scrim').classList.add('open');
+  lockScroll();
   if(!shift) autoValor();
 }
 
@@ -3544,6 +3546,22 @@ function closeSheets(){
   $('#sheet-detail').classList.remove('open');
   $('#scrim').classList.remove('open');
   editing = null; editingLocal = null; calAlvo = null;
+  unlockScroll();
+}
+
+// bloqueia scroll da página enquanto um sheet está aberto
+let _scrollY = 0;
+function lockScroll(){
+  _scrollY = window.scrollY;
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${_scrollY}px`;
+  document.body.style.width = '100%';
+}
+function unlockScroll(){
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.width = '';
+  window.scrollTo({top: _scrollY, behavior: 'instant'});
 }
 
 function duracaoAtual(){
@@ -3777,6 +3795,7 @@ function openLocal(l){
   $('#l-del').classList.toggle('hidden', !l);
   paintCores();
   $('#sheet2').classList.add('open'); $('#scrim').classList.add('open');
+  lockScroll();
 }
 async function saveLocal(){
   const nome = $('#l-nome').value.trim();
@@ -3848,7 +3867,7 @@ function openWrapped(){
   const btn = document.getElementById('wr-close');
   sheet.classList.add('open');
   if(btn) btn.classList.add('visible');
-  document.body.style.overflow = 'hidden';
+  lockScroll();
   if(splash){
     splash.style.display = 'flex';
     splash.classList.remove('out');
@@ -3865,7 +3884,7 @@ function closeWrapped(){
   document.getElementById('wrapped-sheet').classList.remove('open');
   const btn = document.getElementById('wr-close');
   if(btn) btn.classList.remove('visible');
-  document.body.style.overflow = '';
+  unlockScroll();
 }
 
 /* helper: retângulo com cantos arredondados no canvas */
@@ -4284,12 +4303,14 @@ function openBloqueio(b){
   $('#sbl-del').classList.toggle('hidden', !b);
   $('#scrim').classList.add('open');
   $('#sheet-bl').classList.add('open');
+  lockScroll();
 }
 
 function closeBloqueio(){
   $('#sheet-bl').classList.remove('open');
   $('#scrim').classList.remove('open');
   editingBloq = null;
+  unlockScroll();
 }
 
 $('#sbl-close').onclick = closeBloqueio;
