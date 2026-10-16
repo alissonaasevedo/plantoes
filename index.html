@@ -231,7 +231,7 @@ body { overflow-x: hidden; }
 .v.ok { color: var(--ok); } .v.due { color: var(--amber); }
 
 /* ── Grade de métricas 2×2 ── */
-.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-block: 14px 0; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-block: 14px 12px; } /* margem inferior: o card de tendência encostava */
 .stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 13px 14px; box-shadow: var(--sh); display: flex; flex-direction: column; gap: 3px; }
 .stat-card.sc-accent { background: var(--accent-soft); border-color: rgba(99,102,241,.18); }
 .stat-card.sc-ok    { background: var(--ok-soft);     border-color: rgba(5,150,105,.15); }
@@ -919,6 +919,7 @@ nav button.on .nav-ico { transform: translateY(-1px); }
   display: none;
 }
 #h-banner-prox span { font-weight: 600; color: var(--ok); }
+.saldo-oculto #h-banner-prox span { filter: blur(5px); }
 /* ─── Wrapped splash de entrada ─── */
 #wrapped-splash {
   position: fixed; inset: 0; z-index: 850;
@@ -1381,15 +1382,18 @@ html, body { transition: background-color .6s ease; }
       <button class="btn sm" id="ics-mes">Exportar mês</button>
       <button class="btn sm" id="ics-all">Exportar tudo</button>
     </div>
-    <p class="hint" style="margin-top:14px">Gera um arquivo .ics com vários plantões de uma vez. No Google Agenda, importe em Configurações → Importar e exportar. No iPhone, toque no arquivo baixado.</p>
+    <p class="hint" style="margin-top:14px">Gera um arquivo .ics com vários plantões de uma vez, já com alarmes 1h antes de começar e 30 min antes de terminar. No iPhone, toque no arquivo baixado e escolha Adicionar tudo. No Google Agenda, importe em Configurações → Importar e exportar (o Google ignora os alarmes do arquivo).</p>
 
-    <div class="sec" style="margin-top:26px"><h2>Notificações</h2></div>
-    <div class="row2" style="margin-top:4px">
-      <div>
-        <p class="hint" style="margin-top:0">Receba um aviso no dia anterior ao próximo plantão, às 20h. Funciona com o app instalado na tela inicial (iPhone: Safari → Adicionar à Tela Inicial).</p>
-      </div>
+    <div class="sec" style="margin-top:26px"><h2>Avisos</h2></div>
+    <div class="row" style="cursor:default;border-bottom:0;padding-top:4px">
+      <div class="txt"><b>Notificações no celular</b><small id="notif-status">—</small></div>
+      <button class="btn sm prim" id="btn-notif">Ativar</button>
     </div>
-    <button class="btn sm" id="btn-notif" style="margin-bottom:20px">🔔 Ativar notificações</button>
+    <div class="toggle" id="av-inicio"><div class="lb">1 hora antes de começar</div><div class="sw"></div></div>
+    <div class="toggle" id="av-fim"><div class="lb">30 min antes de terminar</div><div class="sw"></div></div>
+    <div class="toggle" id="av-vespera"><div class="lb">Na véspera, às 20h</div><div class="sw"></div></div>
+    <button class="btn sm wide" id="btn-notif-teste">Enviar aviso de teste</button>
+    <p class="hint" style="margin-top:12px">O iPhone pausa apps da Tela de Início em segundo plano, então estes avisos saem com o app aberto ou usado há pouco. Para ter o aviso garantido com o app fechado, use <b>Exportar mês</b> em Calendário: cada evento leva os mesmos dois alarmes (1h antes e 30 min antes do fim).</p>
 
     <div class="sec" style="margin-top:26px"><h2>Conferência de lançamentos (14 dias)</h2></div>
     <div id="conf-grid-wrap"></div>
@@ -1854,7 +1858,9 @@ function vevento(s){
     dobra('SUMMARY:'+icsEsc(evTitulo(s))),
     dobra('LOCATION:'+icsEsc(evLocal(s))),
     dobra('DESCRIPTION:'+icsEsc(evDetalhe(s))),
-    'BEGIN:VALARM','TRIGGER:-PT2H','ACTION:DISPLAY','DESCRIPTION:Plantão em 2 horas','END:VALARM',
+    'BEGIN:VALARM','TRIGGER:-PT1H','ACTION:DISPLAY','DESCRIPTION:Plantão em 1 hora','END:VALARM',
+    // horário absoluto: mais compatível com o Calendário do iPhone do que RELATED=END
+    'BEGIN:VALARM','TRIGGER;VALUE=DATE-TIME:'+stampUTC(new Date(f.getTime() - 30*60000)),'ACTION:DISPLAY','DESCRIPTION:Plantão termina em 30 min','END:VALARM',
     'END:VEVENT'
   ].join('\r\n');
 }
@@ -1951,6 +1957,7 @@ function render(){
   renderMes(); renderCaixa(); renderResumo(); renderLocais(); renderAjustes();
   renderLive();
   atualizaQuickBanner();
+  agendarNotificacoes();
 }
 
 function mesData(){
@@ -2452,43 +2459,25 @@ function renderMes(){
   const pago = mine.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0); // mantido para uso na lista
 
   // ─ banner próxima entrada financeira ─
+  // Usa o vencimento real de cada lançamento pendente e soma só o que cai nessa
+  // data. Antes somava todos os pendentes do local (ex.: bolsa inteira até 2028)
+  // e a data vinha da regra genérica do local, não dos plantões.
   (function(){
-    const hoje2 = hoje();
-    let melhor = null, melhorDias = Infinity;
-    for(const l of S.locais){
-      if(!l.nome) continue;
-      const dia = l.pagDia || 10;
-      const pagMes = typeof l.pagMes==='number' ? l.pagMes : 1;
-      // calcular próxima data de pagamento deste local
-      let candidato = new Date(hoje2.getFullYear(), hoje2.getMonth() + pagMes, dia);
-      // ajustar para o último dia do mês se dia > dias do mês
-      const ultimo = new Date(candidato.getFullYear(), candidato.getMonth()+1, 0).getDate();
-      candidato.setDate(Math.min(dia, ultimo));
-      candidato = proximoUtil(candidato);
-      let diff = Math.round((candidato - hoje2) / 86400000);
-      // se já passou este mês, próximo ciclo
-      if(diff < 0){
-        const c2 = new Date(hoje2.getFullYear(), hoje2.getMonth() + 1 + pagMes, dia);
-        const ul2 = new Date(c2.getFullYear(), c2.getMonth()+1, 0).getDate();
-        c2.setDate(Math.min(dia, ul2));
-        diff = Math.round((proximoUtil(c2) - hoje2) / 86400000);
-      }
-      if(diff >= 0 && diff < melhorDias){
-        // calcular valor esperado: soma dos shifts deste local não pagos no mês de caixa
-        const valEsp = S.shifts.filter(s=>s.localId===l.id && counts(s) && !s.pago)
-                                .reduce((a,s)=>a+liq(s), 0);
-        melhorDias = diff;
-        melhor = { dias: diff, nome: l.nome, val: valEsp };
-      }
-    }
     const el = $('#h-banner-prox');
-    if(melhor && melhor.val > 0){
-      const quando = melhor.dias===0 ? 'Hoje' : melhor.dias===1 ? 'Amanhã' : `Em ${melhor.dias} dias`;
-      el.style.display = 'block';
-      el.innerHTML = `${quando} · <span>${brl(melhor.val)}</span> a receber`;
-    } else {
-      el.style.display = 'none';
-    }
+    const t = iso(hoje());
+    const pend = S.shifts.filter(s=>counts(s) && !s.pago && vencimento(s) >= t);
+    if(!pend.length){ el.style.display = 'none'; return; }
+    const prox = pend.map(vencimento).sort()[0];
+    const doDia = pend.filter(s=>vencimento(s) === prox);
+    const val = doDia.reduce((a,s)=>a+liq(s), 0);
+    const dias = Math.round((parseDate(prox) - hoje())/86400000);
+    const incerto = doDia.every(vencIncerto);
+    const quando = incerto ? `Até o fim de ${MES[parseDate(prox).getMonth()]}`
+                 : dias===0 ? 'Hoje' : dias===1 ? 'Amanhã' : `Em ${dias} dias`;
+    const locais = [...new Set(doDia.map(s=>localName(s.localId)))];
+    const de = locais.length === 1 ? ` · ${esc(locais[0])}` : ` · ${locais.length} fontes`;
+    el.style.display = 'block';
+    el.innerHTML = `${quando} · <span>${brl(val)}</span> a receber${de}`;
   })();
 
   renderNext();
@@ -3161,6 +3150,7 @@ function renderAjustes(){
   const h = ano.reduce((a,s)=>a+(+s.duracao||0),0);
   const hR = S.shifts.filter(s=>ehResid(s) && parseDate(s.data).getFullYear()===y)
                      .reduce((a,s)=>a+(+s.duracao||0),0);
+  renderAvisosUI();
   $('#yr').textContent = y;
   $('#year-stats').innerHTML = `
     <div class="row"><div class="txt"><b>Faturado</b><small>${ano.filter(s=>!ehBolsa(s)).length} lançamentos · ${h}h</small></div><div class="val">${brl(tot)}</div></div>
@@ -3194,6 +3184,14 @@ function renderAjustes(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.16', d:'Out 2026', items:[
+    { t:'new', txt:'Avisos 1h antes de começar e 30 min antes de terminar cada plantão (véspera às 20h opcional)' },
+    { t:'new', txt:'Eventos exportados para o calendário levam os dois alarmes' },
+    { t:'new', txt:'Ajustes → Avisos: estado, próximo aviso agendado e botão de teste' },
+    { t:'fix', txt:'Avisos agora disparam pelo service worker — o método antigo não funcionava em app instalado' },
+    { t:'fix', txt:'Card de tendência encostado na grade de métricas' },
+    { t:'fix', txt:'Banner de próxima entrada somava todos os pendentes do local (ex.: bolsa até 2028); agora mostra só o que cai na data' },
+  ]},
   { v:'1.15', d:'Out 2026', items:[
     { t:'new', txt:'Modo plantão: durante o plantão a tela inicial vira um painel com anel de horas, tempo restante e quanto já rendeu' },
     { t:'new', txt:'Tema preto (OLED) automático enquanto o painel está aberto; minimizar devolve o tema normal' },
@@ -4710,6 +4708,13 @@ document.addEventListener('click', e=>{
   const tog = e.target.closest('.toggle');
   if(tog){
     tog.classList.toggle('on');
+    if(tog.id.startsWith('av-')){
+      const p = avisoPrefs(); p[tog.id.slice(3)] = tog.classList.contains('on');
+      lsSet('plantoes:avisos', JSON.stringify(p));
+      if(p[tog.id.slice(3)] && !notifAtiva()) pedirPermissaoNotif();
+      agendarNotificacoes(); renderAvisosUI();
+      return;
+    }
     if(tog.id === 'l-pagincerto'){
       $('#l-pagdia-wrap').classList.toggle('hidden', tog.classList.contains('on'));
     }
@@ -5001,37 +5006,124 @@ $('#file').onchange = e=>{
   r.readAsText(f); e.target.value = '';
 };
 
-/* ================= notificações locais ================= */
-function agendarNotificacoes(){
-  if(!('Notification' in window)) return;
-  const t=iso(hoje());
-  const nx=S.shifts.filter(s=>naAgenda(s)&&counts(s)&&s.data>t)
-    .sort((a,b)=>a.data.localeCompare(b.data))[0];
-  if(!nx) return;
-  // agendar para 1 dia antes às 20h
-  const dPlantao=parseDate(nx.data);
-  const dAviso=new Date(dPlantao); dAviso.setDate(dAviso.getDate()-1); dAviso.setHours(20,0,0,0);
-  const msAte=dAviso.getTime()-Date.now();
-  if(msAte<0||msAte>7*24*3600*1000) return; // só agenda se for dentro de 7 dias
-  clearTimeout(window._notifTimer);
-  window._notifTimer=setTimeout(()=>{
-    if(Notification.permission==='granted'){
-      new Notification('Plantão amanhã 🏥',{
-        body:`${localName(nx.localId)} · ${nx.hora||'07:00'} · ${nx.duracao}h`,
-        icon:'./icon-192.png',tag:'proximo-plantao'
-      });
+/* ================= avisos (notificações) =================
+   Três avisos por plantão: 1h antes de começar, 30 min antes de terminar e
+   (opcional) na véspera às 20h. Agendados pelo próprio app: disparam com o app
+   aberto ou recém-usado. Ao voltar para o app, avisos perdidos há ≤10 min saem.
+   Disparo pelo service worker — iPhone/Android não aceitam new Notification()
+   em app instalado (era o motivo do aviso antigo não aparecer).             */
+const AVISO_DEF = { inicio:true, fim:true, vespera:false };
+const AVISO_INI_MS = 60*60000, AVISO_FIM_MS = 30*60000, AVISO_ATRASO_MS = 10*60000;
+let _avisoTimers = [];
+
+function avisoPrefs(){ try{ return { ...AVISO_DEF, ...JSON.parse(lsGet('plantoes:avisos') || '{}') }; }catch(e){ return { ...AVISO_DEF }; } }
+function avisosVistos(){ try{ return JSON.parse(lsGet('plantoes:avisosVistos') || '[]'); }catch(e){ return []; } }
+function marcarAvisoVisto(tag){ const v = avisosVistos(); v.push(tag); lsSet('plantoes:avisosVistos', JSON.stringify(v.slice(-300))); }
+const notifSuportada = () => 'Notification' in window;
+const notifAtiva = () => notifSuportada() && Notification.permission === 'granted';
+
+// lista de avisos dos plantões próximos (janela real: data + hora + duração)
+function avisosPendentes(now = Date.now(), horizonte = 8*86400000){
+  const p = avisoPrefs(), out = [];
+  const lim = iso(new Date(now - 3*86400000));
+  for(const s of S.shifts){
+    if(!naAgenda(s) || ehBolsa(s) || ehBloq(s) || !(+s.duracao > 0) || s.data < lim) continue;
+    const j = janelaDe(s), nome = localName(s.localId), l = getLocal(s.localId);
+    const hIni = s.hora || '07:00', hFim = fim(hIni, s.duracao);
+    const onde = l && l.cidade ? ` · ${l.cidade}` : '';
+    const tipo = ehResid(s) ? 'Residência' : ehAmb(s) ? 'Consultório' : 'Plantão';
+    if(p.inicio) out.push({ at: j.ini - AVISO_INI_MS, tag:`ini:${s.id}:${j.ini}`,
+      title:`${tipo} em 1 hora`, body:`${nome} · ${hIni} → ${hFim} · ${s.duracao}h${onde}` });
+    if(p.fim) out.push({ at: j.fim - AVISO_FIM_MS, tag:`fim:${s.id}:${j.fim}`,
+      title:`${tipo} termina em 30 min`, body:`${nome} · até ${hFim}${counts(s) && liq(s) ? ' · '+brl(liq(s))+' a receber' : ''}` });
+    if(p.vespera){
+      const v = new Date(j.ini); v.setDate(v.getDate()-1); v.setHours(20,0,0,0);
+      if(v.getTime() < j.ini - AVISO_INI_MS) out.push({ at: v.getTime(), tag:`vesp:${s.id}:${j.ini}`,
+        title:`${tipo} amanhã`, body:`${nome} · ${hIni} · ${s.duracao}h${onde}` });
     }
-  },msAte);
+  }
+  return out.filter(a => a.at > now - AVISO_ATRASO_MS && a.at <= now + horizonte).sort((a,b)=>a.at - b.at);
 }
 
-async function pedirPermissaoNotif(){
-  if(!('Notification' in window)) return toast('Notificações não suportadas neste dispositivo');
-  if(Notification.permission==='granted'){ agendarNotificacoes(); toast('Notificações já ativas ✓'); return; }
-  if(Notification.permission==='denied'){ toast('Permissão negada — ative nas configurações do iPhone'); return; }
-  const r=await Notification.requestPermission();
-  if(r==='granted'){ agendarNotificacoes(); toast('Notificações ativadas ✓'); }
-  else toast('Permissão negada');
+async function mostrarNotificacao(title, opts){
+  const o = { icon:'./icon-192.png', badge:'./icon-192.png', ...opts };
+  try{
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    if(reg && reg.showNotification){ await reg.showNotification(title, o); return true; }
+  }catch(e){}
+  try{ new Notification(title, o); return true; }catch(e){ return false; }
 }
+
+async function dispararAviso(a){
+  if(avisosVistos().includes(a.tag) || !notifAtiva()) return;
+  marcarAvisoVisto(a.tag);
+  await mostrarNotificacao(a.title, { body:a.body, tag:a.tag, data:{ url:'./' } });
+  if(!document.hidden) toast('🔔 ' + a.title);   // com o app em primeiro plano o iPhone pode não exibir o banner
+}
+
+// recria todos os timers — chamado a cada render e ao voltar para o app
+function agendarNotificacoes(){
+  _avisoTimers.forEach(clearTimeout); _avisoTimers = [];
+  if(!notifAtiva()) return;
+  const now = Date.now(), vistos = new Set(avisosVistos());
+  for(const a of avisosPendentes(now)){
+    if(vistos.has(a.tag)) continue;
+    const ms = a.at - now;
+    if(ms <= 0) dispararAviso(a);                       // perdido há pouco (app estava fechado)
+    else _avisoTimers.push(setTimeout(()=>dispararAviso(a), ms));
+  }
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) agendarNotificacoes(); });
+
+async function pedirPermissaoNotif(){
+  if(!notifSuportada()){
+    const ios = /iP(hone|ad|od)/.test(navigator.userAgent);
+    toast(ios ? 'No iPhone, instale o app na Tela de Início para ativar os avisos' : 'Este navegador não suporta notificações');
+    return false;
+  }
+  if(Notification.permission === 'denied'){ toast('Avisos bloqueados — libere em Ajustes do iPhone → Notificações → Plantaê!'); renderAvisosUI(); return false; }
+  if(Notification.permission !== 'granted'){
+    const r = await Notification.requestPermission();
+    if(r !== 'granted'){ toast('Permissão não concedida'); renderAvisosUI(); return false; }
+    toast('Avisos ativados ✓');
+  }
+  agendarNotificacoes(); renderAvisosUI();
+  return true;
+}
+
+// seção de Ajustes: estado, preferências e o próximo aviso agendado
+function renderAvisosUI(){
+  const st = $('#notif-status'); if(!st) return;
+  const p = avisoPrefs(), btn = $('#btn-notif');
+  ['inicio','fim','vespera'].forEach(k => $('#av-'+k).classList.toggle('on', !!p[k]));
+  let txt, cor = '';
+  if(!notifSuportada()){
+    txt = /iP(hone|ad|od)/.test(navigator.userAgent)
+      ? 'Instale o app na Tela de Início (Safari → Compartilhar → Adicionar à Tela de Início) para ativar'
+      : 'Não suportado neste navegador';
+    btn.classList.add('hidden');
+  } else if(Notification.permission === 'denied'){
+    txt = 'Bloqueados — libere em Ajustes do iPhone → Notificações'; cor = 'var(--due)';
+    btn.classList.add('hidden');
+  } else if(Notification.permission !== 'granted'){
+    txt = 'Desativados'; btn.classList.remove('hidden'); btn.textContent = 'Ativar';
+  } else {
+    const prox = avisosPendentes().find(a => a.at > Date.now() && !avisosVistos().includes(a.tag));
+    if(prox){
+      const d = new Date(prox.at);
+      txt = `Próximo: ${quandoDia(prox.at)} às ${pad2(d.getHours())}:${pad2(d.getMinutes())} — ${prox.title.toLowerCase()}`;
+    } else txt = (p.inicio || p.fim || p.vespera) ? 'Ativados · nenhum plantão nos próximos dias' : 'Ativados, mas todos os tipos estão desligados';
+    cor = 'var(--ok)';
+    btn.classList.add('hidden');
+  }
+  st.textContent = txt; st.style.color = cor;
+}
+
+$('#btn-notif-teste').onclick = async ()=>{
+  if(!notifAtiva() && !(await pedirPermissaoNotif())) return;
+  const ok = await mostrarNotificacao('Plantaê! 🔔', { body:'Os avisos estão funcionando neste aparelho.', tag:'teste-'+Date.now() });
+  toast(ok ? 'Aviso de teste enviado' : 'Não consegui mostrar o aviso');
+};
 
 /* ================= MODO PLANTÃO (em andamento) =================
    Quando o relógio está dentro da janela de um plantão, a tela inicial vira
