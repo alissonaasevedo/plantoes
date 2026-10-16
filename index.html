@@ -459,7 +459,8 @@ textarea { min-height: 62px; resize: vertical; }
 .view-toggle button.on { background: var(--surface); color: var(--ink); box-shadow: var(--sh); font-weight: 700; }
 .day-header { display: flex; align-items: center; gap: 10px; padding: 18px 0 12px; border-bottom: 2px solid var(--accent-soft); margin-bottom: 16px; }
 .day-header h2 { font-size: 18px; font-weight: 800; flex: 1; text-transform: capitalize; letter-spacing: -.01em; }
-.day-header .day-.day-header .day-nav button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--dim); font-size: 15px; cursor: pointer; display: grid; place-items: center; }
+.day-header .day-nav { display: flex; gap: 6px; }
+.day-header .day-nav button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--dim); font-size: 15px; cursor: pointer; display: grid; place-items: center; }
 .day-header .day-nav button:hover { border-color: var(--accent); color: var(--accent); }
 .day-header .hoje-btn { border: 0; background: var(--accent-soft); color: var(--accent); font-family: inherit; font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 7px; cursor: pointer; letter-spacing: .03em; }
 .timeline { display: flex; flex-direction: column; gap: 8px; }
@@ -992,7 +993,36 @@ nav button.on .nav-ico { transform: translateY(-1px); }
   letter-spacing: -.01em;
 }
 
-<style>@keyframes flashPay{0%{opacity:1}100%{opacity:0}}</style>
+@keyframes flashPay{0%{opacity:1}100%{opacity:0}}
+@keyframes fabIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+
+/* entrada escalonada dos cards da lista (classe já usada no JS, faltava o CSS) */
+@keyframes shiftIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.animate-in { animation: shiftIn .3s cubic-bezier(.32,.72,0,1) backwards; }
+
+/* ── Polimento: feedback de toque, foco e toast ── */
+html { -webkit-tap-highlight-color: transparent; }
+button, .chip, .pill, .row, .shift, .toggle, .stat-card, .tl-cx-item, .go, .sw-opt { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.shift, .row, .chip, .pill, .btn, .go, .toggle, .tl-cx-body, .tl-card, .sw-opt, .segs button, .view-toggle button, nav button, .fab {
+  transition: transform .12s ease, background-color .15s, border-color .15s, box-shadow .2s, opacity .15s;
+}
+.shift:active, .tl-card:active, .tl-cx-item:active .tl-cx-body { transform: scale(.985); }
+.chip:active, .pill:active, .btn:active, .go:active, .sw-opt:active, .segs button:active, .view-toggle button:active { transform: scale(.95); }
+.row:active { background: var(--surface-2); }
+.toggle:active { transform: scale(.99); }
+nav button:active { transform: scale(.92); }
+.fab:active { transform: scale(.92); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.toast { width: max-content; max-width: calc(100vw - 32px); text-align: center; line-height: 1.4; }
+/* números trocando de valor não "pulam" de largura */
+#h-total, .sc-val, .val, .money { font-variant-numeric: tabular-nums; }
+/* seletor de tipo: 4 chips com rótulos de tamanhos diferentes ficam alinhados */
+#f-cat .chip { display: flex; align-items: center; justify-content: center; min-width: 0; padding: 10px 4px; font-size: 12.5px; line-height: 1.2; min-height: 44px; }
+
+/* sheets: rolagem interna sem vazar para a página */
+.sheet { overscroll-behavior: contain; }
 </style>
 </head>
 <body>
@@ -1726,10 +1756,7 @@ function baixarIcs(lista, nome){
   if(!lista.length){ toast('Nada para exportar'); return; }
   const txt = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Plantoes//PT-BR//','CALSCALE:GREGORIAN','METHOD:PUBLISH',
                ...lista.map(vevento),'END:VCALENDAR'].join('\r\n');
-  const blob = new Blob([txt], {type:'text/calendar;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = nome; a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  baixarBlob(new Blob([txt], {type:'text/calendar;charset=utf-8'}), nome);
   toast(lista.length>1 ? `${lista.length} eventos gerados` : 'Evento gerado');
 }
 
@@ -1742,12 +1769,15 @@ function openCal(s){
     <div class="txt"><b>${esc(localName(s.localId))}</b>
       <small>${WD[ini.getDay()]}, ${pad2(ini.getDate())}/${pad2(ini.getMonth()+1)} · ${pad2(ini.getHours())}:${pad2(ini.getMinutes())} → ${pad2(f.getHours())}:${pad2(f.getMinutes())}</small></div>`;
   $('#sheet3').classList.add('open'); $('#scrim').classList.add('open');
+  lockScroll();
 }
 
 let toastT;
 function toast(msg){
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
-  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'),1900);
+  // mensagens longas (conflitos) ficam mais tempo na tela
+  const dur = Math.min(5000, Math.max(1900, msg.length * 55));
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), dur);
 }
 
 
@@ -1813,6 +1843,7 @@ function render(){
   const ilCx=$('#il-caixa'); if(ilCx) ilCx.textContent='Caixa · '+MES[cursor.getMonth()];
   $('#mnav').classList.toggle('hidden', view !== 'mes' && view !== 'caixa');
   renderMes(); renderCaixa(); renderResumo(); renderLocais(); renderAjustes();
+  atualizaQuickBanner();
 }
 
 function mesData(){
@@ -2382,6 +2413,9 @@ function renderMes(){
   // montar html com separadores de grupo
   let grupoAtual = null;
   let shiftIdx = 0;
+  // anima a entrada só ao trocar de mês/filtro — não a cada toque em "Pago"
+  const listKey = cursor.getFullYear()+'-'+cursor.getMonth()+'-'+filter;
+  const animar = el.dataset.k !== listKey; el.dataset.k = listKey;
   el.innerHTML = shown.map(s=>{
     const grupo = grupoData(s);
     const sep = grupo !== grupoAtual
@@ -2405,7 +2439,7 @@ function renderMes(){
     const pill = (off || resid) ? '' : `<div class="pill ${s.pago?'pago':'pend'}" data-pay="${s.id}">${s.pago?'Pago':'Pendente'}</div>`;
     const dinheiro = (resid||bloq) ? `<div class="money" style="color:var(--dim-2);font-size:12.5px">${bloq?'—':'bloqueado'}</div>` : `<div class="money">${brl(liq(s))}</div>`;
     const animDelay = `animation-delay:${Math.min(shiftIdx++, 8) * 35}ms`;
-    return sep + `<div class="shift animate-in ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${animDelay}">
+    return sep + `<div class="shift ${animar?'animate-in':''} ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${animDelay}">
         <div class="daycol ${s.data===t?'is-today':''}"><div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div></div>
         <div class="info">
           <div class="place">${ehBolsa(s)?'':(s.turno==='noturno'?ICON_MOON:ICON_SUN)}<span>${esc(localName(s.localId))}</span></div>
@@ -2564,7 +2598,7 @@ function renderNext(){
     <div class="pl">${esc(localName(nx.localId))}</div>
     <div class="dt">${nx.turno==='noturno'?ICON_MOON:ICON_SUN}
       ${WD[d.getDay()]}, ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ·
-      ${nx.hora} → ${fim(nx.hora,nx.duracao)} · ${nx.duracao}h${l&&l.cidade?' · '+esc(l.cidade):''}</div>
+      ${nx.hora ? nx.hora+' → '+fim(nx.hora,nx.duracao)+' · ' : ''}${nx.duracao}h${l&&l.cidade?' · '+esc(l.cidade):''}</div>
     ${countdownHtml}
     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
       ${url?`<button class="go" data-map="${encodeURIComponent(url)}">${ICON_PIN} Como chegar</button>`:''}
@@ -2611,9 +2645,9 @@ function renderCal(list){
     const arr = byDay[d] || [];
     const val = valPorDia[d] || 0;
     const alpha = val>0 ? Math.max(0.10, Math.min(0.70, val/maxVal)) : 0;
-    const bg = val>0 ? `rgba(10,95,95,${alpha.toFixed(2)})` : '';
+    const bg = val>0 ? `color-mix(in srgb, var(--accent) ${Math.round(alpha*60)}%, transparent)` : '';
     const temBloq = bloqDias.has(d);
-    const bloqBg = temBloq ? 'rgba(155,27,27,.09)' : '';
+    const bloqBg = temBloq ? 'var(--due-soft)' : '';
     const dotsRes = arr.filter(s=>ehResid(s)).slice(0,2).map(()=>'<i class="oca"></i>').join('');
     const bloqIcon = temBloq ? `<span style="font-size:9px;line-height:1">${emojisBloq[bloqMotivosDia[d]]||'🔒'}</span>` : '';
     // ícone de turno: noturno > diurno (prioridade)
@@ -2658,7 +2692,7 @@ function renderCaixa(){
   const atras = todos.filter(s=>!s.pago && vencimento(s) < t).sort((a,b)=>vencimento(a).localeCompare(vencimento(b)));
   $('#cx-atraso').innerHTML = atras.length ? `<div class="alert">
     <b>${brl(soma(atras))} em atraso</b>
-    <small>${atras.length} plantã${atras.length>1?'os':'o'} com pagamento vencido</small>
+    <small>${atras.length} ${atras.length>1?'plantões':'plantão'} com pagamento vencido</small>
     ${atras.map(s=>{
       const v = parseDate(vencimento(s));
       const dias = Math.round((hoje()-v)/86400000);
@@ -2935,7 +2969,7 @@ function renderResumo(){
           <div class="swatch" style="background:${l.cor};flex:none"></div>
           <div style="flex:1;min-width:0">
             <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.nome)}</div>
-            <div style="font-size:11.5px;color:var(--dim)">${r.n} plantão${r.n!==1?'es':''} · ${r.h}h</div>
+            <div style="font-size:11.5px;color:var(--dim)">${r.n} ${r.n!==1?'plantões':'plantão'} · ${r.h}h</div>
           </div>
           <div style="text-align:right;flex:none">
             <div style="font-size:15px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums">${brl(r.vph)}<span style="font-size:10px;font-weight:500;color:var(--dim)">/h</span></div>
@@ -2951,9 +2985,9 @@ function renderResumo(){
 
   // por turno — exclui renda fixa (bolsa), que não tem turno real
   const porTurno = {diurno:{fat:0,n:0},noturno:{fat:0,n:0}};
-  arr.filter(s=>!ehBolsa(s)).forEach(s=>{ const t=s.turno||'diurno'; porTurno[t].fat+=liq(s); porTurno[t].n++; });
+  arr.filter(s=>!ehBolsa(s)).forEach(s=>{ const t=s.turno==='noturno'?'noturno':'diurno'; porTurno[t].fat+=liq(s); porTurno[t].n++; });
   $('#res-turnos').innerHTML = Object.entries(porTurno).filter(([,d])=>d.n>0).map(([t,d])=>`
-    <div class="row"><div class="txt"><b>${t==='diurno'?'☀️ Diurno':'🌙 Noturno'}</b><small>${d.n} plantão${d.n!==1?'es':''}</small></div><div class="val">${brl(d.fat)}</div></div>`).join('') || '<div class="empty">—</div>';
+    <div class="row"><div class="txt"><b>${t==='diurno'?'☀️ Diurno':'🌙 Noturno'}</b><small>${d.n} ${d.n!==1?'plantões':'plantão'}</small></div><div class="val">${brl(d.fat)}</div></div>`).join('') || '<div class="empty">—</div>';
 
   // gráfico 6 meses (reutilizar chartPanel mas direcionado para res-chart)
   const meses=mesesRetroativos(6);
@@ -3034,9 +3068,16 @@ function renderAjustes(){
       <div class="txt"><b>${esc(localName(k))}</b><small>${byLoc[k].n} plantões · ${byLoc[k].h}h</small></div>
       <div class="val">${brl(byLoc[k].v)}</div></div>`).join('') : `<div class="empty">Sem dados no ano.</div>`;
 
-  $('#sync-info').textContent = hasCloud
+  let ultimo = null; try{ ultimo = localStorage.getItem('plantoes:lastBackup'); }catch(e){}
+  const diasBk = ultimo ? Math.round((hoje() - parseDate(ultimo))/86400000) : null;
+  const bkTxt = diasBk === null ? ' · nenhum backup baixado ainda'
+              : diasBk === 0 ? ' · backup feito hoje'
+              : ` · último backup há ${diasBk} dia${diasBk>1?'s':''}`;
+  const si = $('#sync-info');
+  si.textContent = (hasCloud
     ? 'Sincronizados na sua conta — abrem iguais no celular e no PC'
-    : 'Guardados neste navegador';
+    : 'Guardados neste aparelho') + (hasCloud ? '' : bkTxt);
+  si.style.color = (!hasCloud && (diasBk === null || diasBk > 30)) ? 'var(--due)' : '';
 }
 
 /* ================= referência tributária (IRPF 2026) ================= */
@@ -3274,23 +3315,31 @@ function chartPanel(){
 }
 
 /* ─── EXPORTAÇÃO CSV ─── */
+// CSV no padrão do Excel brasileiro: separador ";" e vírgula decimal.
+// Antes: nomes saíam com entidades HTML (&amp;) e vírgulas quebravam colunas.
+const csvCel = v => { const t = String(v ?? ''); return /[";\n\r]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
+const csvNum = n => (+n||0).toFixed(2).replace('.',',');
 function gerarCSV(shifts){
-  const lin=['Data,Local,Cidade,Turno,Duração (h),Bruto (R$),Líquido (R$),Pago,Data recebimento,Categoria'];
+  const lin=['Data;Local;Cidade;Turno;Duração (h);Bruto (R$);Líquido (R$);Pago;Data recebimento;Vencimento;Categoria;Observação'];
   shifts.filter(counts).sort((a,b)=>a.data.localeCompare(b.data)).forEach(s=>{
     const l=getLocal(s.localId)||{nome:'',cidade:''};
     lin.push([
-      s.data, esc(l.nome).replace(/,/g,';'), (l.cidade||'').replace(/,/g,';'),
-      s.turno, s.duracao, bru(s).toFixed(2), liq(s).toFixed(2),
-      s.pago?'Sim':'Nao', s.pagoEm||'', s.categoria||'remunerado'
-    ].join(','));
+      s.data, l.nome, l.cidade||'', ehBolsa(s)?'':s.turno, s.duracao||0,
+      csvNum(bru(s)), csvNum(liq(s)), s.pago?'Sim':'Não', s.pagoEm||'', vencimento(s),
+      s.categoria||'remunerado', s.obs||''
+    ].map(csvCel).join(';'));
   });
-  return lin.join('\n');
+  return lin.join('\r\n');
+}
+// Safari cancela o download se o blob URL for revogado no mesmo tick do click
+function baixarBlob(blob, nome){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nome;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
 }
 function baixarCSV(conteudo,nome){
-  const bom='﻿'; // BOM para Excel reconhecer UTF-8
-  const blob=new Blob([bom+conteudo],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nome;
-  a.click(); URL.revokeObjectURL(a.href); toast('CSV gerado');
+  baixarBlob(new Blob(['﻿'+conteudo],{type:'text/csv;charset=utf-8'}), nome);
+  toast('CSV gerado');
 }
 
 /* ─── CONFERÊNCIA 14 DIAS ─── */
@@ -3543,29 +3592,42 @@ function openSheet(shift, presetDate, presetCategoria){
 }
 
 function closeSheets(){
-  $('#sheet').classList.remove('open');
-  $('#sheet2').classList.remove('open');
-  $('#sheet3').classList.remove('open');
-  $('#sheet-detail').classList.remove('open');
+  $$('.sheet.open').forEach(el=>el.classList.remove('open')); // inclui #sheet-bl
   $('#scrim').classList.remove('open');
-  editing = null; editingLocal = null; calAlvo = null;
+  editing = null; editingLocal = null; calAlvo = null; editingBloq = null;
   unlockScroll();
 }
 
-// bloqueia scroll da página enquanto um sheet está aberto
-let _scrollY = 0;
+// bloqueia scroll da página enquanto um sheet está aberto.
+// Idempotente: abrir um sheet por cima de outro não sobrescreve a posição salva
+// (antes, scrollY já era 0 com o body fixo e a página voltava ao topo ao fechar).
+let _scrollY = 0, _locked = false;
 function lockScroll(){
+  if(_locked) return;
+  _locked = true;
   _scrollY = window.scrollY;
   document.body.style.position = 'fixed';
   document.body.style.top = `-${_scrollY}px`;
   document.body.style.width = '100%';
 }
 function unlockScroll(){
+  if(!_locked) return;
+  _locked = false;
   document.body.style.position = '';
   document.body.style.top = '';
   document.body.style.width = '';
   window.scrollTo({top: _scrollY, behavior: 'instant'});
 }
+
+// Esc fecha qualquer sheet/overlay (desktop)
+document.addEventListener('keydown', e=>{
+  if(e.key !== 'Escape') return;
+  const ov = document.getElementById('img-overlay');
+  if(ov){ ov.remove(); return; }
+  if($('#wrapped-sheet').classList.contains('open')){ closeWrapped(); return; }
+  if($('#fab-menu')){ $('#fab-menu').remove(); return; }
+  if(document.querySelector('.sheet.open')) closeSheets();
+});
 
 // Bloqueia gesto de navegação horizontal do iOS dentro dos sheets
 // (swipe da borda esquerda que desloca toda a view horizontalmente)
@@ -3579,6 +3641,10 @@ function unlockScroll(){
 
   document.addEventListener('touchmove', e => {
     if(!document.querySelector('.sheet.open, #scrim.open')) return;
+    // não bloqueia contêineres que rolam na horizontal de propósito
+    for(let n = e.target; n && n !== document.body; n = n.parentElement){
+      if(n.scrollWidth > n.clientWidth + 1 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return;
+    }
     const dx = Math.abs(e.touches[0].clientX - _tx);
     const dy = Math.abs(e.touches[0].clientY - _ty);
     // se o gesto é predominantemente horizontal, bloqueia
@@ -3741,7 +3807,7 @@ async function saveShift(){
   const amb = categoria === 'ambulatorio';
   const base = {
     categoria,
-    urgente: !ehResid(categoria) && !ehBloq(categoria) && $('#f-urgente').classList.contains('on'),
+    urgente: categoria !== 'residencia' && categoria !== 'bolsa' && $('#f-urgente').classList.contains('on'),
     blTipo:'', blFim:'', blDiaInt:true,
     nPart:  amb ? (parseInt($('#f-npart').value)||0)  : 0,
     nPlano: amb ? (parseInt($('#f-nplano').value)||0) : 0,
@@ -3767,12 +3833,20 @@ async function saveShift(){
   const wasEdit = !!editing;
 
   // conflito de horário — só avisa (e pede confirmação) em NOVOS lançamentos
-  if(!wasEdit){
+  if(!wasEdit && !conflitoOk){
     const choque = conflito(base, null);
-    if(choque && !conflitoOk){
+    // bloqueios (férias, viagem…) vivem em S.bloqueios e não eram checados
+    const NB = {ferias:'férias',viagem:'viagem',sobreaviso:'sobreaviso',compromisso:'compromisso',outro:'bloqueio'};
+    const bl = categoria !== 'bolsa' && S.bloqueios.find(b=> base.data >= b.ini && base.data <= (b.fim||b.ini));
+    if(choque || bl){
       conflitoOk = true;
-      const d = parseDate(choque.data);
-      toast(`Choca com ${localName(choque.localId)} em ${pad2(d.getDate())}/${pad2(d.getMonth()+1)} — salve de novo para confirmar`);
+      haptic(25);
+      if(choque){
+        const d = parseDate(choque.data);
+        toast(`Choca com ${localName(choque.localId)} em ${pad2(d.getDate())}/${pad2(d.getMonth()+1)} — salve de novo para confirmar`);
+      } else {
+        toast(`Dia marcado como ${NB[bl.motivo]||'bloqueio'} — salve de novo para confirmar`);
+      }
       return;
     }
   }
@@ -3853,7 +3927,7 @@ function renderWrapped(){
   document.getElementById('wr-total').textContent = brl(totalAno);
   const nPl = doAno.length;
   document.getElementById('wr-sub').textContent = nPl > 0
-    ? nPl + ' plantão' + (nPl>1?'ões':'') + ' registrado' + (nPl>1?'s':'')
+    ? nPl + (nPl>1?' plantões':' plantão') + ' registrado' + (nPl>1?'s':'')
     : 'Nenhum lançamento no ano';
 
   const horas = doAno.reduce((a,s)=>a+(+s.duracao||0), 0);
@@ -4220,7 +4294,10 @@ document.addEventListener('click', function(e){
   let ptrDecided = false; // true quando decidimos se é vertical ou horizontal
 
   document.addEventListener('touchstart', e=>{
-    if(window.scrollY > 4) return;
+    // com sheet aberto o body fica fixo (scrollY=0) — sem este guard,
+    // arrastar o sheet para baixo acionava o refresh por trás
+    if(_locked || window.scrollY > 4) return;
+    if(e.target.closest('.sheet, #wrapped-sheet, #img-overlay')) return;
     startY    = e.touches[0].clientY;
     ptrStartX = e.touches[0].clientX;
     pulling   = true;
@@ -4287,6 +4364,8 @@ function aplicarOcultar(){
 
 $('#btn-ocultar').onclick = ()=>{
   saldoOculto = !saldoOculto;
+  haptic(6);
+  try{ localStorage.setItem('plantoes:oculto', saldoOculto ? '1' : ''); }catch(e){}
   aplicarOcultar();
 };
 
@@ -4381,13 +4460,16 @@ function novoItem(){
     <button id="fab-p"  style="${itemStyle}${sep}">🏥 <span>Novo plantão</span></button>
     <button id="fab-am" style="${itemStyle}${sep}">🩺 <span>Dia de consultório</span></button>
     <button id="fab-b"  style="${itemStyle}">🔒 <span>Bloqueio de agenda</span></button>`;
+  menu.style.animation = 'fabIn .18s cubic-bezier(.32,.72,0,1)';
   document.body.appendChild(menu);
-  menu.querySelector('#fab-p') .onclick = ()=>{ menu.remove(); openSheet(null, null, 'remunerado'); };
-  menu.querySelector('#fab-am').onclick = ()=>{ menu.remove(); openSheet(null, null, 'ambulatorio'); };
-  menu.querySelector('#fab-b') .onclick = ()=>{ menu.remove(); openBloqueio(null); };
-  setTimeout(()=>document.addEventListener('click', function h(e){
-    if(!menu.contains(e.target)&&e.target.id!=='fab'){ menu.remove(); document.removeEventListener('click',h); }
-  }),100);
+  haptic(6);
+  // um único listener, sempre removido — antes ficava pendurado quando se escolhia um item
+  function fechar(){ menu.remove(); document.removeEventListener('click', fora, true); }
+  function fora(e){ if(!menu.contains(e.target) && !e.target.closest('#fab, #add-top')) fechar(); }
+  setTimeout(()=>document.addEventListener('click', fora, true), 0);
+  menu.querySelector('#fab-p') .onclick = ()=>{ fechar(); openSheet(null, null, 'remunerado'); };
+  menu.querySelector('#fab-am').onclick = ()=>{ fechar(); openSheet(null, null, 'ambulatorio'); };
+  menu.querySelector('#fab-b') .onclick = ()=>{ fechar(); openBloqueio(null); };
 }
 $('#fab').onclick = novoItem;
 
@@ -4399,17 +4481,21 @@ document.querySelectorAll('#res-periodo button').forEach(b=>{
   };
 });
 
-// quick-banner: registrar com um toque
-(function atualizaQuickBanner(){
+// quick-banner: registrar com um toque.
+// Era uma IIFE que rodava antes do load (S vazio) — o banner aparecia sempre.
+// Agora é recalculado a cada render().
+function atualizaQuickBanner(){
   const hj = hoje();
-  const temHoje = S.shifts.some(s=>naAgenda(s)&&s.data===iso(hj)&&counts(s));
+  const temHoje = S.shifts.some(s=>s.data===iso(hj) && naAgenda(s));
   const banner = $('#quick-banner');
-  if(!temHoje && viewTipo==='lista'){
+  if(!banner) return;
+  const vendoHoje = sameMonth(iso(hj), cursor);
+  if(!temHoje && viewTipo==='lista' && vendoHoje){
     banner.classList.remove('hidden');
     const d=hj; const WD_S=['dom','seg','ter','qua','qui','sex','sáb'];
     $('#qb-data').textContent = `Hoje · ${WD_S[d.getDay()]}, ${pad2(d.getDate())}/${pad2(d.getMonth()+1)}`;
   } else { banner.classList.add('hidden'); }
-})();
+}
 $('#quick-banner').onclick = ()=> openSheet(null, iso(hoje()));
 
 $$('#view-toggle button').forEach(b=>{
@@ -4435,6 +4521,7 @@ $$('#view-toggle button').forEach(b=>{
       $$('#filter button').forEach(x=>x.closest('.segs').classList.remove('hidden'));
       renderMes();
     }
+    atualizaQuickBanner();
   };
 });
 $('#add-top').onclick = novoItem;
@@ -4461,9 +4548,17 @@ function twoStep(btn, action){
 $('#sh-del').onclick = ()=>{ if(!editing) return; twoStep($('#sh-del'), async ()=>{
   S.shifts = S.shifts.filter(s=>s.id!==editing.id);
   await store.save(S); closeSheets(); render(); toast('Plantão excluído'); }); };
-$('#l-del').onclick = ()=>{ if(!editingLocal) return; twoStep($('#l-del'), async ()=>{
-  S.locais = S.locais.filter(l=>l.id!==editingLocal.id);
-  await store.save(S); closeSheets(); render(); toast('Local excluído'); }); };
+$('#l-del').onclick = ()=>{
+  if(!editingLocal) return;
+  const btn = $('#l-del');
+  const n = S.shifts.filter(s=>s.localId===editingLocal.id).length;
+  // avisa quantos lançamentos ficarão "Sem local" antes do segundo toque
+  if(n && !pending.has(btn.id)) setTimeout(()=>{ if(pending.has(btn.id)) btn.textContent = `Toque de novo · ${n} lançamento${n>1?'s':''} ficará${n>1?'ão':''} sem local`; }, 0);
+  twoStep(btn, async ()=>{
+    S.locais = S.locais.filter(l=>l.id!==editingLocal.id);
+    await store.save(S); closeSheets(); render(); toast('Local excluído');
+  });
+};
 
 // chips, toggles, swatches
 document.addEventListener('click', e=>{
@@ -4528,7 +4623,7 @@ $('#ics-all').onclick = ()=> baixarIcs(
 );
 
 $('#f-local').onchange = ()=>{ $('#f-newlocal-wrap').classList.toggle('hidden', $('#f-local').value!=='__new'); autoValor(); atualizarVenc(); };
-$('#f-date').onchange = atualizarVenc;
+$('#f-date').onchange = ()=>{ atualizarVenc(); atualizarRepHint(); conflitoOk = false; };
 $('#f-venc').oninput = ()=>{ vencTouched = true; $('#venc-hint').textContent = 'Data definida manualmente para este plantão.'; };
 $('#f-valor').oninput = ()=>{ valorTouched = true; autoLiquido(); };
 $('#f-liquido').oninput = ()=> liqTouched = true;
@@ -4615,26 +4710,9 @@ function atualizarRepHint(){
 $('#f-hora').onchange = janela;
 $('#f-durc').oninput = autoValor;
 
-// confirmar recebimento tocando no item do checklist principal
-$('#h-checklist').addEventListener('click', async e=>{
-  const b = e.target.closest('[data-cxpay]');
-  if(!b) return;
-  const s = S.shifts.find(x=>x.id===b.dataset.cxpay);
-  if(!s) return;
-  s.pago = true; s.pagoEm = s.pagoEm || iso(new Date());
-  await store.save(S); render();
-  // verificar streak após confirmar
-  const pagos2 = S.shifts.filter(x => counts(x) && x.pago && vencimento(x))
-    .sort((a,b) => dataCaixa(b).localeCompare(dataCaixa(a)));
-  let streak2 = 0;
-  for(const x of pagos2){
-    const venc = parseDate(vencimento(x));
-    const cx   = parseDate(dataCaixa(x));
-    if(Math.round((cx-venc)/86400000) <= 7) streak2++; else break;
-  }
-  if(streak2 >= 3 && streak2 % 3 === 0){ haptic(20); toast(`⚡ ${streak2} pagos em dia!`); }
-  else toast('Recebimento confirmado ✓');
-});
+// checklist principal: tratado pelo handler global de [data-cxpay] (aba Caixa).
+// Antes havia um handler próprio aqui que marcava como pago e, no mesmo clique,
+// o handler global invertia de volta — o item nunca ficava confirmado.
 
 $('#shift-list').addEventListener('click', async e=>{
   if(e.target.closest('[data-map]')) return;
@@ -4642,7 +4720,9 @@ $('#shift-list').addEventListener('click', async e=>{
   if(pay){
     e.stopPropagation();
     const s = S.shifts.find(x=>x.id===pay.dataset.pay);
+    if(!s) return;
     s.pago = !s.pago;
+    haptic(s.pago ? 12 : 6);
     s.pagoEm = s.pago ? (s.pagoEm || iso(new Date())) : '';
     await store.save(S); render();
     if(s.pago){ confettiPay(liq(s)); toast('💰 '+brl(liq(s))+' confirmado'); }
@@ -4689,10 +4769,12 @@ document.addEventListener('click', async e=>{
   if(pay){
     e.stopPropagation();
     const s = S.shifts.find(x=>x.id===pay.dataset.cxpay);
+    if(!s) return;
     s.pago = !s.pago;
     s.pagoEm = s.pago ? (s.pagoEm || iso(new Date())) : '';
     haptic(s.pago ? 12 : 6);
     await store.save(S); render();
+    if(s.pago) confettiPay(liq(s));
     if(s.pago){
       // verificar streak após confirmar
       const pagos = S.shifts.filter(x => counts(x) && x.pago && vencimento(x))
@@ -4706,7 +4788,7 @@ document.addEventListener('click', async e=>{
       if(streak >= 3 && streak % 3 === 0){
         haptic(20); toast(`⚡ ${streak} pagos em dia!`);
       } else {
-        toast('Entrada confirmada');
+        toast('💰 '+brl(liq(s))+' confirmado');
       }
     } else { toast('Voltou para previsto'); }
     return;
@@ -4775,10 +4857,9 @@ $('#recover').onclick = async ()=>{
 };
 
 $('#export').onclick = ()=>{
-  const blob = new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `plantoes-${iso(new Date())}.json`;
-  a.click(); URL.revokeObjectURL(a.href); toast('Backup baixado');
+  baixarBlob(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}), `plantoes-${iso(new Date())}.json`);
+  try{ localStorage.setItem('plantoes:lastBackup', iso(new Date())); }catch(e){}
+  toast('Backup baixado');
 };
 $('#import').onclick = ()=> twoStep($('#import'), ()=> $('#file').click());
 $('#file').onchange = e=>{
@@ -4788,7 +4869,7 @@ $('#file').onchange = e=>{
     try{
       const d = JSON.parse(r.result);
       if(!Array.isArray(d.shifts)) throw 0;
-      S = normalize({ shifts:d.shifts, locais:d.locais||[] });
+      S = normalize(d); // inclui bloqueios e metas do backup
       await store.save(S); render(); toast('Backup restaurado');
     }catch(err){ toast('Arquivo inválido'); }
   };
@@ -4829,7 +4910,10 @@ async function pedirPermissaoNotif(){
 
 /* ================= início ================= */
 function normalize(d){
+  // ...l / ...d preservam campos que antes eram descartados a cada recarga
+  // (vPart/vPlano/vProc do local; metaMensal, metaAnual, metaObjetivo, limiarHoras do app)
   const locais = (d.locais||[]).map((l,i)=>({
+    ...l,
     id:l.id, nome:l.nome, cidade:l.cidade||'', endereco:l.endereco||'',
     cor:l.cor||CORES[i%CORES.length], vDia:l.vDia||0, vNoite:l.vNoite||0,
     pagDia: l.pagDia || 10,
@@ -4850,12 +4934,17 @@ function normalize(d){
     nPart:+s.nPart||0, nPlano:+s.nPlano||0, nProc:+s.nProc||0,
     vPart:+s.vPart||0, vPlano:+s.vPlano||0, vProc:+s.vProc||0
   }));
-  return { shifts, locais, bloqueios };
+  return { ...d, shifts, locais, bloqueios };
 }
 (async function init(){
   const saved = await store.load();
   if(saved && Array.isArray(saved.shifts)) S = normalize(saved);
+  // preferência de saldo oculto sobrevive ao fechar o app
+  try{ if(localStorage.getItem('plantoes:oculto')){ saldoOculto = true; } }catch(e){}
   render();
+  if(saldoOculto) aplicarOcultar();
+  // pede ao navegador para não apagar os dados por falta de espaço/uso (iOS/Chrome)
+  try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
   // dismiss splash screen — usa RAF para garantir que o elemento existe no DOM
   function dismissSplash(){
     const splash = document.getElementById('splash');
@@ -4870,7 +4959,9 @@ function normalize(d){
   } else {
     dismissSplash();
   }
-  if(Notification.permission==='granted') agendarNotificacoes();
+  // Safari fora do modo app não expõe Notification — antes isso lançava erro e
+  // interrompia o init (atalhos ?action=novo / proximo não funcionavam)
+  if('Notification' in window && Notification.permission==='granted') agendarNotificacoes();
   // App Shortcuts: tratar URL params
   const params=new URLSearchParams(location.search);
   if(params.get('action')==='novo') setTimeout(()=>openSheet(null),300);
@@ -4913,6 +5004,7 @@ function normalize(d){
 <script>
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("./sw.js").then(reg=>{
+    if(!reg) return;
     // força verificação de atualização a cada carregamento
     reg.update();
     reg.addEventListener('updatefound',()=>{
@@ -4920,9 +5012,17 @@ if("serviceWorker" in navigator){
       if(!nw) return;
       nw.addEventListener('statechange',()=>{
         if(nw.state==='installed' && navigator.serviceWorker.controller){
-          // nova versão pronta — recarrega silenciosamente
+          // nova versão pronta — recarrega uma única vez (evita loop de reload)
+          // e não interrompe o usuário no meio de uma edição
+          let recarregou = false;
+          navigator.serviceWorker.addEventListener('controllerchange',()=>{
+            if(recarregou) return; recarregou = true;
+            if(document.querySelector('.sheet.open')){
+              toast('Nova versão pronta — será aplicada ao fechar');
+              const iv = setInterval(()=>{ if(!document.querySelector('.sheet.open')){ clearInterval(iv); location.reload(); } }, 800);
+            } else location.reload();
+          });
           nw.postMessage({type:'SKIP_WAITING'});
-          navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
         }
       });
     });

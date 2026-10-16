@@ -1,9 +1,13 @@
-const CACHE = 'plantoes-v1.13';
+const CACHE = 'plantoes-v1.14';
 // Versionamento: v1.0, v1.01, v1.02 ... → grandes reformulações = v2.0, v3.0 ...
 const ASSETS = ['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
