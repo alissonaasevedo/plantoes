@@ -794,7 +794,7 @@ textarea { min-height: 62px; resize: vertical; }
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.shift.animate-in { animation: fadeSlideUp .22s ease both; }
+.shift.animate-in { animation: fadeSlideUp .22s ease backwards; }
 @media(prefers-reduced-motion:reduce){ * { transition: none !important; animation: none !important; } }
 
 /* nav com ícones — background via variável (claro/escuro automático) */
@@ -996,10 +996,6 @@ nav button.on .nav-ico { transform: translateY(-1px); }
 @keyframes flashPay{0%{opacity:1}100%{opacity:0}}
 @keyframes fabIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
 
-/* entrada escalonada dos cards da lista (classe já usada no JS, faltava o CSS) */
-@keyframes shiftIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.animate-in { animation: shiftIn .3s cubic-bezier(.32,.72,0,1) backwards; }
-
 /* ── Polimento: feedback de toque, foco e toast ── */
 html { -webkit-tap-highlight-color: transparent; }
 button, .chip, .pill, .row, .shift, .toggle, .stat-card, .tl-cx-item, .go, .sw-opt { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
@@ -1023,6 +1019,114 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 /* sheets: rolagem interna sem vazar para a página */
 .sheet { overscroll-behavior: contain; }
+
+/* ═══════════════ MODO PLANTÃO ═══════════════
+   Tema OLED aplicado ao app inteiro enquanto o painel está aberto.
+   Mesmo mecanismo do dark mode (tokens), só que preto puro. */
+:root.modo-plantao {
+  color-scheme: dark;
+  --bg:#000; --bg-soft:#08080A; --surface:#111114; --surface-2:#1A1A1F;
+  --line:#232329; --line-2:#33333B;
+  --ink:#F4F4F5; --dim:#A1A1AA; --dim-2:#6B6B76;
+  --accent:#818CF8; --accent-2:#6366F1; --accent-soft:rgba(129,140,248,.15);
+  --amber:#FBBF24; --amber-soft:rgba(251,191,36,.14);
+  --ok:#34D399; --ok-soft:rgba(52,211,153,.14);
+  --due:#FB923C; --due-soft:rgba(251,146,60,.14);
+  --noite:#818CF8; --nav-bg:rgba(0,0,0,.88);
+  --sh:0 0 0 1px rgba(255,255,255,.04); --sh-md:0 8px 30px rgba(0,0,0,.8);
+}
+html, body { transition: background-color .6s ease; }
+.modo-plantao .sheet { --bg:#111114; background:#111114; }
+.modo-plantao input, .modo-plantao select, .modo-plantao textarea { background:var(--surface-2); color:var(--ink); border-color:var(--line-2); }
+.modo-plantao .mnav button, .modo-plantao .btn:not(.prim) { background:var(--surface-2); }
+.modo-plantao .segs { background:var(--surface-2); }
+.modo-plantao .segs button.on { background:var(--surface); }
+.modo-plantao .cal .grid button.has { background:var(--surface-2); }
+.modo-plantao .shift, .modo-plantao .cal, .modo-plantao .chart-wrap, .modo-plantao .proj-card, .modo-plantao .meta-ring { background:var(--surface); border-color:var(--line); }
+
+/* Painel: visual escuro próprio, independente do tema (como o card do próximo plantão) */
+.live {
+  --lc: var(--accent);
+  position: relative; margin: 14px 0 6px; padding: 16px 18px 16px; border-radius: 22px;
+  background:
+    radial-gradient(130% 70% at 50% -10%, color-mix(in srgb, var(--lc) 24%, transparent) 0%, transparent 62%),
+    #0B0B0E;
+  border: 1px solid rgba(255,255,255,.07); color: #F4F4F5; overflow: hidden;
+  animation: liveIn .5s cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes liveIn { from { opacity:0; transform: translateY(8px) scale(.985); } to { opacity:1; transform:none; } }
+.live-top { display:flex; align-items:center; gap:8px; font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.62); }
+.live-dot { width:8px; height:8px; border-radius:50%; background:#34D399; flex:none; animation: livePulse 1.8s ease-out infinite; }
+@keyframes livePulse { 0% { box-shadow:0 0 0 0 rgba(52,211,153,.55); } 70% { box-shadow:0 0 0 9px rgba(52,211,153,0); } 100% { box-shadow:0 0 0 0 rgba(52,211,153,0); } }
+.live-min { margin-left:auto; width:34px; height:34px; border-radius:11px; border:0; background:rgba(255,255,255,.08); color:rgba(255,255,255,.75); display:grid; place-items:center; cursor:pointer; }
+.live-local { font-size:22px; font-weight:800; letter-spacing:-.02em; margin-top:8px; line-height:1.15; text-wrap:balance; }
+.live-meta { font-size:13px; color:rgba(255,255,255,.58); margin-top:4px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-variant-numeric:tabular-nums; }
+
+.live-ring { position:relative; width:min(224px, 66vw); aspect-ratio:1; margin:16px auto 4px; }
+.live-ring svg { width:100%; height:100%; display:block; overflow:visible; }
+.lr-track { fill:none; stroke:rgba(255,255,255,.07); stroke-width:11; }
+.lr-fill { fill:none; stroke:var(--lc); stroke-width:11; stroke-linecap:round;
+  transition: stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1);
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--lc) 65%, transparent)); }
+.lr-tick { fill: rgba(255,255,255,.16); transition: fill .4s; }
+.lr-tick.done { fill: rgba(255,255,255,.62); }
+.lr-center { position:absolute; inset:0; display:grid; place-content:center; text-align:center; }
+.lr-big { font-size:48px; font-weight:800; letter-spacing:-.035em; line-height:1; font-variant-numeric:tabular-nums; }
+.lr-big i { font-style:normal; font-size:19px; font-weight:600; color:rgba(255,255,255,.48); margin:0 3px 0 1px; letter-spacing:0; }
+.lr-sm { font-size:11.5px; color:rgba(255,255,255,.5); margin-top:9px; letter-spacing:.04em; text-transform:uppercase; font-weight:600; }
+.lr-sm.final { color: var(--lc); }
+
+.live-falta { text-align:center; font-size:14px; color:rgba(255,255,255,.65); margin:2px 0 14px; font-variant-numeric:tabular-nums; }
+.live-falta b { color:#fff; font-weight:800; font-size:16px; }
+
+.live-stats { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
+.ls { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.05); border-radius:14px; padding:10px 6px 9px; text-align:center; min-width:0; }
+.ls small { display:block; font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.42); }
+.ls b { display:block; font-size:16px; font-weight:800; margin-top:5px; color:#fff; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ls em { display:block; font-style:normal; font-size:10.5px; color:rgba(255,255,255,.42); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.live-notes { margin-top:14px; border-top:1px solid rgba(255,255,255,.08); padding-top:12px; }
+.ln-head { display:flex; justify-content:space-between; align-items:center; font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:4px; }
+.ln { display:flex; align-items:flex-start; gap:10px; padding:7px 0; font-size:14px; line-height:1.4; border-bottom:1px solid rgba(255,255,255,.05); animation: liveIn .3s ease both; }
+.ln time { flex:none; font-size:12px; font-weight:700; color:var(--lc); font-variant-numeric:tabular-nums; padding-top:2px; min-width:38px; }
+.ln span { flex:1; min-width:0; color:rgba(255,255,255,.9); overflow-wrap:anywhere; }
+.ln button { flex:none; border:0; background:none; color:rgba(255,255,255,.32); font-size:20px; line-height:1; padding:0 2px; cursor:pointer; }
+.ln-add { display:flex; gap:8px; margin-top:10px; }
+.live .ln-add input { flex:1; width:auto; min-width:0; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:#fff; border-radius:12px; padding:11px 13px; font-size:16px; }
+.live .ln-add input::placeholder { color:rgba(255,255,255,.34); }
+.live .ln-add input:focus { border-color: var(--lc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--lc) 25%, transparent); outline:none; }
+.ln-add button { flex:none; width:46px; border-radius:12px; border:0; background:var(--lc); color:#0B0B0E; display:grid; place-items:center; cursor:pointer; }
+.ln-hint { font-size:11px; color:rgba(255,255,255,.34); margin-top:7px; line-height:1.45; }
+
+.live-actions { display:flex; gap:8px; margin-top:14px; }
+.live-actions button { flex:1; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:#fff; border-radius:12px; padding:11px 8px; font-family:inherit; font-size:13.5px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
+.live-actions button.prim { background:var(--lc); border-color:var(--lc); color:#0B0B0E; }
+
+/* barra compacta (minimizado ou navegando em outro mês) */
+.live-bar { --lc: var(--accent); display:flex; align-items:center; gap:10px; width:100%; margin:14px 0 4px; padding:12px 12px 12px 14px; border-radius:14px; border:1px solid var(--line); border-left:3px solid var(--lc); background:var(--surface); color:var(--ink); font-family:inherit; font-size:13.5px; cursor:pointer; text-align:left; box-shadow:var(--sh); animation: liveIn .35s ease both; }
+.live-bar b { font-weight:700; flex:none; }
+.live-bar span { color:var(--dim); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.live-bar .lb-t { font-style:normal; font-weight:700; font-variant-numeric:tabular-nums; flex:none; }
+.live-bar svg { flex:none; color:var(--dim-2); }
+
+/* card de plantão concluído */
+.live.live-done { --lc:#34D399; text-align:center; padding:22px 18px 16px;
+  background: radial-gradient(120% 80% at 50% -10%, rgba(52,211,153,.2), transparent 60%), #0B0B0E; }
+.ld-check { width:54px; height:54px; border-radius:50%; margin:0 auto 12px; display:grid; place-items:center; background:rgba(52,211,153,.14); color:#34D399; }
+.ld-check path { stroke-dasharray:24; stroke-dashoffset:24; animation: ldDraw .55s .25s ease forwards; }
+@keyframes ldDraw { to { stroke-dashoffset:0; } }
+.ld-title { font-size:20px; font-weight:800; letter-spacing:-.02em; }
+.ld-sub { font-size:13px; color:rgba(255,255,255,.58); margin-top:4px; font-variant-numeric:tabular-nums; }
+.live .ld-val { font-size:30px; font-weight:800; color:#fff; margin-top:14px; letter-spacing:-.02em; }
+.ld-rest { font-size:13px; color:rgba(255,255,255,.45); margin-top:12px; font-style:italic; }
+
+/* indicador de anotações na lista e no sheet */
+.note-ind { font-size:11px; color:var(--dim); font-weight:600; flex:none; }
+.info .place > span:not(.note-ind) { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.fn-item { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid var(--line); font-size:14px; line-height:1.4; }
+.fn-item time { flex:none; font-size:12px; font-weight:700; color:var(--accent); min-width:38px; padding-top:2px; font-variant-numeric:tabular-nums; }
+.fn-item span { flex:1; min-width:0; overflow-wrap:anywhere; }
+.fn-item button { flex:none; border:0; background:none; color:var(--dim-2); font-size:20px; line-height:1; cursor:pointer; padding:0 2px; }
 </style>
 </head>
 <body>
@@ -1075,6 +1179,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
         <button id="next-il">›</button>
       </div>
     </div>
+    <div id="live-panel" aria-live="polite"></div>
     <div class="hero">
       <div class="lbl" id="h-lbl-caixa">Entra em —</div>
       <div style="display:flex;align-items:center;gap:10px">
@@ -1469,6 +1574,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   
 <div class="toggle" id="f-urgente" style="margin-bottom:15px"><div class="lb">⚠️ Atenção / Urgência</div><div class="sw"></div></div>
 <label class="f"><span>Observação</span><textarea id="f-obs" placeholder="Opcional"></textarea></label>
+<div class="f hidden" id="f-notas-wrap"><span>Anotações do plantão</span><div id="f-notas"></div></div>
 
   <div id="cal-row" class="hidden">
     <div class="f"><span>Calendário</span>
@@ -1843,6 +1949,7 @@ function render(){
   const ilCx=$('#il-caixa'); if(ilCx) ilCx.textContent='Caixa · '+MES[cursor.getMonth()];
   $('#mnav').classList.toggle('hidden', view !== 'mes' && view !== 'caixa');
   renderMes(); renderCaixa(); renderResumo(); renderLocais(); renderAjustes();
+  renderLive();
   atualizaQuickBanner();
 }
 
@@ -2442,7 +2549,7 @@ function renderMes(){
     return sep + `<div class="shift ${animar?'animate-in':''} ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${animDelay}">
         <div class="daycol ${s.data===t?'is-today':''}"><div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div></div>
         <div class="info">
-          <div class="place">${ehBolsa(s)?'':(s.turno==='noturno'?ICON_MOON:ICON_SUN)}<span>${esc(localName(s.localId))}</span></div>
+          <div class="place">${ehBolsa(s)?'':(s.turno==='noturno'?ICON_MOON:ICON_SUN)}<span>${esc(localName(s.localId))}</span>${(s.notas||[]).length?`<span class="note-ind" title="Anotações">📝${s.notas.length}</span>`:''}</div>
           <div class="meta">${metaLinha(s, cid)}</div>
           ${tag}
         </div>
@@ -2554,8 +2661,12 @@ function renderDia(){
 }
 
 function renderNext(){
-  const t = iso(hoje());
-  const nx = S.shifts.filter(s=>naAgenda(s) && s.data >= t).sort((a,b)=>a.data.localeCompare(b.data)||(a.hora||'').localeCompare(b.hora||''))[0];
+  // o plantão em andamento já aparece no painel do modo plantão; aqui vai o seguinte.
+  // Janela real (data+hora+duração): um noturno de ontem ainda em curso não some.
+  const agora = Date.now(), lim = iso(new Date(agora - 3*86400000));
+  const atual = plantaoAtual(agora).ativo;
+  const nx = S.shifts.filter(s=>naAgenda(s) && !ehBloq(s) && s !== atual && s.data >= lim && janelaDe(s).fim > agora)
+                     .sort((a,b)=>janelaDe(a).ini - janelaDe(b).ini)[0];
   const box = $('#next-card');
   if(!nx){ box.innerHTML = ''; return; }
   const d = parseDate(nx.data);
@@ -3083,6 +3194,19 @@ function renderAjustes(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.15', d:'Out 2026', items:[
+    { t:'new', txt:'Modo plantão: durante o plantão a tela inicial vira um painel com anel de horas, tempo restante e quanto já rendeu' },
+    { t:'new', txt:'Tema preto (OLED) automático enquanto o painel está aberto; minimizar devolve o tema normal' },
+    { t:'new', txt:'Anotações rápidas com horário durante o plantão, visíveis também na edição' },
+    { t:'new', txt:'Card de plantão concluído com a previsão de quando o pagamento cai' },
+    { t:'fix', txt:'Próximo plantão enxerga noturnos que começaram no dia anterior' },
+  ]},
+  { v:'1.14', d:'Out 2026', items:[
+    { t:'fix', txt:'Confirmar recebimento pelo checklist da tela inicial voltava a "previsto"' },
+    { t:'fix', txt:'Metas e valores de consultório se perdiam ao reabrir o app' },
+    { t:'fix', txt:'Restaurar backup agora inclui bloqueios e metas' },
+    { t:'imp', txt:'CSV no padrão do Excel brasileiro; aviso ao lançar em dia bloqueado' },
+  ]},
   { v:'1.9', d:'Set 2026', items:[
     { t:'new', txt:'Redesign visual completo: paleta bege/verde-azulado/âmbar, tipografia Archivo 800, novo sistema de design' },
     { t:'new', txt:'Meta mensal com gauge circular e acompanhamento de progresso' },
@@ -3585,6 +3709,7 @@ function openSheet(shift, presetDate, presetCategoria){
   atualizarVenc();
   $('#f-quitado').classList.toggle('on', !!s.quitado);
   contraHint(); janela();
+  renderNotasSheet(shift);
 
   $('#sheet').classList.add('open'); $('#scrim').classList.add('open');
   lockScroll();
@@ -4486,7 +4611,7 @@ document.querySelectorAll('#res-periodo button').forEach(b=>{
 // Agora é recalculado a cada render().
 function atualizaQuickBanner(){
   const hj = hoje();
-  const temHoje = S.shifts.some(s=>s.data===iso(hj) && naAgenda(s));
+  const temHoje = S.shifts.some(s=>s.data===iso(hj) && naAgenda(s)) || !!plantaoAtual().ativo;
   const banner = $('#quick-banner');
   if(!banner) return;
   const vendoHoje = sameMonth(iso(hj), cursor);
@@ -4907,6 +5032,250 @@ async function pedirPermissaoNotif(){
   if(r==='granted'){ agendarNotificacoes(); toast('Notificações ativadas ✓'); }
   else toast('Permissão negada');
 }
+
+/* ================= MODO PLANTÃO (em andamento) =================
+   Quando o relógio está dentro da janela de um plantão, a tela inicial vira
+   um painel de acompanhamento e o app entra em tema OLED. Minimizar devolve o
+   tema normal e deixa uma barra compacta. Até 3h após o fim, mostra o card de
+   "plantão concluído" com a previsão de pagamento.                          */
+const LIVE_POS_MS = 3 * 3600000;
+const THEME_META = Array.from(document.querySelectorAll('meta[name="theme-color"]')).map(m=>[m, m.content]);
+let _liveEstado = '', _liveId = null;
+
+function lsGet(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
+function lsSet(k,v){ try{ v ? localStorage.setItem(k,v) : localStorage.removeItem(k); }catch(e){} }
+
+// plantão em andamento e o recém-encerrado. Considera início em dias anteriores
+// (noturno que começou ontem, plantões de 24h/36h).
+function plantaoAtual(now = Date.now()){
+  const limite = iso(new Date(now - 3*86400000));
+  const hojeIso = iso(new Date(now));
+  let ativo = null, recente = null, jA = null, jR = null;
+  for(const s of S.shifts){
+    if(!naAgenda(s) || ehBolsa(s) || ehBloq(s)) continue;
+    if(!(+s.duracao > 0) || s.data < limite || s.data > hojeIso) continue;
+    const j = janelaDe(s);
+    if(j.ini <= now && now < j.fim){ if(!jA || j.ini > jA.ini){ ativo = s; jA = j; } }
+    else if(j.fim <= now && now - j.fim < LIVE_POS_MS){ if(!jR || j.fim > jR.fim){ recente = s; jR = j; } }
+  }
+  return { ativo, recente };
+}
+
+// 6h37 · 6h · 37min
+function fmtMin(m){ m = Math.max(0, m); const h = Math.floor(m/60), mm = m % 60; return h ? `${h}h${mm ? pad2(mm) : ''}` : `${mm}min`; }
+// decorrido + restante sempre fecham a duração (sem 5h12 + 6h47 = 11h59)
+function minutosLive(s, now){
+  const j = janelaDe(s), tot = Math.round((j.fim - j.ini)/60000);
+  const dec = Math.min(tot, Math.max(0, Math.floor((now - j.ini)/60000)));
+  return { tot, dec, rest: tot - dec };
+}
+function quandoDia(ts){
+  const d = new Date(ts);
+  const dias = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - hoje())/86400000);
+  return dias === 0 ? 'hoje' : dias === 1 ? 'amanhã' : dias === -1 ? 'ontem' : WD[d.getDay()];
+}
+
+function setModoPlantao(on){
+  const r = document.documentElement;
+  if(r.classList.contains('modo-plantao') === on) return;
+  r.classList.toggle('modo-plantao', on);
+  THEME_META.forEach(([m, orig]) => { m.content = on ? '#000000' : orig; });
+}
+
+const ICON_MIN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+const ICON_PLUS = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+const RING_R = 88, RING_C = 2 * Math.PI * RING_R;
+
+function renderLive(){
+  const box = $('#live-panel'); if(!box) return;
+  const now = Date.now();
+  const { ativo, recente } = plantaoAtual(now);
+  const mesAtual = sameMonth(iso(hoje()), cursor);
+  let modo = 'none';
+  if(ativo) modo = (lsGet('plantoes:liveMin') === ativo.id || !mesAtual) ? 'bar' : 'full';
+  else if(recente && lsGet('plantoes:liveDone') !== recente.id) modo = 'done';
+
+  setModoPlantao(modo === 'full');
+
+  const s = ativo || recente;
+  _liveId = s ? s.id : null;
+  // assinatura: só remonta o painel quando algo estrutural muda — assim o
+  // campo de anotação não perde o que está sendo digitado a cada atualização
+  const estado = modo + ':' + (s ? [s.id, s.hora, s.duracao, s.localId, s.valor, s.liquido, s.pago].join('|') : '');
+  const mudou = estado !== _liveEstado;
+  if(mudou){ _liveEstado = estado; renderNext(); }
+
+  if(modo === 'none'){ box.innerHTML = ''; return; }
+  if(mudou || !box.firstElementChild) montarLive(box, modo, s, now);
+  tickLive(s, now);
+}
+
+function montarLive(box, modo, s, now){
+  const j = janelaDe(s);
+  const cor = localCor(s.localId), nome = esc(localName(s.localId));
+  const hIni = s.hora || '07:00', hFim = fim(hIni, s.duracao), dur = +s.duracao;
+  const tipo = ehResid(s) ? 'Residência' : ehAmb(s) ? 'Consultório' : (s.turno === 'noturno' ? 'Noturno' : 'Diurno');
+  const valor = liq(s), remunerado = counts(s) && valor > 0;
+
+  if(modo === 'bar'){
+    box.innerHTML = `<button class="live-bar" id="live-expand" style="--lc:${cor}" aria-label="Abrir painel do plantão">
+      <i class="live-dot"></i><b>Em plantão</b><span>${nome}</span><em class="lb-t" id="lb-t"></em>${ICON_CHEV}</button>`;
+    return;
+  }
+
+  if(modo === 'done'){
+    const v = parseDate(vencimento(s));
+    const prev = s.pago ? 'já recebido'
+      : vencIncerto(s) ? `previsto para ${MES[v.getMonth()]}`
+      : `cai em ${pad2(v.getDate())}/${pad2(v.getMonth()+1)}`;
+    const n = (s.notas||[]).length;
+    box.innerHTML = `<section class="live live-done">
+      <div class="ld-check"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+      <div class="ld-title">Plantão concluído</div>
+      <div class="ld-sub">${nome} · ${dur}h · ${hIni} → ${hFim}</div>
+      ${remunerado ? `<div class="ld-val money">${brl(valor)}</div><div class="ld-sub">${prev}</div>` : ''}
+      ${n ? `<div class="ld-sub" style="margin-top:10px">${n} anotaç${n>1?'ões':'ão'} registrada${n>1?'s':''}</div>` : ''}
+      <div class="ld-rest">Bom descanso.</div>
+      <div class="live-actions">
+        <button id="live-det">Ver plantão</button>
+        <button id="ld-ok" class="prim">Dispensar</button>
+      </div>
+    </section>`;
+    return;
+  }
+
+  // marcas de cada hora ao redor do anel (até 36h fica legível)
+  const H = Math.round(dur);
+  let ticks = '';
+  if(H >= 2 && H <= 36){
+    for(let k = 1; k < H; k++){
+      const a = (-90 + 360 * k / H) * Math.PI / 180;
+      ticks += `<circle class="lr-tick" data-k="${k/H}" cx="${(100 + 72*Math.cos(a)).toFixed(2)}" cy="${(100 + 72*Math.sin(a)).toFixed(2)}" r="1.7"/>`;
+    }
+  }
+  const stat3 = remunerado
+    ? `<div class="ls"><small>Já rendeu</small><b class="money" id="ls-rendeu">—</b><em>de ${brl(valor)}</em></div>`
+    : `<div class="ls"><small>Tipo</small><b>${tipo}</b><em>${ehResid(s) ? 'sem remuneração' : '—'}</em></div>`;
+
+  box.innerHTML = `<section class="live" style="--lc:${cor}">
+    <div class="live-top"><i class="live-dot"></i>Em plantão
+      <button class="live-min" id="live-min" aria-label="Minimizar painel">${ICON_MIN}</button></div>
+    <div class="live-local">${nome}</div>
+    <div class="live-meta">${ehResid(s) || ehAmb(s) ? '' : (s.turno === 'noturno' ? ICON_MOON : ICON_SUN)}
+      <span>${tipo} · ${hIni} → ${hFim} · ${dur}h</span></div>
+
+    <div class="live-ring">
+      <svg viewBox="0 0 200 200" role="img" aria-label="Progresso do plantão">
+        <circle class="lr-track" cx="100" cy="100" r="${RING_R}"/>
+        <circle class="lr-fill" id="lr-fill" cx="100" cy="100" r="${RING_R}" transform="rotate(-90 100 100)"
+          stroke-dasharray="${RING_C.toFixed(2)}" stroke-dashoffset="${RING_C.toFixed(2)}"/>
+        ${ticks}
+      </svg>
+      <div class="lr-center"><div class="lr-big" id="lr-big">—</div><div class="lr-sm" id="lr-sm"></div></div>
+    </div>
+    <div class="live-falta" id="live-falta"></div>
+
+    <div class="live-stats">
+      <div class="ls"><small>Início</small><b>${hIni}</b><em>${quandoDia(j.ini)}</em></div>
+      <div class="ls"><small>Fim</small><b>${hFim}</b><em>${quandoDia(j.fim)}</em></div>
+      ${stat3}
+    </div>
+
+    <div class="live-notes">
+      <div class="ln-head"><span>Anotações</span><span id="ln-count"></span></div>
+      <div id="ln-list"></div>
+      <div class="ln-add">
+        <input id="ln-input" type="text" maxlength="200" enterkeyhint="done" autocomplete="off"
+          placeholder="Anotar algo rápido…" aria-label="Nova anotação">
+        <button id="ln-add-btn" aria-label="Adicionar anotação">${ICON_PLUS}</button>
+      </div>
+      <div class="ln-hint" id="ln-hint">Fica salvo neste aparelho e no backup. Evite dados que identifiquem pacientes.</div>
+    </div>
+
+    <div class="live-actions"><button id="live-det">Detalhes do plantão</button></div>
+  </section>`;
+  renderLiveNotas(s);
+}
+
+// atualização leve (a cada 15s): só números e anel, sem tocar no resto
+function tickLive(s, now){
+  if(!s) return;
+  const j = janelaDe(s), mt = minutosLive(s, now);
+  const lb = $('#lb-t'); if(lb) lb.textContent = 'faltam ' + fmtMin(mt.rest);
+  const fill = $('#lr-fill'); if(!fill) return;
+  const pct = mt.tot ? mt.dec / mt.tot : 0;
+  // primeiro quadro parte do zero para o anel "encher" ao abrir
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ fill.setAttribute('stroke-dashoffset', (RING_C * (1 - pct)).toFixed(2)); }));
+  $$('.lr-tick').forEach(t => t.classList.toggle('done', +t.dataset.k <= pct));
+  const h = Math.floor(mt.dec/60), mm = mt.dec % 60;
+  $('#lr-big').innerHTML = h ? `${h}<i>h</i>${pad2(mm)}` : `${mm}<i>min</i>`;
+  const sm = $('#lr-sm');
+  sm.textContent = pct >= .9 ? `reta final · ${Math.round(pct*100)}%` : `de ${+s.duracao}h · ${Math.round(pct*100)}%`;
+  sm.classList.toggle('final', pct >= .9);
+  $('#live-falta').innerHTML = `Faltam <b>${fmtMin(mt.rest)}</b> · termina ${quandoDia(j.fim)} às ${fim(s.hora||'07:00', s.duracao)}`;
+  const r = $('#ls-rendeu'); if(r) r.textContent = brl(liq(s) * pct);
+}
+
+function renderLiveNotas(s){
+  const list = $('#ln-list'); if(!list) return;
+  const notas = s.notas || [];
+  list.innerHTML = notas.map((n,i)=>`<div class="ln"><time>${esc(n.h)}</time><span>${esc(n.txt)}</span>
+    <button data-ln-del="${i}" aria-label="Apagar anotação">×</button></div>`).join('');
+  $('#ln-count').textContent = notas.length ? notas.length : '';
+  const hint = $('#ln-hint'); if(hint) hint.classList.toggle('hidden', notas.length > 0);
+}
+
+async function addNotaLive(){
+  const inp = $('#ln-input'); if(!inp) return;
+  const txt = inp.value.trim(); if(!txt) { inp.focus(); return; }
+  const s = S.shifts.find(x=>x.id===_liveId); if(!s) return;
+  const d = new Date();
+  (s.notas = s.notas || []).push({ h: pad2(d.getHours())+':'+pad2(d.getMinutes()), em: d.toISOString(), txt });
+  inp.value = '';
+  renderLiveNotas(s);
+  haptic(8);
+  await store.save(S);
+}
+
+$('#live-panel').addEventListener('click', async e=>{
+  const s = S.shifts.find(x=>x.id===_liveId);
+  if(e.target.closest('#live-min')){ lsSet('plantoes:liveMin', _liveId); haptic(6); renderLive(); return; }
+  if(e.target.closest('#live-expand')){
+    lsSet('plantoes:liveMin', '');
+    // navegando em outro mês: volta para o mês atual para abrir o painel
+    if(!sameMonth(iso(hoje()), cursor)){ cursor = new Date(); render(); }
+    else renderLive();
+    window.scrollTo({top:0, behavior:'smooth'});
+    return;
+  }
+  if(e.target.closest('#live-det')){ if(s) openSheet(s); return; }
+  if(e.target.closest('#ld-ok')){ lsSet('plantoes:liveDone', _liveId); renderLive(); return; }
+  if(e.target.closest('#ln-add-btn')){ addNotaLive(); return; }
+  const del = e.target.closest('[data-ln-del]');
+  if(del && s){
+    s.notas.splice(+del.dataset.lnDel, 1);
+    renderLiveNotas(s); await store.save(S); toast('Anotação apagada');
+  }
+});
+$('#live-panel').addEventListener('keydown', e=>{
+  if(e.key === 'Enter' && e.target.id === 'ln-input'){ e.preventDefault(); addNotaLive(); }
+});
+// relógio do painel: a cada 15s e ao voltar para o app
+setInterval(()=>{ if(!document.hidden) renderLive(); }, 15000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) renderLive(); });
+
+// anotações também aparecem (e podem ser apagadas) no sheet de edição
+function renderNotasSheet(s){
+  const wrap = $('#f-notas-wrap'), notas = (s && s.notas) || [];
+  wrap.classList.toggle('hidden', !notas.length);
+  $('#f-notas').innerHTML = notas.map((n,i)=>`<div class="fn-item"><time>${esc(n.h)}</time><span>${esc(n.txt)}</span>
+    <button type="button" data-fn-del="${i}" aria-label="Apagar anotação">×</button></div>`).join('');
+}
+$('#f-notas').addEventListener('click', async e=>{
+  const b = e.target.closest('[data-fn-del]'); if(!b || !editing || !editing.notas) return;
+  editing.notas.splice(+b.dataset.fnDel, 1);
+  renderNotasSheet(editing); await store.save(S); _liveEstado = ''; toast('Anotação apagada');
+});
 
 /* ================= início ================= */
 function normalize(d){
