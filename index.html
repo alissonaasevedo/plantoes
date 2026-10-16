@@ -399,6 +399,9 @@ nav button.on { color: var(--accent); }
   background: var(--bg); border-radius: 20px 20px 0 0; border-top: 1px solid var(--line);
   transition: transform .28s cubic-bezier(.32,.72,0,1);
   padding: 0 20px calc(28px + env(safe-area-inset-bottom));
+  /* bloqueia gesto de navegação horizontal do iOS */
+  touch-action: pan-y;
+  overscroll-behavior-x: none;
 }
 .sheet.open { transform: translateX(-50%) translateY(0); }
 .sheet .grab { width: 36px; height: 4px; border-radius: 99px; background: var(--line-2); margin: 10px auto 2px; }
@@ -3563,6 +3566,27 @@ function unlockScroll(){
   document.body.style.width = '';
   window.scrollTo({top: _scrollY, behavior: 'instant'});
 }
+
+// Bloqueia gesto de navegação horizontal do iOS dentro dos sheets
+// (swipe da borda esquerda que desloca toda a view horizontalmente)
+(function initSheetHorizontalBlock(){
+  let _tx = 0, _ty = 0;
+  document.addEventListener('touchstart', e => {
+    if(!document.querySelector('.sheet.open, #scrim.open')) return;
+    _tx = e.touches[0].clientX;
+    _ty = e.touches[0].clientY;
+  }, {passive: true});
+
+  document.addEventListener('touchmove', e => {
+    if(!document.querySelector('.sheet.open, #scrim.open')) return;
+    const dx = Math.abs(e.touches[0].clientX - _tx);
+    const dy = Math.abs(e.touches[0].clientY - _ty);
+    // se o gesto é predominantemente horizontal, bloqueia
+    if(dx > dy && dx > 5){
+      e.preventDefault();
+    }
+  }, {passive: false});
+})();
 
 function duracaoAtual(){
   const sel = chipGet('#f-dur');
