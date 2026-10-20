@@ -1,4 +1,4 @@
-const CACHE = 'plantoes-v1.16';
+const CACHE = 'plantoes-v1.17';
 // Versionamento: v1.0, v1.01, v1.02 ... → grandes reformulações = v2.0, v3.0 ...
 const ASSETS = ['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
 

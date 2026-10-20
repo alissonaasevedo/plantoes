@@ -1013,6 +1013,9 @@ nav button:active { transform: scale(.92); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .toast { width: max-content; max-width: calc(100vw - 32px); text-align: center; line-height: 1.4; }
+.toast.has-act { pointer-events: auto; display: flex; align-items: center; gap: 14px; text-align: left; padding: 8px 8px 8px 18px; }
+.toast-act { flex: none; border: 0; border-radius: 99px; background: rgba(255,255,255,.14); color: #C7D2FE; font: inherit; font-weight: 700; padding: 6px 12px; cursor: pointer; }
+.toast-act:active { transform: scale(.95); }
 /* números trocando de valor não "pulam" de largura */
 #h-total, .sc-val, .val, .money { font-variant-numeric: tabular-nums; }
 /* seletor de tipo: 4 chips com rótulos de tamanhos diferentes ficam alinhados */
@@ -1122,6 +1125,31 @@ html, body { transition: background-color .6s ease; }
 .ld-rest { font-size:13px; color:rgba(255,255,255,.45); margin-top:12px; font-style:italic; }
 
 /* indicador de anotações na lista e no sheet */
+.saude-bar { display:flex; align-items:center; gap:10px; width:100%; margin:12px 0 2px; padding:11px 12px 11px 14px; border-radius:14px; border:1px solid var(--line); border-left:3px solid var(--amber); background:var(--surface); color:var(--ink); font:inherit; font-size:13.5px; text-align:left; cursor:pointer; box-shadow:var(--sh); }
+.saude-bar span { flex:1; min-width:0; }
+.saude-bar b { font-weight:700; }
+.saude-bar svg { flex:none; color:var(--dim-2); }
+.sd-item { padding:12px 0; border-bottom:1px solid var(--line); }
+.sd-item:last-child { border-bottom:0; }
+.sd-top { display:flex; align-items:center; gap:8px; }
+.sd-tag { font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:6px; background:var(--amber-soft); color:var(--amber); flex:none; }
+.sd-tag.alto { background:var(--due-soft); color:var(--due); }
+.sd-item b { font-size:14px; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sd-item p { font-size:12.5px; color:var(--dim); margin:4px 0 9px; line-height:1.45; }
+.sd-acts { display:flex; gap:8px; }
+.sd-acts button { border:1px solid var(--line-2); background:var(--surface); color:var(--ink); border-radius:9px; padding:7px 12px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
+.sd-acts button.prim { background:var(--accent); border-color:var(--accent); color:#fff; }
+.sd-ok { text-align:center; padding:28px 0; color:var(--ok); font-weight:600; }
+.modelos { margin: -4px 0 16px; }
+.modelos > span { display:block; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); margin-bottom:8px; }
+.mod-row { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; margin:0 -20px; padding:0 20px 2px; scroll-snap-type:x proximity; }
+.mod-row::-webkit-scrollbar { display:none; }
+.mod { --c: var(--accent); flex:none; display:flex; align-items:center; gap:10px; padding:9px 13px 9px 11px; border-radius:12px; border:1px solid var(--line-2); background:var(--surface); color:var(--ink); font:inherit; cursor:pointer; text-align:left; scroll-snap-align:start; transition: transform .12s, border-color .15s, background-color .15s; }
+.mod:active { transform: scale(.96); }
+.mod i { width:9px; height:9px; border-radius:3px; background:var(--c); flex:none; }
+.mod b { display:block; font-size:13px; font-weight:700; white-space:nowrap; max-width:170px; overflow:hidden; text-overflow:ellipsis; }
+.mod small { display:block; font-size:11.5px; color:var(--dim); margin-top:1px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.mod.on { border-color:var(--accent); background:var(--accent-soft); }
 .note-ind { font-size:11px; color:var(--dim); font-weight:600; flex:none; }
 .info .place > span:not(.note-ind) { min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .fn-item { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid var(--line); font-size:14px; line-height:1.4; }
@@ -1210,6 +1238,7 @@ html, body { transition: background-color .6s ease; }
     <div id="h-fadiga" style="display:none"></div>
     <div id="h-streak" style="display:none"></div>
     <div id="h-banner-prox"></div>
+<div id="h-saude"></div>
 <div id="h-checklist"></div>
 
     <div id="next-card"></div>
@@ -1463,6 +1492,10 @@ html, body { transition: background-color .6s ease; }
   <div class="sheet-head">
     <h2 id="sh-title">Novo plantão</h2>
     <button class="btn ghost sm" id="sh-close">Fechar</button>
+  </div>
+  <div id="f-modelos" class="modelos hidden">
+    <span>Seus frequentes</span>
+    <div class="mod-row" id="f-mod-row"></div>
   </div>
 
   <label class="f"><span>Tipo de compromisso</span>
@@ -1885,11 +1918,37 @@ function openCal(s){
 }
 
 let toastT;
-function toast(msg){
-  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
-  // mensagens longas (conflitos) ficam mais tempo na tela
-  const dur = Math.min(5000, Math.max(1900, msg.length * 55));
+function toast(msg, acao){
+  const t = $('#toast');
+  t.textContent = '';
+  const sp = document.createElement('span'); sp.textContent = msg; t.appendChild(sp);
+  if(acao){
+    const b = document.createElement('button');
+    b.className = 'toast-act'; b.textContent = acao.label;
+    b.onclick = ()=>{ clearTimeout(toastT); t.classList.remove('on'); acao.fn(); };
+    t.appendChild(b);
+  }
+  t.classList.toggle('has-act', !!acao);
+  t.classList.add('on');
+  // mensagens longas (conflitos) ficam mais tempo; com ação, 5s para dar tempo de desfazer
+  const dur = acao ? 5500 : Math.min(5000, Math.max(1900, msg.length * 55));
   clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), dur);
+}
+
+// Exclusões são imediatas e reversíveis: guarda uma cópia antes de mudar e
+// oferece "Desfazer" no aviso. Substitui o "toque de novo para confirmar".
+async function comDesfazer(msg, mutar){
+  const antes = JSON.stringify(S);
+  mutar();
+  await store.save(S); render();
+  haptic(10);
+  toast(msg, { label:'Desfazer', fn: async ()=>{
+    // sheet aberto apontaria para objetos da versão antiga de S
+    if(document.querySelector('.sheet.open')) closeSheets();
+    S = normalize(JSON.parse(antes));
+    _liveEstado = '';                 // força remontar o painel do plantão
+    await store.save(S); render(); haptic(6); toast('Desfeito');
+  }});
 }
 
 
@@ -1956,6 +2015,7 @@ function render(){
   $('#mnav').classList.toggle('hidden', view !== 'mes' && view !== 'caixa');
   renderMes(); renderCaixa(); renderResumo(); renderLocais(); renderAjustes();
   renderLive();
+  renderSaude();
   atualizaQuickBanner();
   agendarNotificacoes();
 }
@@ -2202,6 +2262,7 @@ function renderMes(){
 
     // ── helpers para o sheet de detalhes ──
     function openDetail(title, html){
+      delete $('#sd-body').dataset.saude;
       $('#sd-title').textContent = title;
       $('#sd-body').innerHTML = html;
       $('#sheet-detail').classList.add('open');
@@ -3184,6 +3245,11 @@ function renderAjustes(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.17', d:'Out 2026', items:[
+    { t:'new', txt:'Seus frequentes: o app detecta os plantões que você repete e lança com um toque (no + e no topo do novo plantão)' },
+    { t:'new', txt:'Saúde dos dados: avisa duplicados, conflitos de horário, lançamentos sem valor ou sem local e atrasos longos' },
+    { t:'imp', txt:'Excluir agora é imediato, com Desfazer por 5 segundos (plantão, local, bloqueio e anotações)' },
+  ]},
   { v:'1.16', d:'Out 2026', items:[
     { t:'new', txt:'Avisos 1h antes de começar e 30 min antes de terminar cada plantão (véspera às 20h opcional)' },
     { t:'new', txt:'Eventos exportados para o calendário levam os dois alarmes' },
@@ -3708,6 +3774,7 @@ function openSheet(shift, presetDate, presetCategoria){
   $('#f-quitado').classList.toggle('on', !!s.quitado);
   contraHint(); janela();
   renderNotasSheet(shift);
+  renderModelosSheet(!shift);
 
   $('#sheet').classList.add('open'); $('#scrim').classList.add('open');
   lockScroll();
@@ -4542,9 +4609,9 @@ function closeBloqueio(){
 $('#sbl-close').onclick = closeBloqueio;
 $('#sbl-del').onclick = async ()=>{
   if(!editingBloq) return;
-  if(!confirm('Excluir bloqueio?')) return;
-  S.bloqueios = S.bloqueios.filter(b=>b.id!==editingBloq.id);
-  await store.save(S); closeBloqueio(); render(); toast('Bloqueio removido');
+  const id = editingBloq.id;   // confirm() nativo era ignorado em alguns contextos do iPhone
+  closeBloqueio();
+  comDesfazer('Bloqueio removido', ()=>{ S.bloqueios = S.bloqueios.filter(b=>b.id!==id); });
 };
 
 $('#sbl-save').onclick = async ()=>{
@@ -4579,7 +4646,11 @@ function novoItem(){
   const itemStyle = `display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;
     padding:14px 16px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;`;
   const sep = `border-bottom:1px solid var(--line);`;
-  menu.innerHTML = `
+  const freq = modelosFrequentes(3);
+  menu.innerHTML = (freq.length ? `<div style="padding:10px 16px 4px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)">Lançar hoje</div>`
+      + freq.map((m,i)=>`<button data-fab-mod="${i}" style="${itemStyle}padding-top:10px;padding-bottom:10px;${i===freq.length-1?sep:''}">
+          <i style="width:9px;height:9px;border-radius:3px;background:${localCor(m.localId)};flex:none"></i>
+          <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nomeCurto(m.localId))}<small style="display:block;font-weight:500;color:var(--dim);font-size:12px">${rotuloModelo(m)}</small></span></button>`).join('') : '') + `
     <button id="fab-p"  style="${itemStyle}${sep}">🏥 <span>Novo plantão</span></button>
     <button id="fab-am" style="${itemStyle}${sep}">🩺 <span>Dia de consultório</span></button>
     <button id="fab-b"  style="${itemStyle}">🔒 <span>Bloqueio de agenda</span></button>`;
@@ -4593,6 +4664,9 @@ function novoItem(){
   menu.querySelector('#fab-p') .onclick = ()=>{ fechar(); openSheet(null, null, 'remunerado'); };
   menu.querySelector('#fab-am').onclick = ()=>{ fechar(); openSheet(null, null, 'ambulatorio'); };
   menu.querySelector('#fab-b') .onclick = ()=>{ fechar(); openBloqueio(null); };
+  menu.querySelectorAll('[data-fab-mod]').forEach(b=> b.onclick = ()=>{
+    fechar(); openSheet(null, iso(new Date()), freq[+b.dataset.fabMod].categoria); aplicarModelo(freq[+b.dataset.fabMod]);
+  });
 }
 $('#fab').onclick = novoItem;
 
@@ -4668,19 +4742,19 @@ function twoStep(btn, action){
   btn.textContent = 'Toque de novo';
   pending.set(k, { label, t: setTimeout(()=>{ btn.textContent = label; pending.delete(k); }, 4000) });
 }
-$('#sh-del').onclick = ()=>{ if(!editing) return; twoStep($('#sh-del'), async ()=>{
-  S.shifts = S.shifts.filter(s=>s.id!==editing.id);
-  await store.save(S); closeSheets(); render(); toast('Plantão excluído'); }); };
+$('#sh-del').onclick = ()=>{
+  if(!editing) return;
+  const id = editing.id, nome = localName(editing.localId);
+  closeSheets();
+  comDesfazer(`Plantão excluído · ${nome}`, ()=>{ S.shifts = S.shifts.filter(s=>s.id!==id); });
+};
 $('#l-del').onclick = ()=>{
   if(!editingLocal) return;
-  const btn = $('#l-del');
-  const n = S.shifts.filter(s=>s.localId===editingLocal.id).length;
-  // avisa quantos lançamentos ficarão "Sem local" antes do segundo toque
-  if(n && !pending.has(btn.id)) setTimeout(()=>{ if(pending.has(btn.id)) btn.textContent = `Toque de novo · ${n} lançamento${n>1?'s':''} ficará${n>1?'ão':''} sem local`; }, 0);
-  twoStep(btn, async ()=>{
-    S.locais = S.locais.filter(l=>l.id!==editingLocal.id);
-    await store.save(S); closeSheets(); render(); toast('Local excluído');
-  });
+  const id = editingLocal.id, nome = editingLocal.nome;
+  const n = S.shifts.filter(s=>s.localId===id).length;
+  closeSheets();
+  comDesfazer(n ? `${nome} excluído · ${n} lançamento${n>1?'s':''} sem local` : `${nome} excluído`,
+    ()=>{ S.locais = S.locais.filter(l=>l.id!==id); });
 };
 
 // chips, toggles, swatches
@@ -5005,6 +5079,156 @@ $('#file').onchange = e=>{
   };
   r.readAsText(f); e.target.value = '';
 };
+
+/* ================= modelos de plantão =================
+   Detectados do histórico, sem cadastro: combinações de categoria + local +
+   turno + horário + duração que se repetem (≥2× em 6 meses). O valor vem do
+   lançamento mais recente daquela combinação.                              */
+let _modelos = [];
+function modelosFrequentes(max = 6){
+  const lim = iso(new Date(Date.now() - 180*86400000));
+  const m = new Map();
+  for(const s of S.shifts){
+    if(s.data < lim || !counts(s) || ehBolsa(s) || !getLocal(s.localId) || !s.hora || !(+s.duracao > 0)) continue;
+    const k = [s.categoria||'remunerado', s.localId, s.turno, s.hora, +s.duracao].join('|');
+    const e = m.get(k) || { n:0, ult:null };
+    e.n++; if(!e.ult || s.data > e.ult.data) e.ult = s;
+    m.set(k, e);
+  }
+  return [...m.values()].filter(e => e.n >= 2)
+    .sort((a,b) => b.n - a.n || b.ult.data.localeCompare(a.ult.data))
+    .slice(0, max).map(e => e.ult);
+}
+// "UPA Acrízio Menezes (Justinópolis)" → "UPA Acrízio Menezes"
+const nomeCurto = id => localName(id).replace(/\s*\(.*?\)\s*/g, ' ').trim();
+function rotuloModelo(m){
+  const t = ehAmb(m) ? 'Consultório' : m.turno === 'noturno' ? 'Noturno' : 'Diurno';
+  return `${t} · ${m.hora} · ${m.duracao}h${liq(m) ? ' · '+brl(liq(m)) : ''}`;
+}
+function renderModelosSheet(novo){
+  _modelos = novo ? modelosFrequentes() : [];
+  $('#f-modelos').classList.toggle('hidden', !_modelos.length);
+  $('#f-mod-row').innerHTML = _modelos.map((m,i)=>`<button type="button" class="mod" data-mod="${i}" style="--c:${localCor(m.localId)}">
+    <i></i><span><b>${esc(nomeCurto(m.localId))}</b><small>${rotuloModelo(m)}</small></span></button>`).join('');
+}
+function aplicarModelo(m){
+  chipSet('#f-cat', m.categoria || 'remunerado');
+  fillLocalSelect(m.localId); $('#f-newlocal-wrap').classList.add('hidden');
+  chipSet('#f-turno', m.turno);
+  const preset = [6,12,24,36].includes(+m.duracao);
+  chipSet('#f-dur', preset ? String(m.duracao) : 'custom');
+  $('#f-durc-wrap').classList.toggle('hidden', preset);
+  if(!preset) $('#f-durc').value = m.duracao;
+  $('#f-hora').value = m.hora;
+  aplicarCategoria();
+  if(!ehAmb(m)){
+    $('#f-valor').value = m.valor || ''; valorTouched = true;
+    $('#f-liquido').value = liq(m) || ''; liqTouched = true;
+  }
+  vencTouched = false; atualizarVenc(); janela();
+  conflitoOk = false;
+  haptic(8);
+}
+$('#f-mod-row').addEventListener('click', e=>{
+  const b = e.target.closest('[data-mod]'); if(!b) return;
+  aplicarModelo(_modelos[+b.dataset.mod]);
+  $$('#f-mod-row .mod').forEach(x => x.classList.toggle('on', x === b));
+});
+
+/* ================= saúde dos dados =================
+   Varredura dos lançamentos à procura do que costuma passar despercebido.
+   Cada problema tem uma chave estável para poder ser ignorado.            */
+const fmtD = d => { const x = parseDate(d); return pad2(x.getDate())+'/'+pad2(x.getMonth()+1); };
+function problemasDados(){
+  const out = [], t = iso(hoje());
+  let ign = []; try{ ign = JSON.parse(lsGet('plantoes:saudeIgn') || '[]'); }catch(e){}
+  const add = p => { if(!ign.includes(p.key)) out.push(p); };
+  const lim = iso(new Date(Date.now() - 120*86400000));
+  const agenda = S.shifts.filter(s => naAgenda(s) && !ehBloq(s) && !ehBolsa(s) && s.data >= lim);
+
+  // duplicados: mesmo dia, hora, local e tipo
+  const grupos = {};
+  agenda.forEach(s => { const k = [s.data, s.hora, s.localId, s.categoria].join('|'); (grupos[k] = grupos[k] || []).push(s); });
+  const emDup = new Set();
+  Object.values(grupos).filter(g => g.length > 1).forEach(g => {
+    g.slice(1).forEach(s => emDup.add(s.id));   // mantém um representante na checagem de conflito
+    add({ key:'dup:'+g.map(s=>s.id).sort().join(','), nivel:'alto', tag:'Duplicado', alvo:g[1].id,
+      titulo: localName(g[0].localId),
+      desc: `${g.length} lançamentos idênticos em ${fmtD(g[0].data)} às ${g[0].hora||'--:--'}. Se um é repetição, abra e exclua.` });
+  });
+
+  // horários sobrepostos (fora os duplicados exatos)
+  const jan = agenda.filter(s => +s.duracao > 0 && !emDup.has(s.id)).map(s => ({ s, j: janelaDe(s) })).sort((a,b)=>a.j.ini - b.j.ini);
+  for(let i = 0; i < jan.length; i++){
+    for(let k = i+1; k < jan.length && jan[k].j.ini < jan[i].j.fim; k++){
+      const a = jan[i].s, b = jan[k].s;
+      add({ key:`sob:${a.id}:${b.id}`, nivel:'alto', tag:'Conflito', alvo:b.id,
+        titulo: `${nomeCurto(a.localId)} × ${nomeCurto(b.localId)}`,
+        desc: `Horários se sobrepõem em ${fmtD(a.data)}: ${a.hora} (${a.duracao}h) e ${fmtD(b.data)} ${b.hora} (${b.duracao}h).` });
+    }
+  }
+
+  S.shifts.forEach(s => {
+    if(ehBloq(s)) return;
+    if(!getLocal(s.localId))
+      add({ key:'sl:'+s.id, nivel:'medio', tag:'Sem local', alvo:s.id, titulo:'Lançamento sem local',
+        desc:`${fmtD(s.data)} · o local foi excluído. Abra e escolha um local para ele voltar aos relatórios.` });
+    else if(counts(s) && !ehBolsa(s) && !(liq(s) > 0))
+      add({ key:'sv:'+s.id, nivel:'medio', tag:'Sem valor', alvo:s.id, titulo: localName(s.localId),
+        desc:`${fmtD(s.data)} · sem valor lançado, então fica fora do faturamento e do caixa.` });
+    else if(counts(s) && !s.pago && vencimento(s) < iso(new Date(Date.now() - 30*86400000))){
+      const dias = Math.round((hoje() - parseDate(vencimento(s)))/86400000);
+      add({ key:'atr:'+s.id, nivel: dias > 60 ? 'alto' : 'medio', tag:'Atrasado', alvo:s.id, pagar:true,
+        titulo: `${localName(s.localId)} · ${brl(liq(s))}`,
+        desc:`Plantão de ${fmtD(s.data)}, vencido há ${dias} dias. Se já caiu e você esqueceu de marcar, confirme aqui.` });
+    }
+  });
+  const ordem = { alto:0, medio:1 };
+  return out.sort((a,b) => ordem[a.nivel] - ordem[b.nivel]);
+}
+
+const ICON_SETA = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>';
+function renderSaude(){
+  const el = $('#h-saude'); if(!el) return;
+  const n = problemasDados().length;
+  el.innerHTML = n ? `<button class="saude-bar" id="saude-open"><span>🩺 <b>${n} ${n>1?'itens':'item'} para revisar</b> nos seus lançamentos</span>${ICON_SETA}</button>` : '';
+  if($('#sheet-detail').classList.contains('open') && $('#sd-body').dataset.saude) renderSaudeLista();
+}
+function renderSaudeLista(){
+  const lista = problemasDados();
+  $('#sd-title').textContent = 'Saúde dos dados';
+  $('#sd-body').dataset.saude = '1';
+  $('#sd-body').innerHTML = lista.length ? lista.map(p => `<div class="sd-item">
+      <div class="sd-top"><span class="sd-tag ${p.nivel==='alto'?'alto':''}">${p.tag}</span><b>${esc(p.titulo)}</b></div>
+      <p>${esc(p.desc)}</p>
+      <div class="sd-acts">
+        ${p.pagar ? `<button class="prim" data-saude-pay="${p.alvo}">Já caiu</button>` : ''}
+        <button class="${p.pagar?'':'prim'}" data-saude-open="${p.alvo}">${p.pagar?'Abrir':'Corrigir'}</button>
+        <button data-saude-ign="${esc(p.key)}">Ignorar</button>
+      </div></div>`).join('')
+    : `<div class="sd-ok">✓ Tudo certo com os seus lançamentos</div>`;
+}
+document.addEventListener('click', e=>{
+  if(e.target.closest('#saude-open')){
+    renderSaudeLista();
+    $('#sheet-detail').classList.add('open'); $('#scrim').classList.add('open'); lockScroll();
+    return;
+  }
+  const op = e.target.closest('[data-saude-open]');
+  if(op){ const s = S.shifts.find(x=>x.id===op.dataset.saudeOpen); closeSheets(); if(s) openSheet(s); return; }
+  const pg = e.target.closest('[data-saude-pay]');
+  if(pg){
+    const s = S.shifts.find(x=>x.id===pg.dataset.saudePay); if(!s) return;
+    comDesfazer(`Recebimento confirmado · ${brl(liq(s))}`, ()=>{ s.pago = true; s.pagoEm = s.pagoEm || iso(new Date()); });
+    return;
+  }
+  const ig = e.target.closest('[data-saude-ign]');
+  if(ig){
+    let ign = []; try{ ign = JSON.parse(lsGet('plantoes:saudeIgn') || '[]'); }catch(err){}
+    ign.push(ig.dataset.saudeIgn); lsSet('plantoes:saudeIgn', JSON.stringify(ign.slice(-500)));
+    renderSaude(); renderSaudeLista(); haptic(6);
+  }
+});
 
 /* ================= avisos (notificações) =================
    Três avisos por plantão: 1h antes de começar, 30 min antes de terminar e
@@ -5345,8 +5569,8 @@ $('#live-panel').addEventListener('click', async e=>{
   if(e.target.closest('#ln-add-btn')){ addNotaLive(); return; }
   const del = e.target.closest('[data-ln-del]');
   if(del && s){
-    s.notas.splice(+del.dataset.lnDel, 1);
-    renderLiveNotas(s); await store.save(S); toast('Anotação apagada');
+    const idx = +del.dataset.lnDel;
+    comDesfazer('Anotação apagada', ()=>{ s.notas.splice(idx, 1); _liveEstado = ''; });
   }
 });
 $('#live-panel').addEventListener('keydown', e=>{
@@ -5365,8 +5589,9 @@ function renderNotasSheet(s){
 }
 $('#f-notas').addEventListener('click', async e=>{
   const b = e.target.closest('[data-fn-del]'); if(!b || !editing || !editing.notas) return;
-  editing.notas.splice(+b.dataset.fnDel, 1);
-  renderNotasSheet(editing); await store.save(S); _liveEstado = ''; toast('Anotação apagada');
+  const alvo = editing, idx = +b.dataset.fnDel;
+  comDesfazer('Anotação apagada', ()=>{ alvo.notas.splice(idx, 1); _liveEstado = ''; });
+  renderNotasSheet(alvo);
 });
 
 /* ================= início ================= */
