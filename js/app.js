@@ -22,6 +22,8 @@ const store = {
   },
   // grava nos dois lugares — se um falhar, o outro segura
   async save(data){
+    if(data && !data.v) data.v = SCHEMA;          // carimba a versão do formato
+    try{ registrarHistorico(data); }catch(e){ registrarErro(e, 'histórico'); }
     const txt = JSON.stringify(data);
     let ok = false;
     if(hasCloud){ try{ await window.storage.set(KEY, txt); ok = true; }catch(e){} }
@@ -30,6 +32,25 @@ const store = {
     return ok;
   }
 };
+
+/* ================= diagnóstico =================
+   Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
+   me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
+   do arquivo para capturar até erros durante a abertura do app.            */
+const APP_VERSAO = '1.19', DIAG_KEY = 'plantoes:diag';
+function registrarErro(err, onde){
+  try{
+    let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
+    const msg = String((err && (err.message || (err.reason && err.reason.message))) || err || 'erro desconhecido').slice(0, 300);
+    const stack = String((err && err.stack) || '').split('\n').slice(0, 4).map(l=>l.trim()).join(' | ').slice(0, 600);
+    const ult = lista[lista.length-1];
+    if(ult && ult.msg === msg && ult.onde === (onde||'')){ ult.n = (ult.n||1) + 1; ult.em = new Date().toISOString(); }
+    else lista.push({ em: new Date().toISOString(), v: APP_VERSAO, msg, onde: onde||'', stack, aba: (()=>{ try{ return view; }catch(e){ return ''; } })(), n: 1 });
+    localStorage.setItem(DIAG_KEY, JSON.stringify(lista.slice(-50)));
+  }catch(e){}
+}
+window.addEventListener('error', e => registrarErro(e.error || e.message, `${String(e.filename||'').split('/').pop()}:${e.lineno||0}`));
+window.addEventListener('unhandledrejection', e => registrarErro(e.reason, 'promessa'));
 
 const CORES = ['#FFC24D','#4ECFA0','#8B9DFF','#FF7A93','#5FC8EC','#C48BF5','#F79E5C','#93D95F'];
 
@@ -226,6 +247,7 @@ async function comDesfazer(msg, mutar){
     // sheet aberto apontaria para objetos da versão antiga de S
     if(document.querySelector('.sheet.open')) closeSheets();
     S = normalize(JSON.parse(antes));
+    _histRotulo = 'Desfez';
     _liveEstado = '';                 // força remontar o painel do plantão
     await store.save(S); render(); haptic(6); toast('Desfeito');
   }});
@@ -1398,6 +1420,8 @@ function renderAjustes(){
   renderPaletas();
   renderTax();
   renderBackupInfo();
+  renderHistorico();
+  renderDiagnostico();
 }
 
 // bloco "Ano de…" — fica na aba Resumo (antes era desenhado pela função de Ajustes;
@@ -1445,6 +1469,12 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.19', d:'Out 2026', items:[
+    { t:'new', txt:'Histórico de alterações: últimas 50 ações com Desfazer (Ajustes)' },
+    { t:'new', txt:'Diagnóstico: o app registra erros do aparelho e gera um relatório para copiar ou compartilhar' },
+    { t:'imp', txt:'Dados com número de versão e migrações passo a passo, com cópia de segurança antes de migrar' },
+    { t:'imp', txt:'43 testes automáticos rodam a cada mudança publicada' },
+  ]},
   { v:'1.18', d:'Out 2026', items:[
     { t:'new', txt:'Paletas: Clássico, Dia e Noite, Cirúrgico e Fintech (Ajustes → Aparência)' },
     { t:'new', txt:'Tela inicial nova: card principal com barra recebido × a receber, métricas compactas e faixa da semana' },
@@ -3335,6 +3365,7 @@ $('#file').onchange = e=>{
     try{
       const d = JSON.parse(r.result);
       if(!Array.isArray(d.shifts)) throw 0;
+      if((+d.v||0) > SCHEMA){ toast('Backup feito numa versão mais nova do app. Atualize o app e tente de novo.'); return; }
       S = normalize(d); // inclui bloqueios e metas do backup
       await store.save(S); render(); toast('Backup restaurado');
     }catch(err){ toast('Arquivo inválido'); }
@@ -4064,9 +4095,213 @@ $('#f-notas').addEventListener('click', async e=>{
 });
 
 /* ================= início ================= */
-function normalize(d){
+async function relatorioDiagnostico(){
+  let erros = []; try{ erros = JSON.parse(lsGet(DIAG_KEY) || '[]'); }catch(e){}
+  let uso = '';
+  try{ if(navigator.storage && navigator.storage.estimate){ const q = await navigator.storage.estimate(); uso = `${Math.round((q.usage||0)/1024)} KB de ${Math.round((q.quota||0)/1048576)} MB`; } }catch(e){}
+  let persist = '?'; try{ persist = navigator.storage && navigator.storage.persisted ? String(await navigator.storage.persisted()) : 'n/d'; }catch(e){}
+  const tam = Math.round(JSON.stringify(S).length/1024);
+  const instalado = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+  const linhas = [
+    `Plantaê! v${APP_VERSAO} · dados v${S.v||'?'} (app espera v${SCHEMA})`,
+    `Gerado em ${new Date().toLocaleString('pt-BR')}`,
+    `Aparelho: ${navigator.userAgent}`,
+    `Tela ${screen.width}×${screen.height} · ${instalado ? 'instalado na Tela de Início' : 'aberto no navegador'} · tema ${matchMedia('(prefers-color-scheme: dark)').matches?'escuro':'claro'} · paleta ${lsGet('plantoes:paleta')||'clássico'}`,
+    `Dados: ${S.shifts.length} lançamentos · ${S.locais.length} locais · ${S.bloqueios.length} bloqueios · ${tam} KB${uso ? ' · armazenamento '+uso : ''} · persistente: ${persist}`,
+    `Avisos: ${notifSuportada() ? Notification.permission : 'não suportado'} · saúde dos dados: ${problemasDados().length} item(ns) · histórico: ${histLer().length} ações`,
+    '',
+    erros.length ? `Erros registrados (${erros.length}):` : 'Nenhum erro registrado.',
+    ...erros.slice().reverse().map(e => `• ${new Date(e.em).toLocaleString('pt-BR')} [v${e.v}${e.aba?' · '+e.aba:''}${e.n>1?' · '+e.n+'×':''}] ${e.msg}${e.onde?' @ '+e.onde:''}${e.stack?'\n    '+e.stack:''}`),
+  ];
+  return linhas.join('\n');
+}
+function renderDiagnostico(){
+  const el = $('#diag-status'); if(!el) return;
+  let erros = []; try{ erros = JSON.parse(lsGet(DIAG_KEY) || '[]'); }catch(e){}
+  el.textContent = erros.length
+    ? `${erros.length} erro${erros.length>1?'s':''} registrado${erros.length>1?'s':''} · último ${new Date(erros[erros.length-1].em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}`
+    : 'Nenhum erro registrado neste aparelho ✓';
+  el.style.color = erros.length ? 'var(--due)' : 'var(--ok)';
+}
+document.addEventListener('click', async e=>{
+  if(e.target.closest('#diag-copiar')){
+    const txt = await relatorioDiagnostico();
+    let ok = false;
+    try{ await navigator.clipboard.writeText(txt); ok = true; }catch(err){}
+    if(ok){ toast('Relatório copiado — cole na conversa'); return; }
+    // sem área de transferência: mostra o texto selecionado para copiar à mão
+    delete $('#sd-body').dataset.saude;
+    $('#sd-title').textContent = 'Relatório de diagnóstico';
+    $('#sd-body').innerHTML = `<p class="hint" style="margin:0 0 8px">Selecione tudo e copie.</p><textarea id="diag-txt" readonly style="min-height:320px;font-size:12px;font-family:ui-monospace,monospace">${esc(txt)}</textarea>`;
+    $('#sheet-detail').classList.add('open'); $('#scrim').classList.add('open'); lockScroll();
+    const t = $('#diag-txt'); t.focus(); t.select();
+    return;
+  }
+  if(e.target.closest('#diag-compartilhar')){
+    const txt = await relatorioDiagnostico();
+    if(navigator.share){ try{ await navigator.share({ title:'Diagnóstico Plantaê!', text: txt }); }catch(err){} }
+    else toast('Compartilhar não está disponível aqui — use Copiar');
+    return;
+  }
+  if(e.target.closest('#diag-limpar')){
+    const antes = lsGet(DIAG_KEY);
+    lsSet(DIAG_KEY, ''); renderDiagnostico();
+    toast('Registro de erros limpo', { label:'Desfazer', fn: ()=>{ lsSet(DIAG_KEY, antes); renderDiagnostico(); } });
+  }
+});
+
+/* ================= histórico de alterações =================
+   A cada salvamento compara com o último estado salvo e registra o que mudou.
+   Guarda só a versão anterior de cada item alterado (não cópias inteiras),
+   nas últimas 50 ações, fora do backup. Desfazer devolve esses itens.      */
+const HIST_KEY = 'plantoes:hist', HIST_MAX = 50, HIST_COLS = ['shifts','locais','bloqueios'];
+const HIST_TOPO = ['metaMensal','metaAnual','metaObjetivo','limiarHoras'];
+let _base = null, _histRotulo = '';
+const histLer = () => { try{ return JSON.parse(lsGet(HIST_KEY) || '[]'); }catch(e){ return []; } };
+function histGravar(lista){
+  // se o aparelho estiver sem espaço, descarta as entradas mais antigas até caber
+  for(let n = lista.length; n >= 0; n -= 5){
+    try{ localStorage.setItem(HIST_KEY, JSON.stringify(lista.slice(-n))); return; }catch(e){}
+  }
+}
+const rotShift = s => `${localName(s.localId)} ${s.data ? fmtD(s.data) : ''}`.trim();
+const CAMPOS_NOMES = { valor:'valor', liquido:'líquido', data:'data', hora:'horário', duracao:'duração', localId:'local',
+  turno:'turno', obs:'observação', venc:'vencimento', categoria:'tipo', colega:'colega', tipo:'origem', urgente:'urgência' };
+function descreverMudanca(col, antes, depois){
+  if(col === 'shifts'){
+    const alvo = depois || antes;
+    if(!antes) return ehBolsa(alvo) ? `Lançou renda fixa · ${rotShift(alvo)}` : `Lançou ${ehAmb(alvo)?'consultório':'plantão'} · ${rotShift(alvo)}`;
+    if(!depois) return `Excluiu · ${rotShift(antes)}`;
+    const dif = Object.keys({...antes, ...depois}).filter(k => JSON.stringify(antes[k]) !== JSON.stringify(depois[k]));
+    if(dif.every(k => k==='pago' || k==='pagoEm')) return depois.pago ? `Confirmou recebimento · ${rotShift(depois)} · ${brl(liq(depois))}` : `Voltou para previsto · ${rotShift(depois)}`;
+    if(dif.length === 1 && dif[0] === 'notas') return `Anotação · ${rotShift(depois)}`;
+    const nomes = dif.map(k => CAMPOS_NOMES[k]).filter(Boolean);
+    return `Editou · ${rotShift(depois)}${nomes.length ? ' ('+[...new Set(nomes)].slice(0,3).join(', ')+')' : ''}`;
+  }
+  if(col === 'locais'){
+    if(!antes) return `Cadastrou local · ${depois.nome}`;
+    if(!depois) return `Excluiu local · ${antes.nome}`;
+    return `Editou local · ${depois.nome}`;
+  }
+  const b = depois || antes, per = b.ini ? ` · ${fmtD(b.ini)}${b.fim && b.fim!==b.ini ? '–'+fmtD(b.fim) : ''}` : '';
+  return (!antes ? 'Bloqueou agenda' : !depois ? 'Removeu bloqueio' : 'Editou bloqueio') + per;
+}
+function registrarHistorico(novo){
+  if(!_base){ _base = JSON.parse(JSON.stringify(novo)); return; }
+  const ops = [], descs = [];
+  for(const col of HIST_COLS){
+    const A = new Map((_base[col]||[]).map(x=>[x.id,x])), B = new Map((novo[col]||[]).map(x=>[x.id,x]));
+    for(const [id, x] of B){
+      const ant = A.get(id);
+      if(!ant){ ops.push({ col, id, antes:null }); descs.push(descreverMudanca(col, null, x)); }
+      else if(JSON.stringify(ant) !== JSON.stringify(x)){ ops.push({ col, id, antes:ant }); descs.push(descreverMudanca(col, ant, x)); }
+    }
+    for(const [id, ant] of A) if(!B.has(id)){ ops.push({ col, id, antes:ant }); descs.push(descreverMudanca(col, ant, null)); }
+  }
+  for(const k of HIST_TOPO){
+    if(JSON.stringify(_base[k]) !== JSON.stringify(novo[k])){
+      ops.push({ topo:k, antes: _base[k] === undefined ? null : _base[k] });
+      descs.push({ metaMensal:'Alterou a meta mensal', metaAnual:'Alterou a meta anual', metaObjetivo:'Alterou o objetivo', limiarHoras:'Alterou o limite de horas' }[k]);
+    }
+  }
+  _base = JSON.parse(JSON.stringify(novo));
+  if(!ops.length){ _histRotulo = ''; return; }
+  // várias mudanças de uma vez (repetição, renda fixa, restauração) viram uma linha só
+  const lanc = descs.filter(d => d.startsWith('Lançou')).length;
+  let desc = descs.length === 1 ? descs[0]
+           : lanc === descs.length ? `Lançou ${lanc} lançamentos · a partir de ${descs[0].split(' · ').pop()}`
+           : `${descs.length} alterações · ${descs[0]}…`;
+  if(_histRotulo) desc = _histRotulo + ' · ' + desc;
+  _histRotulo = '';
+  const lista = histLer();
+  lista.push({ id: uid(), em: new Date().toISOString(), desc, ops });
+  histGravar(lista.slice(-HIST_MAX));
+}
+async function desfazerHistorico(id){
+  const lista = histLer(), ent = lista.find(e => e.id === id);
+  if(!ent) return;
+  if(document.querySelector('.sheet.open')) closeSheets();
+  for(const op of [...ent.ops].reverse()){
+    if(op.topo){ if(op.antes === null) delete S[op.topo]; else S[op.topo] = op.antes; continue; }
+    const arr = S[op.col] = S[op.col] || [];
+    const i = arr.findIndex(x => x.id === op.id);
+    if(op.antes === null){ if(i >= 0) arr.splice(i, 1); }
+    else if(i >= 0) arr[i] = op.antes; else arr.push(op.antes);
+  }
+  S = aplicarPadroes(S);
+  _histRotulo = 'Desfez';
+  _liveEstado = '';
+  await store.save(S); render(); haptic(8);
+  toast('Desfeito: ' + ent.desc.replace(/^Desfez · /,''));
+}
+function renderHistorico(){
+  const el = $('#hist-lista'); if(!el) return;
+  const lista = histLer().slice().reverse();
+  const quando = iso => { const d = new Date(iso), hj = hoje(); const dia = Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate()) - hj)/86400000);
+    return `${dia===0?'hoje':dia===-1?'ontem':pad2(d.getDate())+'/'+pad2(d.getMonth()+1)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+  const mostrar = el.dataset.tudo ? lista : lista.slice(0, 8);
+  el.innerHTML = lista.length ? mostrar.map(e => `<div class="hist-item">
+      <div class="hi-t"><b>${esc(e.desc)}</b><small>${quando(e.em)}</small></div>
+      <button class="btn sm" data-hist-undo="${e.id}">Desfazer</button></div>`).join('')
+    + (lista.length > 8 && !el.dataset.tudo ? `<button class="btn sm wide" id="hist-mais" style="margin-top:8px">Ver todas (${lista.length})</button>` : '')
+    : '<div class="empty">Nenhuma alteração registrada ainda.</div>';
+}
+document.addEventListener('click', e=>{
+  const u = e.target.closest('[data-hist-undo]');
+  if(u){ desfazerHistorico(u.dataset.histUndo); return; }
+  if(e.target.closest('#hist-mais')){ $('#hist-lista').dataset.tudo = '1'; renderHistorico(); }
+});
+
+/* ================= versão dos dados e migrações =================
+   Cada mudança no formato dos dados ganha um passo numerado em MIGRACOES.
+   Os dados guardam a versão em S.v; ao abrir, só os passos que faltam rodam,
+   em ordem, e uma cópia do original fica em localStorage antes de migrar.
+   aplicarPadroes() completa campos ausentes e pode rodar quantas vezes for. */
+const SCHEMA = 3;
+const MIGRACOES = {
+  // 1 · bloqueios saíram da lista de plantões para S.bloqueios
+  1: d => {
+    const antigos = (d.shifts||[]).filter(s=>s.categoria==='bloqueio').map(s=>({
+      id: s.id || uid(), motivo: s.blTipo||'ferias', ini: s.data, fim: s.blFim||s.data, obs: s.obs||'' }));
+    d.bloqueios = [...(d.bloqueios||[]), ...antigos];
+    d.shifts = (d.shifts||[]).filter(s=>s.categoria!=='bloqueio');
+    return d;
+  },
+  // 2 · anotações do modo plantão: sempre lista de {h, txt}
+  2: d => {
+    (d.shifts||[]).forEach(s=>{
+      if(s.notas == null) return;
+      s.notas = (Array.isArray(s.notas) ? s.notas : [])
+        .filter(n => n && String(n.txt||'').trim())
+        .map(n => ({ h: String(n.h||'--:--').slice(0,5), em: n.em || '', txt: String(n.txt).slice(0,500) }));
+    });
+    return d;
+  },
+  // 3 · números guardados como texto em versões antigas viram número
+  3: d => {
+    (d.shifts||[]).forEach(s=>{
+      s.valor = +s.valor || 0;
+      s.duracao = +s.duracao || 0;
+      if(s.liquido !== '' && s.liquido != null) s.liquido = +s.liquido || 0;
+    });
+    (d.locais||[]).forEach(l=>{ l.vDia = +l.vDia || 0; l.vNoite = +l.vNoite || 0; l.pagDia = +l.pagDia || 10; });
+    ['metaMensal','metaAnual'].forEach(k=>{ if(d[k] != null) d[k] = +d[k] || 0; });
+    return d;
+  },
+};
+function migrar(d){
+  const de = +d.v || 0;
+  if(de > SCHEMA) return d;   // veio de uma versão mais nova do app: não mexe
+  if(de < SCHEMA){
+    try{ const k = 'plantoes:pre-migracao-v'+de; if(!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify(d)); }catch(e){}
+    d = JSON.parse(JSON.stringify(d));
+    for(let v = de + 1; v <= SCHEMA; v++) d = MIGRACOES[v](d);
+  }
+  d.v = SCHEMA;
+  return d;
+}
+function aplicarPadroes(d){
   // ...l / ...d preservam campos que antes eram descartados a cada recarga
-  // (vPart/vPlano/vProc do local; metaMensal, metaAnual, metaObjetivo, limiarHoras do app)
   const locais = (d.locais||[]).map((l,i)=>({
     ...l,
     id:l.id, nome:l.nome, cidade:l.cidade||'', endereco:l.endereco||'',
@@ -4076,11 +4311,7 @@ function normalize(d){
     pagIncerto: !!l.pagIncerto,
     retencao: +l.retencao || 0
   }));
-  // migrar bloqueios antigos de shifts para S.bloqueios
-  const bloqueiosAntigos = (d.shifts||[]).filter(s=>s.categoria==='bloqueio').map(s=>({
-    id: s.id || uid(), motivo: s.blTipo||'ferias', ini: s.data, fim: s.blFim||s.data, obs: s.obs||''
-  }));
-  const bloqueios = [...(d.bloqueios||[]), ...bloqueiosAntigos]
+  const bloqueios = (d.bloqueios||[])
     .filter((b,i,a)=>a.findIndex(x=>x.id===b.id)===i) // deduplicar
     .map(b=>({ id:b.id||uid(), motivo:b.motivo||'ferias', ini:b.ini||b.data||'', fim:b.fim||b.ini||'', obs:b.obs||'' }));
   const shifts = (d.shifts||[]).filter(s=>s.categoria!=='bloqueio').map(s=>({
@@ -4091,9 +4322,18 @@ function normalize(d){
   }));
   return { ...d, shifts, locais, bloqueios };
 }
+function normalize(d){ return aplicarPadroes(migrar(d)); }
+
 (async function init(){
   const saved = await store.load();
-  if(saved && Array.isArray(saved.shifts)) S = normalize(saved);
+  if(saved && Array.isArray(saved.shifts)){
+    const veio = +saved.v || 0;
+    S = normalize(saved);
+    _base = JSON.parse(JSON.stringify(S));      // base do histórico: abrir o app não é uma "alteração"
+    if(veio < SCHEMA) await store.save(S);   // grava já no formato novo
+    if(veio > SCHEMA) toast('Estes dados vieram de uma versão mais nova do app — atualize para não perder nada');
+  }
+  if(!_base) _base = JSON.parse(JSON.stringify(S));
   // preferência de saldo oculto sobrevive ao fechar o app
   try{ if(localStorage.getItem('plantoes:oculto')){ saldoOculto = true; } }catch(e){}
   render();

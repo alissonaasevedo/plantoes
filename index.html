@@ -348,6 +348,21 @@
     </div>
     <p class="hint" style="margin-top:12px">Arquivo .csv com data, local, turno, duração, bruto, líquido e status — organizado por mês e local. Abra no Excel ou passe para o contador.</p>
 
+    <div class="sec" style="margin-top:26px"><h2>Histórico de alterações</h2></div>
+    <div id="hist-lista"></div>
+    <p class="hint" style="margin-top:10px">As últimas 50 ações neste aparelho. Desfazer devolve os itens daquela ação ao estado anterior.</p>
+
+    <div class="sec" style="margin-top:26px"><h2>Diagnóstico</h2></div>
+    <div class="row" style="cursor:default;border-bottom:0;padding-top:4px">
+      <div class="txt"><b>Erros neste aparelho</b><small id="diag-status">—</small></div>
+    </div>
+    <div class="row2">
+      <button class="btn sm" id="diag-copiar">Copiar relatório</button>
+      <button class="btn sm" id="diag-compartilhar">Compartilhar</button>
+    </div>
+    <button class="btn sm wide" id="diag-limpar" style="margin-top:8px;color:var(--dim)">Limpar registro</button>
+    <p class="hint" style="margin-top:10px">Se algo der errado, toque em Copiar relatório e cole na nossa conversa. Vai versão do app, aparelho, contagens e os erros — nenhum valor, nome de local ou anotação.</p>
+
     <div class="sec" style="margin-top:26px"><h2>Backup</h2></div>
     <div class="row"><div class="txt"><b>Onde os dados estão</b><small id="sync-info">—</small></div></div>
     <div class="row2" style="margin-top:14px">
