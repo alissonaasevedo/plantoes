@@ -37,7 +37,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.20', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.21', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -1475,6 +1475,11 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.21', d:'Out 2026', items:[
+    { t:'new', txt:'Avisos pelo servidor: chegam mesmo com o app fechado (quando o servidor de avisos está configurado)' },
+    { t:'imp', txt:'Ajustes → Avisos mostra como os avisos estão sendo entregues; o aviso de teste passa pelo servidor' },
+    { t:'imp', txt:'Sem servidor ou sem internet, o app volta sozinho para os avisos com o app aberto' },
+  ]},
   { v:'1.20', d:'Out 2026', items:[
     { t:'new', txt:'Pronto para Android (Galaxy): gesto Voltar fecha o que está aberto em vez de sair do app' },
     { t:'new', txt:'Ícone adaptativo do Android, ícone branco na barra de notificações e tela de instalação com capturas' },
@@ -3911,6 +3916,8 @@ async function dispararAviso(a){
 function agendarNotificacoes(){
   _avisoTimers.forEach(clearTimeout); _avisoTimers = [];
   if(!notifAtiva()) return;
+  agendarSyncPush();
+  if(pushAtivo()) return;          // o servidor entrega (inclusive com o app fechado) — sem timers locais duplicados
   const now = Date.now(), vistos = new Set(avisosVistos());
   for(const a of avisosPendentes(now)){
     if(vistos.has(a.tag)) continue;
@@ -3965,13 +3972,101 @@ function renderAvisosUI(){
     btn.classList.add('hidden');
   }
   st.textContent = txt; st.style.color = cor;
+  renderPushStatus();
 }
 
 $('#btn-notif-teste').onclick = async ()=>{
   if(!notifAtiva() && !(await pedirPermissaoNotif())) return;
+  // com o servidor ativo, o teste percorre o caminho real: app → servidor → QStash → celular
+  if(pushAtivo() && await testePush()){ toast('Teste enviado pelo servidor — chega em alguns segundos (pode fechar o app)'); return; }
   const ok = await mostrarNotificacao('Plantaê! 🔔', { body:'Os avisos estão funcionando neste aparelho.', tag:'teste-'+Date.now() });
   toast(ok ? 'Aviso de teste enviado' : 'Não consegui mostrar o aviso');
 };
+
+/* ================= avisos pelo servidor (Web Push) =================
+   O app manda a lista dos próximos avisos (até 7 dias) para /api/agendar,
+   que agenda cada um no QStash; na hora, /api/enviar manda o push e ele
+   chega mesmo com o app fechado. O servidor não guarda nada: o app guarda
+   os ids dos agendamentos e pede o cancelamento quando a agenda muda.
+   Se o servidor não estiver configurado, valem os avisos locais.          */
+const PUSH_HORIZONTE = 6.5 * 86400000, PUSH_RESYNC = 20 * 3600000;
+let _pushCfg = null, _pushTimer = null, _pushRodando = false;
+const pushAtivo = () => lsGet('plantoes:pushOk') === '1';
+const pushSuportado = () => 'serviceWorker' in navigator && 'PushManager' in window;
+function hashTxt(t){ let h = 2166136261; for(let i = 0; i < t.length; i++){ h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
+function b64url(b64){ const pad = '='.repeat((4 - b64.length % 4) % 4); const raw = atob((b64 + pad).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from(raw, c => c.charCodeAt(0)); }
+async function pushConfig(){
+  if(_pushCfg) return _pushCfg;
+  try{ const r = await fetch('./api/config', { cache:'no-store' }); _pushCfg = r.ok ? await r.json() : { ativo:false }; }
+  catch(e){ _pushCfg = { ativo:false, offline:true }; }
+  if(!_pushCfg || typeof _pushCfg.ativo !== 'boolean') _pushCfg = { ativo:false };
+  return _pushCfg;
+}
+async function pushAssinatura(cfg){
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  // chave do servidor mudou: refaz a inscrição
+  if(sub && lsGet('plantoes:pushChave') && lsGet('plantoes:pushChave') !== cfg.vapidPublica){ try{ await sub.unsubscribe(); }catch(e){} sub = null; }
+  if(!sub){ sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: b64url(cfg.vapidPublica) }); lsSet('plantoes:pushChave', cfg.vapidPublica); }
+  return sub;
+}
+function avisosParaServidor(now){
+  return avisosPendentes(now, PUSH_HORIZONTE).filter(a => a.at > now + 20000).slice(0, 40).map(a => {
+    const sid = a.tag.split(':')[1] || '';
+    return { at:a.at, tag:a.tag, title:a.title, body:a.body, sid, url:'./?action=plantao&id='+encodeURIComponent(sid) };
+  });
+}
+function agendarSyncPush(){ clearTimeout(_pushTimer); _pushTimer = setTimeout(()=>sincronizarPush(false), 2500); }
+async function sincronizarPush(forcar){
+  if(_pushRodando || !notifAtiva() || !pushSuportado()) return;
+  _pushRodando = true;
+  try{
+    const cfg = await pushConfig();
+    if(!cfg.ativo){ if(!cfg.offline) lsSet('plantoes:pushOk', ''); return; }
+    const sub = await pushAssinatura(cfg);
+    const now = Date.now(), avisos = avisosParaServidor(now);
+    const subJ = sub.toJSON ? sub.toJSON() : sub;
+    const hash = hashTxt(subJ.endpoint + JSON.stringify(avisos.map(a => [a.at, a.tag, a.title, a.body])));
+    let ult = {}; try{ ult = JSON.parse(lsGet('plantoes:pushSync') || '{}'); }catch(e){}
+    // nada mudou e sincronizou há menos de 20h: não gasta agendamentos à toa
+    if(!forcar && ult.hash === hash && now - (ult.em||0) < PUSH_RESYNC && pushAtivo()) return;
+    const r = await fetch('./api/agendar', { method:'POST', headers:{ 'content-type':'application/json' },
+      body: JSON.stringify({ sub: subJ, cancelar: ult.ids || [], avisos }) });
+    if(!r.ok) throw new Error('agendar respondeu ' + r.status);
+    const d = await r.json();
+    lsSet('plantoes:pushSync', JSON.stringify({ hash, em: now, ids: (d.ids || []).filter(Boolean), n: avisos.length }));
+    const antes = pushAtivo();
+    lsSet('plantoes:pushOk', '1');
+    if(!antes){ _avisoTimers.forEach(clearTimeout); _avisoTimers = []; }
+  }catch(e){
+    registrarErro(e, 'push');
+    lsSet('plantoes:pushOk', '');
+  }finally{
+    _pushRodando = false;
+    renderAvisosUI();
+  }
+}
+async function testePush(){
+  try{
+    const cfg = await pushConfig(); if(!cfg.ativo) return false;
+    const sub = await pushAssinatura(cfg);
+    const r = await fetch('./api/agendar', { method:'POST', headers:{ 'content-type':'application/json' },
+      body: JSON.stringify({ sub: sub.toJSON(), cancelar: [], avisos: [{ at: Date.now() + 3000, tag:'teste-'+Date.now(), title:'Plantaê! 🔔', body:'Aviso de teste pelo servidor — chega mesmo com o app fechado.', url:'./' }] }) });
+    return r.ok;
+  }catch(e){ registrarErro(e, 'push:teste'); return false; }
+}
+function renderPushStatus(){
+  const el = $('#push-status'), linha = $('#push-linha'); if(!el) return;
+  let ult = {}; try{ ult = JSON.parse(lsGet('plantoes:pushSync') || '{}'); }catch(e){}
+  let txt;
+  if(!pushSuportado()) txt = 'Entrega: só com o app aberto (este navegador não recebe push)';
+  else if(!notifAtiva()) txt = 'Entrega: ative as notificações primeiro';
+  else if(pushAtivo()) txt = `Entrega pelo servidor ✓ chegam com o app fechado · ${ult.n||0} agendado${(ult.n||0)===1?'':'s'}`;
+  else if(_pushCfg && !_pushCfg.ativo && !_pushCfg.offline) txt = 'Entrega: só com o app aberto (servidor de avisos não configurado)';
+  else txt = 'Entrega: só com o app aberto';
+  el.textContent = txt;
+  linha.classList.toggle('ok', pushAtivo() && notifAtiva());
+}
 
 /* ================= MODO PLANTÃO (em andamento) =================
    Quando o relógio está dentro da janela de um plantão, a tela inicial vira

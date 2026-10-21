@@ -1,4 +1,4 @@
-const CACHE = 'plantoes-v1.20';
+const CACHE = 'plantoes-v1.21';
 // Versionamento: v1.0, v1.01, v1.02 ... → grandes reformulações = v2.0, v3.0 ...
 const ASSETS = ['./','./index.html','./css/app.css','./js/app.js','./js/sw-register.js',
   './fonts/inter.woff2','./fonts/geist.woff2',
@@ -28,7 +28,7 @@ self.addEventListener('notificationclick', e => {
   );
 });
 
-// pronto para push de servidor (Web Push) — usado quando houver backend de avisos
+// avisos enviados pelo servidor (Web Push): chegam com o app fechado
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data && e.data.text() }; }

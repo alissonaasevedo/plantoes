@@ -18,6 +18,9 @@ jobs:
       - name: Sintaxe do JavaScript
         run: node --check js/app.js && node --check js/sw-register.js && node --check sw.js
 
+      - name: Testes do servidor de avisos (Node)
+        run: npm ci && npm run test:api
+
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'

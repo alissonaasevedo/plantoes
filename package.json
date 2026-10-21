@@ -1,0 +1,14 @@
+{
+  "name": "plantoes",
+  "private": true,
+  "type": "module",
+  "description": "Plantaê! — servidor de avisos (Vercel Functions). O app em si é estático.",
+  "engines": { "node": "22.x" },
+  "dependencies": {
+    "@upstash/qstash": "2.8.2",
+    "web-push": "3.6.7"
+  },
+  "scripts": {
+    "test:api": "node --test tests-node/*.test.js"
+  }
+}

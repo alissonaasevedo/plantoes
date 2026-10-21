@@ -1,0 +1,6 @@
+tests/
+tests-node/
+.github/
+node_modules/
+plantoes-*.json
+READ.md

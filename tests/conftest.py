@@ -65,7 +65,7 @@ def abrir(navegador, base_url):
     contextos, erros = [], []
 
     def _abrir(dados=BACKUP, hora=HOJE_14H, largura=390, altura=844, tema='light', paleta=None,
-               sw=False, notificacoes=False, relogio=True, ls=None, aparelho=None, query=''):
+               sw=False, notificacoes=False, relogio=True, ls=None, aparelho=None, query='', rotas=None, init=None):
         extra = {}
         if aparelho:
             a = APARELHOS[aparelho]
@@ -85,6 +85,10 @@ def abrir(navegador, base_url):
             ctx.add_init_script(f"localStorage.setItem('plantoes:paleta', {json.dumps(paleta)});")
         for k, v in (ls or {}).items():
             ctx.add_init_script(f"localStorage.setItem({json.dumps(k)}, {json.dumps(v)});")
+        if init:
+            ctx.add_init_script(init)
+        for padrao, fn in (rotas or {}).items():
+            ctx.route(padrao, fn)
         pg = ctx.new_page()
         pg.on('pageerror', lambda e: erros.append(str(e)))
         if relogio:

@@ -319,11 +319,12 @@
       <div class="txt"><b>Notificações no celular</b><small id="notif-status">—</small></div>
       <button class="btn sm prim" id="btn-notif">Ativar</button>
     </div>
+    <div class="push-linha" id="push-linha"><i id="push-dot"></i><span id="push-status">Entrega: verificando…</span></div>
     <div class="toggle" id="av-inicio"><div class="lb">1 hora antes de começar</div><div class="sw"></div></div>
     <div class="toggle" id="av-fim"><div class="lb">30 min antes de terminar</div><div class="sw"></div></div>
     <div class="toggle" id="av-vespera"><div class="lb">Na véspera, às 20h</div><div class="sw"></div></div>
     <button class="btn sm wide" id="btn-notif-teste">Enviar aviso de teste</button>
-    <p class="hint" style="margin-top:12px">iPhone e Android pausam apps em segundo plano, então estes avisos saem com o app aberto ou usado há pouco. Para ter o aviso garantido com o app fechado, use <b>Exportar mês</b> em Calendário: cada evento leva os mesmos dois alarmes (1h antes e 30 min antes do fim).</p>
+    <p class="hint" style="margin-top:12px" id="push-hint">Com a entrega pelo servidor ativa, os avisos chegam mesmo com o app fechado. Sem ela, iPhone e Android pausam apps em segundo plano e os avisos só saem com o app aberto ou usado há pouco. Para ter o aviso garantido com o app fechado, use <b>Exportar mês</b> em Calendário: cada evento leva os mesmos dois alarmes (1h antes e 30 min antes do fim).</p>
 
     <div class="sec" style="margin-top:26px"><h2>Conferência de lançamentos (14 dias)</h2></div>
     <div id="conf-grid-wrap"></div>
