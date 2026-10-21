@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="color-scheme" content="light dark">
 <link rel="preload" href="./fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="./fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -272,7 +273,9 @@
   <section id="v-ajustes" class="hidden">
     <div class="sec" style="margin-top:0"><h2>Aparência</h2></div>
     <div class="pal-grid" id="pal-grid"></div>
-    <p class="hint" style="margin-top:4px">A paleta acompanha o tema claro/escuro do iPhone. Em <b>Dia e Noite</b>, o destaque fica âmbar das 6h às 18h e índigo à noite.</p>
+    <div class="toggle" id="pref-vibrar" style="margin-top:4px"><div class="lb">Vibração ao tocar</div><div class="sw"></div></div>
+    <button class="btn prim wide hidden" id="btn-instalar" style="margin-bottom:12px">Instalar o app neste celular</button>
+    <p class="hint" style="margin-top:4px">A paleta acompanha o tema claro/escuro do celular. Em <b>Dia e Noite</b>, o destaque fica âmbar das 6h às 18h e índigo à noite.</p>
 
     <div class="sec" style="margin-top:26px"><h2>Renda Fixa</h2></div>
     <p class="hint" style="margin-top:0;margin-bottom:12px">Configure cada parcela individualmente. "Até" em branco = gera 12 meses à frente. Rodar de novo não duplica o que já existe.</p>
@@ -309,7 +312,7 @@
       <button class="btn sm" id="ics-mes">Exportar mês</button>
       <button class="btn sm" id="ics-all">Exportar tudo</button>
     </div>
-    <p class="hint" style="margin-top:14px">Gera um arquivo .ics com vários plantões de uma vez, já com alarmes 1h antes de começar e 30 min antes de terminar. No iPhone, toque no arquivo baixado e escolha Adicionar tudo. No Google Agenda, importe em Configurações → Importar e exportar (o Google ignora os alarmes do arquivo).</p>
+    <p class="hint" style="margin-top:14px">Gera um arquivo .ics com vários plantões de uma vez, já com alarmes 1h antes de começar e 30 min antes de terminar. No iPhone, toque no arquivo e escolha Adicionar tudo. No Galaxy, abra o arquivo baixado com o Calendário Samsung. No Google Agenda, importe pelo computador em Configurações → Importar e exportar (o Google ignora os alarmes do arquivo).</p>
 
     <div class="sec" style="margin-top:26px"><h2>Avisos</h2></div>
     <div class="row" style="cursor:default;border-bottom:0;padding-top:4px">
@@ -320,7 +323,7 @@
     <div class="toggle" id="av-fim"><div class="lb">30 min antes de terminar</div><div class="sw"></div></div>
     <div class="toggle" id="av-vespera"><div class="lb">Na véspera, às 20h</div><div class="sw"></div></div>
     <button class="btn sm wide" id="btn-notif-teste">Enviar aviso de teste</button>
-    <p class="hint" style="margin-top:12px">O iPhone pausa apps da Tela de Início em segundo plano, então estes avisos saem com o app aberto ou usado há pouco. Para ter o aviso garantido com o app fechado, use <b>Exportar mês</b> em Calendário: cada evento leva os mesmos dois alarmes (1h antes e 30 min antes do fim).</p>
+    <p class="hint" style="margin-top:12px">iPhone e Android pausam apps em segundo plano, então estes avisos saem com o app aberto ou usado há pouco. Para ter o aviso garantido com o app fechado, use <b>Exportar mês</b> em Calendário: cada evento leva os mesmos dois alarmes (1h antes e 30 min antes do fim).</p>
 
     <div class="sec" style="margin-top:26px"><h2>Conferência de lançamentos (14 dias)</h2></div>
     <div id="conf-grid-wrap"></div>
@@ -370,8 +373,19 @@
       <button class="btn sm" id="import">Restaurar backup</button>
     </div>
     <button class="btn sm wide" id="recover">Procurar lançamentos perdidos</button>
-    <input type="file" id="file" accept="application/json" class="hidden">
-    <p class="hint" style="margin-top:16px">O backup é um arquivo .json com plantões, locais e trocas. Guarde antes de trocar de aparelho.</p>
+    <input type="file" id="file" accept=".json,application/json,text/plain,application/octet-stream" class="hidden">
+    <button class="btn sm prim wide" id="export-share" style="margin-top:8px">Enviar backup (WhatsApp, e-mail, Drive…)</button>
+    <p class="hint" style="margin-top:12px">O backup é um arquivo .json com plantões, locais, bloqueios e metas.</p>
+
+    <details class="troca-cel">
+      <summary>Trocar de celular (iPhone → Android ou vice-versa)</summary>
+      <ol>
+        <li>No celular antigo: Ajustes → <b>Enviar backup</b> e mande o arquivo para você mesmo (WhatsApp, e-mail ou Drive).</li>
+        <li>No celular novo: abra <b>plantoes-asevedo.vercel.app</b> no Chrome (Android) ou Safari (iPhone) e instale o app.</li>
+        <li>Na tela de boas-vindas, toque em <b>Tenho um backup</b> e escolha o arquivo — ou, depois, Ajustes → Restaurar backup.</li>
+        <li>Ative os avisos de novo no celular novo (Ajustes → Avisos). Paleta e saldo oculto também são por aparelho.</li>
+      </ol>
+    </details>
   </section>
 </div>
 
@@ -599,8 +613,8 @@
   </div>
   <div class="row" id="c-info" style="border-bottom:0;padding-top:0"></div>
   <button class="btn wide" id="c-google">Google Agenda</button>
-  <button class="btn wide" id="c-apple">Calendário do iPhone · arquivo .ics</button>
-  <p class="hint" style="margin-top:18px">O evento leva nome do local, endereço, horário de início e fim, valor e um lembrete 2 horas antes. No iPhone, toque no arquivo baixado para o Calendário abrir a confirmação.</p>
+  <button class="btn wide" id="c-apple">Calendário do celular · arquivo .ics</button>
+  <p class="hint" style="margin-top:18px" id="c-hint">O evento leva nome do local, endereço, horário de início e fim, valor e alarmes 1h antes de começar e 30 min antes de terminar.</p>
 </div>
 
 <div class="toast" id="toast"></div>

@@ -1,8 +1,9 @@
-const CACHE = 'plantoes-v1.19';
+const CACHE = 'plantoes-v1.20';
 // Versionamento: v1.0, v1.01, v1.02 ... → grandes reformulações = v2.0, v3.0 ...
 const ASSETS = ['./','./index.html','./css/app.css','./js/app.js','./js/sw-register.js',
   './fonts/inter.woff2','./fonts/geist.woff2',
-  './manifest.json','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
+  './manifest.json','./icon-192.png','./icon-512.png','./apple-touch-icon.png',
+  './icons/maskable-192.png','./icons/maskable-512.png','./icons/badge-96.png','./icons/monochrome-192.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -12,13 +13,16 @@ self.addEventListener('message', e => {
   if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-// tocar no aviso abre (ou traz para frente) o app
+// tocar no aviso abre o app no próprio plantão (traz para frente se já estiver aberto)
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = (e.notification.data && e.notification.data.url) || './';
+  const d = e.notification.data || {};
+  const url = d.url || './';
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      for (const c of list) { if ('focus' in c) return c.focus(); }
+      for (const c of list) {
+        if ('focus' in c) { if (d.sid) c.postMessage({ tipo: 'abrir-plantao', sid: d.sid }); return c.focus(); }
+      }
       return self.clients.openWindow(url);
     })
   );
@@ -29,7 +33,7 @@ self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data && e.data.text() }; }
   e.waitUntil(self.registration.showNotification(d.title || 'Plantaê!', {
-    body: d.body || '', tag: d.tag, icon: './icon-192.png', badge: './icon-192.png', data: { url: d.url || './' }
+    body: d.body || '', tag: d.tag, icon: './icon-192.png', badge: './icons/badge-96.png', vibrate: [120, 60, 120], data: { url: d.url || './', sid: d.sid }
   }));
 });
 

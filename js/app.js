@@ -37,7 +37,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.19', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.20', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -65,7 +65,11 @@ let viewTipo = 'lista', diaAtual = new Date();
 /* ================= utilidades ================= */
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
-const haptic = (ms=8) => { try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} };
+// sistema do aparelho (textos e caminhos de configuração mudam entre iPhone e Android)
+const SO = /Android/i.test(navigator.userAgent) ? 'android'
+         : (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) ? 'ios' : 'outro';
+// vibração: o iPhone ignora; no Android funciona — mínimo de 10ms para ser perceptível, com opção de desligar
+const haptic = (ms=8) => { try{ if(localStorage.getItem('plantoes:vibrar') === '0') return; navigator.vibrate && navigator.vibrate(Math.max(10, ms)); }catch(e){} };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 const brl = n => (n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const WD = ['dom','seg','ter','qua','qui','sex','sáb'];
@@ -214,6 +218,7 @@ function openCal(s){
   $('#c-info').innerHTML = `<div class="swatch" style="background:${localCor(s.localId)}"></div>
     <div class="txt"><b>${esc(localName(s.localId))}</b>
       <small>${WD[ini.getDay()]}, ${pad2(ini.getDate())}/${pad2(ini.getMonth()+1)} · ${pad2(ini.getHours())}:${pad2(ini.getMinutes())} → ${pad2(f.getHours())}:${pad2(f.getMinutes())}</small></div>`;
+  $('#c-apple').textContent = SO === 'android' ? 'Calendário Samsung · arquivo .ics' : SO === 'ios' ? 'Calendário do iPhone · arquivo .ics' : 'Arquivo .ics (Outlook, Apple, Samsung)';
   $('#sheet3').classList.add('open'); $('#scrim').classList.add('open');
   lockScroll();
 }
@@ -1418,6 +1423,7 @@ function renderAjustes(){
   renderProjecao();
   renderAvisosUI();
   renderPaletas();
+  renderInstalar();
   renderTax();
   renderBackupInfo();
   renderHistorico();
@@ -1469,6 +1475,14 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.20', d:'Out 2026', items:[
+    { t:'new', txt:'Pronto para Android (Galaxy): gesto Voltar fecha o que está aberto em vez de sair do app' },
+    { t:'new', txt:'Ícone adaptativo do Android, ícone branco na barra de notificações e tela de instalação com capturas' },
+    { t:'new', txt:'Enviar backup pelo WhatsApp/e-mail/Drive e guia para trocar de celular' },
+    { t:'new', txt:'Botão Instalar app (Chrome), vibração ao tocar com opção de desligar, atalho Buscar no ícone' },
+    { t:'imp', txt:'Teclado não cobre mais os campos; tocar no aviso abre o próprio plantão; botão + se recolhe ao rolar' },
+    { t:'fix', txt:'Restaurar backup aceitava só um tipo de arquivo — backups vindos do WhatsApp/Drive apareciam desabilitados' },
+  ]},
   { v:'1.19', d:'Out 2026', items:[
     { t:'new', txt:'Histórico de alterações: últimas 50 ações com Desfazer (Ajustes)' },
     { t:'new', txt:'Diagnóstico: o app registra erros do aparelho e gera um relatório para copiar ou compartilhar' },
@@ -2048,6 +2062,7 @@ let _scrollY = 0, _locked = false;
 function lockScroll(){
   if(_locked) return;
   _locked = true;
+  abrirCamadaHist();
   _scrollY = window.scrollY;
   document.body.style.position = 'fixed';
   document.body.style.top = `-${_scrollY}px`;
@@ -2056,11 +2071,46 @@ function lockScroll(){
 function unlockScroll(){
   if(!_locked) return;
   _locked = false;
+  fecharCamadaHist();
   document.body.style.position = '';
   document.body.style.top = '';
   document.body.style.width = '';
   window.scrollTo({top: _scrollY, behavior: 'instant'});
 }
+
+/* ================= botão / gesto Voltar (Android) =================
+   Sem isto, Voltar com um sheet aberto fechava o app inteiro. Cada camada
+   aberta (sheet, menu do +, retrospectiva, imagem, boas-vindas) ocupa uma
+   entrada no histórico: Voltar fecha a camada. Fora da aba Mês, Voltar
+   leva de volta a ela. No iPhone (sem botão Voltar) nada muda.           */
+let _histCamada = false, _histAba = false, _ignorarPop = 0, _porVoltar = false;
+function abrirCamadaHist(){ if(_histCamada) return; _histCamada = true; history.pushState({ plantoes:'camada' }, ''); }
+function fecharCamadaHist(){
+  if(!_histCamada) return;
+  _histCamada = false;
+  if(!_porVoltar) voltarConsumir();      // fechado pela tela: remove a entrada que a camada criou
+}
+function voltarConsumir(){ _ignorarPop++; history.back(); }
+function fecharCamadaTopo(){
+  const ov = document.getElementById('img-overlay'); if(ov){ ov.remove(); return true; }
+  if($('#welcome')){ const b = $('#wl-skip'); if(b) b.click(); return true; }
+  if($('#wrapped-sheet').classList.contains('open')){ closeWrapped(); return true; }
+  if($('#fab-menu')){ $('#fab-menu').remove(); return true; }
+  if(document.querySelector('.sheet.open')){ closeSheets(); return true; }
+  return false;
+}
+window.addEventListener('popstate', ()=>{
+  if(_ignorarPop > 0){ _ignorarPop--; return; }
+  if(_histCamada){
+    _histCamada = false; _porVoltar = true;
+    try{ fecharCamadaTopo(); } finally { _porVoltar = false; }
+    const ainda = document.querySelector('.sheet.open') || $('#wrapped-sheet').classList.contains('open') || $('#welcome') || $('#fab-menu');
+    if(ainda) abrirCamadaHist();          // ainda há outra camada por baixo: o próximo Voltar fecha ela
+    else if(_locked){ _locked = false; document.body.style.position = ''; document.body.style.top = ''; document.body.style.width = ''; window.scrollTo({ top:_scrollY, behavior:'instant' }); }
+    return;
+  }
+  if(_histAba){ _histAba = false; const b = document.querySelector('nav button[data-v="mes"]'); if(b) b.click(); }
+});
 
 // Esc fecha qualquer sheet/overlay (desktop)
 document.addEventListener('keydown', e=>{
@@ -2655,13 +2705,14 @@ function mostrarImagemOverlay(dataUrl, ano){
   const btn = document.createElement('button');
   btn.textContent = 'Fechar';
   btn.style.cssText = 'background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:24px;padding:10px 32px;font-size:15px;cursor:pointer;font-family:system-ui,sans-serif';
-  btn.onclick = ()=>ov.remove();
+  btn.onclick = ()=>{ ov.remove(); if(!_locked) fecharCamadaHist(); };
 
   ov.appendChild(img);
   ov.appendChild(hint);
   ov.appendChild(btn);
-  ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+  ov.addEventListener('click', e=>{ if(e.target===ov){ ov.remove(); fecharCamadaHist(); } });
   document.body.appendChild(ov);
+  if(!_locked) abrirCamadaHist();
 }
 
 /* ── Compartilha o resumo anual ── */
@@ -2852,6 +2903,8 @@ $('#cx-today-il').onclick = ()=>{ cursor = new Date(); render(); };
 
 $$('nav button').forEach(b=>{
   b.onclick = ()=>{
+    if(view === 'mes' && b.dataset.v !== 'mes' && !_histAba){ _histAba = true; history.pushState({ plantoes:'aba' }, ''); }
+    else if(b.dataset.v === 'mes' && _histAba){ _histAba = false; voltarConsumir(); }
     view = b.dataset.v;
     $$('nav button').forEach(x=>x.classList.toggle('on', x===b));
     ['mes','caixa','resumo','locais','ajustes'].forEach(v=>$('#v-'+v).classList.toggle('hidden', v!==view));
@@ -2939,7 +2992,8 @@ function novoItem(){
   document.body.appendChild(menu);
   haptic(6);
   // um único listener, sempre removido — antes ficava pendurado quando se escolhia um item
-  function fechar(){ menu.remove(); document.removeEventListener('click', fora, true); }
+  function fechar(){ menu.remove(); document.removeEventListener('click', fora, true); if(!_locked) fecharCamadaHist(); }
+  abrirCamadaHist();
   function fora(e){ if(!menu.contains(e.target) && !e.target.closest('#fab, #add-top')) fechar(); }
   setTimeout(()=>document.addEventListener('click', fora, true), 0);
   menu.querySelector('#fab-p') .onclick = ()=>{ fechar(); openSheet(null, null, 'remunerado'); };
@@ -3063,6 +3117,12 @@ document.addEventListener('click', e=>{
   const tog = e.target.closest('.toggle');
   if(tog){
     tog.classList.toggle('on');
+    if(tog.id === 'pref-vibrar'){
+      const on = tog.classList.contains('on');
+      lsSet('plantoes:vibrar', on ? '' : '0');
+      if(on) haptic(20);
+      return;
+    }
     if(tog.id.startsWith('av-')){
       const p = avisoPrefs(); p[tog.id.slice(3)] = tog.classList.contains('on');
       lsSet('plantoes:avisos', JSON.stringify(p));
@@ -3358,6 +3418,21 @@ $('#export').onclick = ()=>{
   toast('Backup baixado');
 };
 $('#import').onclick = ()=> twoStep($('#import'), ()=> $('#file').click());
+// enviar o backup pelo compartilhamento do sistema — o jeito mais simples de levar os dados para outro celular
+$('#export-share').onclick = async ()=>{
+  const nome = `plantoes-${iso(new Date())}.json`;
+  const blob = new Blob([JSON.stringify(S, null, 2)], { type:'application/json' });
+  let arq = null; try{ arq = new File([blob], nome, { type:'application/json' }); }catch(e){}
+  if(arq && navigator.canShare && navigator.canShare({ files:[arq] })){
+    try{
+      await navigator.share({ files:[arq], title:'Backup Plantaê!', text:'Backup do Plantaê! — abra no celular novo em Ajustes → Restaurar backup.' });
+      lsSet('plantoes:lastBackup', iso(new Date())); renderBackupInfo(); toast('Backup enviado');
+    }catch(e){ if(e && e.name !== 'AbortError') toast('Não consegui compartilhar — use Baixar backup'); }
+    return;
+  }
+  baixarBlob(blob, nome); lsSet('plantoes:lastBackup', iso(new Date())); renderBackupInfo();
+  toast('Compartilhar não disponível aqui — o backup foi baixado');
+};
 $('#file').onchange = e=>{
   const f = e.target.files[0]; if(!f) return;
   const r = new FileReader();
@@ -3413,6 +3488,49 @@ function abrirComTransicao(origem, abrir){
   }catch(e){ origem.style.viewTransitionName = ''; sh.classList.remove('vt-sem-anim'); sc.classList.remove('vt-sem-anim'); abrir(); return; }
   t.finished.finally(()=>{ sh.style.viewTransitionName = ''; sh.classList.remove('vt-sem-anim'); sc.classList.remove('vt-sem-anim'); });
 }
+
+/* ================= botão + que se recolhe ao rolar ================= */
+(function(){
+  let ultimoY = window.scrollY, ticking = false;
+  const fab = () => $('#fab');
+  window.addEventListener('scroll', ()=>{
+    if(ticking || _locked) return;
+    ticking = true;
+    requestAnimationFrame(()=>{
+      const y = window.scrollY, f = fab();
+      if(f){
+        if(y > ultimoY + 6 && y > 120) f.classList.add('fab-oculto');      // descendo
+        else if(y < ultimoY - 6 || y < 120) f.classList.remove('fab-oculto'); // subindo ou no topo
+      }
+      ultimoY = y; ticking = false;
+    });
+  }, { passive:true });
+  // com o teclado aberto (digitando uma anotação, por exemplo) o + também sai do caminho
+  document.addEventListener('focusin', e=>{ if(e.target.matches('input, textarea, select') && fab()) fab().classList.add('fab-oculto'); });
+  document.addEventListener('focusout', ()=>{ setTimeout(()=>{ if(!document.activeElement || !document.activeElement.matches('input, textarea, select')){ const f = fab(); if(f) f.classList.remove('fab-oculto'); } }, 50); });
+})();
+
+/* ================= instalação (Android/Chrome) ================= */
+let _instalarEvt = null;
+const instalado = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _instalarEvt = e; renderInstalar(); });
+window.addEventListener('appinstalled', () => { _instalarEvt = null; renderInstalar(); toast('App instalado ✓'); });
+function renderInstalar(){
+  const b = $('#btn-instalar'); if(b) b.classList.toggle('hidden', instalado() || !_instalarEvt);
+  const t = $('#pref-vibrar'); if(t) t.classList.toggle('on', lsGet('plantoes:vibrar') !== '0');
+  const w = $('#wl-instalar'); if(w) w.classList.toggle('hidden', instalado() || !_instalarEvt);
+}
+document.addEventListener('click', async e=>{
+  if(!e.target.closest('#btn-instalar, #wl-instalar') || !_instalarEvt) return;
+  _instalarEvt.prompt();
+  try{ await _instalarEvt.userChoice; }catch(err){}
+  _instalarEvt = null; renderInstalar();
+});
+// o service worker avisa quando um aviso foi tocado com o app já aberto
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
+  const d = e.data || {};
+  if(d.tipo === 'abrir-plantao'){ const s = S.shifts.find(x => x.id === d.sid); if(s){ closeSheets(); openSheet(s); } }
+});
 
 /* ================= busca ================= */
 const semAcento = t => String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
@@ -3480,10 +3598,11 @@ function boasVindas(){
       <label class="f"><span>Paga no dia (do mês seguinte)</span><input id="wl-pag" type="number" inputmode="numeric" value="10" min="1" max="31"></label>
     </div>
     <button class="btn prim wide" id="wl-ok">Cadastrar e lançar meu primeiro plantão</button>
+    <button class="btn wide hidden" id="wl-instalar" style="margin-top:10px">Instalar o app neste celular</button>
     <div class="wl-alt"><button id="wl-restore">Tenho um backup</button><button id="wl-skip">Explorar primeiro</button></div>
   </div>`;
   document.body.appendChild(ov);
-  lockScroll();
+  lockScroll(); renderInstalar();
   const fechar = ()=>{ lsSet('plantoes:boasVindas','1'); ov.classList.add('out'); setTimeout(()=>ov.remove(), 300); unlockScroll(); };
   ov.querySelector('#wl-skip').onclick = fechar;
   ov.querySelector('#wl-restore').onclick = ()=>{ fechar(); $('#file').click(); };
@@ -3770,7 +3889,8 @@ function avisosPendentes(now = Date.now(), horizonte = 8*86400000){
 }
 
 async function mostrarNotificacao(title, opts){
-  const o = { icon:'./icon-192.png', badge:'./icon-192.png', ...opts };
+  // badge = ícone pequeno da barra de status do Android: precisa ser silhueta branca
+  const o = { icon:'./icon-192.png', badge:'./icons/badge-96.png', vibrate:[120,60,120], ...opts };
   try{
     const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
     if(reg && reg.showNotification){ await reg.showNotification(title, o); return true; }
@@ -3781,7 +3901,9 @@ async function mostrarNotificacao(title, opts){
 async function dispararAviso(a){
   if(avisosVistos().includes(a.tag) || !notifAtiva()) return;
   marcarAvisoVisto(a.tag);
-  await mostrarNotificacao(a.title, { body:a.body, tag:a.tag, data:{ url:'./' } });
+  // tocar no aviso abre o próprio plantão
+  const sid = a.tag.split(':')[1] || '';
+  await mostrarNotificacao(a.title, { body:a.body, tag:a.tag, data:{ url:'./?action=plantao&id='+encodeURIComponent(sid), sid } });
   if(!document.hidden) toast('🔔 ' + a.title);   // com o app em primeiro plano o iPhone pode não exibir o banner
 }
 
@@ -3799,13 +3921,15 @@ function agendarNotificacoes(){
 }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) agendarNotificacoes(); });
 
+const caminhoNotif = () => SO === 'android' ? 'Configurações → Aplicativos → Plantaê! → Notificações'
+                         : SO === 'ios' ? 'Ajustes do iPhone → Notificações → Plantaê!' : 'configurações do navegador';
 async function pedirPermissaoNotif(){
   if(!notifSuportada()){
     const ios = /iP(hone|ad|od)/.test(navigator.userAgent);
-    toast(ios ? 'No iPhone, instale o app na Tela de Início para ativar os avisos' : 'Este navegador não suporta notificações');
+    toast(ios ? 'No iPhone, instale o app na Tela de Início para ativar os avisos' : SO === 'android' ? 'Abra pelo Chrome e instale o app para ativar os avisos' : 'Este navegador não suporta notificações');
     return false;
   }
-  if(Notification.permission === 'denied'){ toast('Avisos bloqueados — libere em Ajustes do iPhone → Notificações → Plantaê!'); renderAvisosUI(); return false; }
+  if(Notification.permission === 'denied'){ toast('Avisos bloqueados — libere em ' + caminhoNotif()); renderAvisosUI(); return false; }
   if(Notification.permission !== 'granted'){
     const r = await Notification.requestPermission();
     if(r !== 'granted'){ toast('Permissão não concedida'); renderAvisosUI(); return false; }
@@ -3827,7 +3951,7 @@ function renderAvisosUI(){
       : 'Não suportado neste navegador';
     btn.classList.add('hidden');
   } else if(Notification.permission === 'denied'){
-    txt = 'Bloqueados — libere em Ajustes do iPhone → Notificações'; cor = 'var(--due)';
+    txt = 'Bloqueados — libere em ' + caminhoNotif(); cor = 'var(--due)';
     btn.classList.add('hidden');
   } else if(Notification.permission !== 'granted'){
     txt = 'Desativados'; btn.classList.remove('hidden'); btn.textContent = 'Ativar';
@@ -4360,6 +4484,10 @@ function normalize(d){ return aplicarPadroes(migrar(d)); }
   if('Notification' in window && Notification.permission==='granted') agendarNotificacoes();
   // App Shortcuts: tratar URL params
   const params=new URLSearchParams(location.search);
+  const acao = params.get('action');
+  if(acao) history.replaceState(history.state, '', location.pathname);
+  if(acao==='buscar') setTimeout(abrirBusca, 300);
+  if(acao==='plantao'){ const alvo = S.shifts.find(x=>x.id===params.get('id')); if(alvo) setTimeout(()=>openSheet(alvo), 300); }
   if(params.get('action')==='novo') setTimeout(()=>openSheet(null),300);
   if(params.get('action')==='proximo'){
     const nx=S.shifts.filter(s=>naAgenda(s)&&s.data>=iso(hoje())).sort((a,b)=>a.data.localeCompare(b.data))[0];

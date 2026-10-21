@@ -24,6 +24,14 @@ BACKUP = json.loads((RAIZ / 'tests' / 'fixtures' / 'backup.json').read_text(enco
 SP = ZoneInfo('America/Sao_Paulo')
 HOJE_14H = dt.datetime(2026, 10, 19, 14, 0, tzinfo=SP)
 
+# perfis de aparelho: tela em px CSS, densidade e identificação do navegador
+APARELHOS = {
+    'galaxy_s25plus': dict(largura=384, altura=832, dpr=2.8125,
+        ua='Mozilla/5.0 (Linux; Android 15; SM-S936B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36'),
+    'iphone': dict(largura=390, altura=844, dpr=3,
+        ua='Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1'),
+}
+
 
 def quando(dia, hora, minuto=0, mes=10):
     return dt.datetime(2026, mes, dia, hora, minuto, tzinfo=SP)
@@ -57,11 +65,16 @@ def abrir(navegador, base_url):
     contextos, erros = [], []
 
     def _abrir(dados=BACKUP, hora=HOJE_14H, largura=390, altura=844, tema='light', paleta=None,
-               sw=False, notificacoes=False, relogio=True, ls=None):
+               sw=False, notificacoes=False, relogio=True, ls=None, aparelho=None, query=''):
+        extra = {}
+        if aparelho:
+            a = APARELHOS[aparelho]
+            largura, altura = a['largura'], a['altura']
+            extra = dict(device_scale_factor=a['dpr'], user_agent=a['ua'])
         movel = largura < 900
         ctx = navegador.new_context(viewport={'width': largura, 'height': altura}, is_mobile=movel, has_touch=movel,
                                     timezone_id='America/Sao_Paulo', color_scheme=tema,
-                                    service_workers='allow' if sw else 'block')
+                                    service_workers='allow' if sw else 'block', **extra)
         if notificacoes:
             # o Chromium sem tela sempre nega notificações; simula a permissão concedida
             ctx.add_init_script("Object.defineProperty(Notification,'permission',{get:()=>'granted'});")
@@ -76,7 +89,7 @@ def abrir(navegador, base_url):
         pg.on('pageerror', lambda e: erros.append(str(e)))
         if relogio:
             pg.clock.install(time=hora)
-        pg.goto(base_url + '/index.html')
+        pg.goto(base_url + '/index.html' + query)
         if relogio:
             pg.clock.run_for(2500)
         else:

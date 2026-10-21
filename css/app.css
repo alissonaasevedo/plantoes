@@ -1312,3 +1312,17 @@ html, body { transition: background-color .6s ease; }
 .hist-item .hi-t b { display:block; font-size:13.5px; font-weight:600; line-height:1.35; overflow-wrap:anywhere; }
 .hist-item .hi-t small { display:block; font-size:11.5px; color:var(--dim); margin-top:2px; font-variant-numeric:tabular-nums; }
 .hist-item .btn { flex:none; }
+
+/* Android: sem "puxar para atualizar" do Chrome somado ao do app; sem aumento automático de fonte */
+html { overscroll-behavior-y: contain; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* guia de troca de celular */
+.troca-cel { margin-top:14px; border:1px solid var(--line); border-radius:14px; background:var(--surface); padding:12px 14px; }
+.troca-cel summary { cursor:pointer; font-weight:700; font-size:14px; list-style-position: inside; }
+.troca-cel ol { margin:10px 0 2px 18px; display:grid; gap:8px; font-size:13px; color:var(--dim); line-height:1.5; }
+.troca-cel b { color:var(--ink); }
+
+/* botão + some ao rolar para baixo e volta ao rolar para cima (padrão do Android);
+   evita cobrir botões no fim da tela, como o "+" das anotações do modo plantão */
+.fab { transition: transform .25s cubic-bezier(.32,.72,0,1), opacity .2s ease, box-shadow .2s; }
+.fab.fab-oculto { transform: translateY(140%) scale(.9); opacity: 0; pointer-events: none; }

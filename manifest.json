@@ -1,57 +1,51 @@
 {
+  "id": "/",
   "name": "Plantaê!",
   "short_name": "Plantaê!",
-  "description": "Organização de plantões: escala, valores, pagamentos e trocas.",
+  "description": "Plantões, o que entra na conta e quando — escala, valores, pagamentos e avisos.",
   "lang": "pt-BR",
+  "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#F0EDE6",
-  "theme_color": "#F0EDE6",
+  "display_override": ["standalone"],
+  "orientation": "any",
+  "background_color": "#F8F9FA",
+  "theme_color": "#F8F9FA",
+  "categories": ["medical", "productivity", "finance"],
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/monochrome-192.png", "sizes": "192x192", "type": "image/png", "purpose": "monochrome" }
   ],
   "shortcuts": [
     {
       "name": "Novo plantão",
-      "short_name": "Plantão",
-      "description": "Lançar um novo plantão rapidamente",
+      "short_name": "Novo plantão",
+      "description": "Lançar um plantão",
       "url": "./?action=novo",
-      "icons": [
-        {
-          "src": "icon-192.png",
-          "sizes": "192x192"
-        }
-      ]
+      "icons": [{ "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "Ver próximo plantão",
+      "name": "Próximo plantão",
       "short_name": "Próximo",
-      "description": "Ver o próximo plantão agendado",
+      "description": "Abrir o próximo plantão da agenda",
       "url": "./?action=proximo",
-      "icons": [
-        {
-          "src": "icon-192.png",
-          "sizes": "192x192"
-        }
-      ]
+      "icons": [{ "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Buscar",
+      "short_name": "Buscar",
+      "description": "Buscar nos lançamentos",
+      "url": "./?action=buscar",
+      "icons": [{ "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png" }]
     }
+  ],
+  "screenshots": [
+    { "src": "screenshots/inicio.png", "sizes": "1080x2340", "type": "image/png", "form_factor": "narrow", "label": "Tela inicial: o que entra no mês" },
+    { "src": "screenshots/plantao.png", "sizes": "1080x2340", "type": "image/png", "form_factor": "narrow", "label": "Modo plantão em andamento" },
+    { "src": "screenshots/computador.png", "sizes": "1280x800", "type": "image/png", "form_factor": "wide", "label": "No computador, em duas colunas" }
   ]
 }
