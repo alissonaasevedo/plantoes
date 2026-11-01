@@ -29,6 +29,7 @@ const store = {
     if(hasCloud){ try{ await window.storage.set(KEY, txt); ok = true; }catch(e){} }
     try{ localStorage.setItem(KEY, txt); ok = true; }catch(e){}
     if(!ok) toast('Não consegui salvar');
+    else if(typeof aposSalvarConta === 'function') aposSalvarConta();   // Google Agenda/Drive (conta.js)
     return ok;
   }
 };
@@ -37,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.22', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.23', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -153,7 +154,7 @@ function evJanela(s){
 const stampLocal = d => `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}T${pad2(d.getHours())}${pad2(d.getMinutes())}00`;
 const stampUTC = d => d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
 
-function evTitulo(s){ return (ehResid(s) ? 'Residência · ' : 'Plantão · ') + localName(s.localId); }
+function evTitulo(s){ return (ehResid(s) ? 'Residência · ' : ehAmb(s) ? 'Consultório · ' : 'Plantão · ') + localName(s.localId); }
 function evLocal(s){
   const l = getLocal(s.localId); if(!l) return '';
   return [l.endereco, l.cidade].filter(Boolean).join(', ') || [l.nome, l.cidade].filter(Boolean).join(', ');
@@ -1477,6 +1478,13 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.23', d:'Nov 2026', items:[
+    { t:'new', txt:'Google Agenda: os plantões numa agenda Plantaê! que aparece no Calendário Samsung — editar ou excluir atualiza, sem duplicar' },
+    { t:'new', txt:'Backup automático no Google Drive (pasta oculta do app, últimas 30 cópias) e restaurar pelo Drive no celular novo' },
+    { t:'new', txt:'Avisos com botões no Android: Recebi no dia do pagamento, Anotar perto do fim, Como chegar 1h antes' },
+    { t:'new', txt:'Trava com digital ou rosto ao abrir o app' },
+    { t:'imp', txt:'Os avisos são renovados em segundo plano, sem precisar abrir o app toda semana' },
+  ]},
   { v:'1.22', d:'Nov 2026', items:[
     { t:'fix', txt:'Android: a faixa do gesto embaixo da tela não fica mais branca com o app escuro e no modo plantão' },
     { t:'fix', txt:'Avisos pelo servidor: o app podia guardar a configuração antiga do servidor e nunca ativar' },
@@ -3450,16 +3458,24 @@ $('#file').onchange = e=>{
   const f = e.target.files[0]; if(!f) return;
   const r = new FileReader();
   r.onload = async ()=>{
-    try{
-      const d = JSON.parse(r.result);
-      if(!Array.isArray(d.shifts)) throw 0;
-      if((+d.v||0) > SCHEMA){ toast('Backup feito numa versão mais nova do app. Atualize o app e tente de novo.'); return; }
-      S = normalize(d); // inclui bloqueios e metas do backup
-      await store.save(S); render(); toast('Backup restaurado');
-    }catch(err){ toast('Arquivo inválido'); }
+    let d; try{ d = JSON.parse(r.result); }catch(err){ toast('Arquivo inválido'); return; }
+    await restaurarDados(d);
   };
   r.readAsText(f); e.target.value = '';
 };
+
+// troca os dados deste aparelho pelos de um backup (arquivo ou Drive). Guarda antes uma
+// cópia do que havia aqui, para não perder nada por engano.
+async function restaurarDados(d, msg = 'Backup restaurado'){
+  if(!d || !Array.isArray(d.shifts)){ toast('Arquivo inválido'); return false; }
+  if((+d.v||0) > SCHEMA){ toast('Backup feito numa versão mais nova do app. Atualize o app e tente de novo.'); return false; }
+  try{ if(S.shifts.length) localStorage.setItem('plantoes:pre-restauracao', JSON.stringify(S)); }catch(e){}
+  _histRotulo = 'Restaurou backup';
+  S = normalize(d);                 // inclui bloqueios e metas do backup
+  _liveEstado = '';
+  await store.save(S); render(); toast(msg);
+  return true;
+}
 
 /* ================= formulário curto em sheet =================
    Substitui prompt() — a janela nativa pode ser bloqueada no app instalado e
@@ -3539,11 +3555,45 @@ document.addEventListener('click', async e=>{
   try{ await _instalarEvt.userChoice; }catch(err){}
   _instalarEvt = null; renderInstalar();
 });
-// o service worker avisa quando um aviso foi tocado com o app já aberto
+// o service worker avisa quando um aviso (ou um botão dele) foi tocado com o app já aberto
 if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
   const d = e.data || {};
+  if(d.tipo === 'abrir-url'){ try{ tratarAcao(new URL(d.url, location.href).searchParams); }catch(err){} return; }
   if(d.tipo === 'abrir-plantao'){ const s = S.shifts.find(x => x.id === d.sid); if(s){ closeSheets(); openSheet(s); } }
 });
+// ações por endereço: atalhos do ícone (novo, próximo, buscar) e botões dos avisos (ver, anotar, recebi)
+function tratarAcao(params){
+  const acao = params.get('action'), id = params.get('id');
+  const achar = x => S.shifts.find(s => s.id === x);
+  if(acao === 'buscar'){ closeSheets(); abrirBusca(); return; }
+  if(acao === 'novo'){ closeSheets(); openSheet(null); return; }
+  if(acao === 'proximo'){
+    const nx = S.shifts.filter(s=>naAgenda(s)&&s.data>=iso(hoje())).sort((a,b)=>a.data.localeCompare(b.data))[0];
+    if(nx){ closeSheets(); openSheet(nx); }
+    return;
+  }
+  if(acao === 'plantao'){ const s = achar(id); if(s){ closeSheets(); openSheet(s); } return; }
+  if(acao === 'anotar'){
+    const s = achar(id); if(!s) return;
+    const { ativo } = plantaoAtual();
+    if(ativo && ativo.id === s.id){
+      closeSheets(); lsSet('plantoes:liveMin', ''); cursor = new Date();
+      if(view !== 'mes'){ const b = document.querySelector('nav button[data-v="mes"]'); if(b) b.click(); } else render();
+      setTimeout(()=>{ const i = $('#ln-input'); if(i){ i.scrollIntoView({ block:'center' }); i.focus(); } }, 250);
+    } else { closeSheets(); openSheet(s); }
+    return;
+  }
+  if(acao === 'recebi'){
+    const ids = String(params.get('ids') || id || '').split(',').filter(Boolean);
+    const alvo = ids.map(achar).filter(s => s && !s.pago);
+    if(!alvo.length){ toast(ids.length ? 'Já estava marcado como recebido' : 'Lançamento não encontrado'); return; }
+    const hojeI = iso(new Date()), total = alvo.reduce((a, s) => a + liq(s), 0);
+    _histRotulo = 'Recebido pelo aviso';
+    comDesfazer(`${brl(total)} marcado${alvo.length > 1 ? 's' : ''} como recebido${alvo.length > 1 ? 's' : ''}`, ()=>{
+      alvo.forEach(s => { s.pago = true; s.pagoEm = hojeI; });
+    });
+  }
+}
 
 /* ================= busca ================= */
 const semAcento = t => String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
@@ -3612,13 +3662,15 @@ function boasVindas(){
     </div>
     <button class="btn prim wide" id="wl-ok">Cadastrar e lançar meu primeiro plantão</button>
     <button class="btn wide hidden" id="wl-instalar" style="margin-top:10px">Instalar o app neste celular</button>
-    <div class="wl-alt"><button id="wl-restore">Tenho um backup</button><button id="wl-skip">Explorar primeiro</button></div>
+    <div class="wl-alt"><button id="wl-restore">Tenho um backup</button><button id="wl-drive" class="hidden">Backup no Google Drive</button><button id="wl-skip">Explorar primeiro</button></div>
   </div>`;
   document.body.appendChild(ov);
   lockScroll(); renderInstalar();
   const fechar = ()=>{ lsSet('plantoes:boasVindas','1'); ov.classList.add('out'); setTimeout(()=>ov.remove(), 300); unlockScroll(); };
   ov.querySelector('#wl-skip').onclick = fechar;
   ov.querySelector('#wl-restore').onclick = ()=>{ fechar(); $('#file').click(); };
+  // celular novo: conectar o Google já oferece o último backup do Drive (conta.js)
+  pushConfig().then(cfg => { const b = ov.querySelector('#wl-drive'); if(cfg.google && b){ b.classList.remove('hidden'); b.onclick = ()=>{ fechar(); gConectar(); }; } }).catch(()=>{});
   ov.querySelector('#wl-ok').onclick = async ()=>{
     const nome = ov.querySelector('#wl-nome').value.trim();
     if(!nome){ ov.querySelector('#wl-nome').focus(); toast('Dê um nome ao local'); return; }
@@ -3868,10 +3920,11 @@ document.addEventListener('click', e=>{
    aberto ou recém-usado. Ao voltar para o app, avisos perdidos há ≤10 min saem.
    Disparo pelo service worker — iPhone/Android não aceitam new Notification()
    em app instalado (era o motivo do aviso antigo não aparecer).             */
-const AVISO_DEF = { inicio:true, fim:true, vespera:false };
+const AVISO_DEF = { inicio:true, fim:true, vespera:false, pag:true };
 const AVISO_INI_MS = 60*60000, AVISO_FIM_MS = 30*60000, AVISO_ATRASO_MS = 10*60000;
 let _avisoTimers = [];
 
+const urlPlantao = id => './?action=plantao&id=' + encodeURIComponent(id);
 function avisoPrefs(){ try{ return { ...AVISO_DEF, ...JSON.parse(lsGet('plantoes:avisos') || '{}') }; }catch(e){ return { ...AVISO_DEF }; } }
 function avisosVistos(){ try{ return JSON.parse(lsGet('plantoes:avisosVistos') || '[]'); }catch(e){ return []; } }
 function marcarAvisoVisto(tag){ const v = avisosVistos(); v.push(tag); lsSet('plantoes:avisosVistos', JSON.stringify(v.slice(-300))); }
@@ -3888,14 +3941,38 @@ function avisosPendentes(now = Date.now(), horizonte = 8*86400000){
     const hIni = s.hora || '07:00', hFim = fim(hIni, s.duracao);
     const onde = l && l.cidade ? ` · ${l.cidade}` : '';
     const tipo = ehResid(s) ? 'Residência' : ehAmb(s) ? 'Consultório' : 'Plantão';
-    if(p.inicio) out.push({ at: j.ini - AVISO_INI_MS, tag:`ini:${s.id}:${j.ini}`,
+    // botões do aviso (Android; o iPhone mostra só o aviso): rota até o local e o próprio plantão
+    const url = urlPlantao(s.id), ver = { acao:'ver', titulo:'Ver plantão', url };
+    const mapa = mapsUrl(l), rota = mapa ? [{ acao:'rota', titulo:'Como chegar', url: mapa }] : [];
+    if(p.inicio) out.push({ at: j.ini - AVISO_INI_MS, tag:`ini:${s.id}:${j.ini}`, sid:s.id, url, acoes:[...rota, ver],
       title:`${tipo} em 1 hora`, body:`${nome} · ${hIni} → ${hFim} · ${s.duracao}h${onde}` });
-    if(p.fim) out.push({ at: j.fim - AVISO_FIM_MS, tag:`fim:${s.id}:${j.fim}`,
+    if(p.fim) out.push({ at: j.fim - AVISO_FIM_MS, tag:`fim:${s.id}:${j.fim}`, sid:s.id, url,
+      acoes:[{ acao:'anotar', titulo:'Anotar', url:'./?action=anotar&id='+encodeURIComponent(s.id) }, ver],
       title:`${tipo} termina em 30 min`, body:`${nome} · até ${hFim}${counts(s) && liq(s) ? ' · '+brl(liq(s))+' a receber' : ''}` });
     if(p.vespera){
       const v = new Date(j.ini); v.setDate(v.getDate()-1); v.setHours(20,0,0,0);
-      if(v.getTime() < j.ini - AVISO_INI_MS) out.push({ at: v.getTime(), tag:`vesp:${s.id}:${j.ini}`,
+      if(v.getTime() < j.ini - AVISO_INI_MS) out.push({ at: v.getTime(), tag:`vesp:${s.id}:${j.ini}`, sid:s.id, url, acoes:[...rota, ver],
         title:`${tipo} amanhã`, body:`${nome} · ${hIni} · ${s.duracao}h${onde}` });
+    }
+  }
+  // dia previsto do pagamento, às 10h: um aviso por local e dia, com "Recebi" para dar baixa sem abrir o app
+  if(p.pag){
+    const hojeI = iso(new Date(now)), grupos = new Map();
+    for(const s of S.shifts){
+      if(!counts(s) || s.pago || !(liq(s) > 0) || vencIncerto(s)) continue;
+      const v = vencimento(s); if(v < hojeI) continue;
+      const k = v + ':' + (s.localId || '-');
+      if(!grupos.has(k)) grupos.set(k, { v, localId: s.localId, itens: [] });
+      grupos.get(k).itens.push(s);
+    }
+    for(const [k, g] of grupos){
+      const d = parseDate(g.v); d.setHours(10, 0, 0, 0);
+      const n = g.itens.length, total = g.itens.reduce((a, s) => a + liq(s), 0);
+      const ids = g.itens.map(s => s.id), url = urlPlantao(ids[0]);
+      const qual = ehBolsa(g.itens[0]) ? '' : ` · ${n} ${n > 1 ? 'plantões' : 'plantão'}`;
+      out.push({ at: d.getTime(), tag:`pag:${k}`, sid: ids[0], url,
+        acoes:[{ acao:'recebi', titulo:'Recebi', url:'./?action=recebi&ids='+ids.map(encodeURIComponent).join(',') }, { acao:'ver', titulo:'Ver', url }],
+        title:'Pagamento previsto hoje', body:`${localName(g.localId)}${qual} · ${brl(total)}` });
     }
   }
   return out.filter(a => a.at > now - AVISO_ATRASO_MS && a.at <= now + horizonte).sort((a,b)=>a.at - b.at);
@@ -3908,15 +3985,16 @@ async function mostrarNotificacao(title, opts){
     const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
     if(reg && reg.showNotification){ await reg.showNotification(title, o); return true; }
   }catch(e){}
-  try{ new Notification(title, o); return true; }catch(e){ return false; }
+  try{ const { actions, ...simples } = o; new Notification(title, simples); return true; }catch(e){ return false; }   // botões só existem no aviso do service worker
 }
 
 async function dispararAviso(a){
   if(avisosVistos().includes(a.tag) || !notifAtiva()) return;
   marcarAvisoVisto(a.tag);
   // tocar no aviso abre o próprio plantão
-  const sid = a.tag.split(':')[1] || '';
-  await mostrarNotificacao(a.title, { body:a.body, tag:a.tag, data:{ url:'./?action=plantao&id='+encodeURIComponent(sid), sid } });
+  const sid = a.sid || a.tag.split(':')[1] || '', acoes = (a.acoes || []).slice(0, 2);
+  await mostrarNotificacao(a.title, { body:a.body, tag:a.tag, actions: acoes.map(x => ({ action:x.acao, title:x.titulo })),
+    data:{ url: a.url || urlPlantao(sid), sid, acoes } });
   if(!document.hidden) toast('🔔 ' + a.title);   // com o app em primeiro plano o iPhone pode não exibir o banner
 }
 
@@ -3958,7 +4036,7 @@ async function pedirPermissaoNotif(){
 function renderAvisosUI(){
   const st = $('#notif-status'); if(!st) return;
   const p = avisoPrefs(), btn = $('#btn-notif');
-  ['inicio','fim','vespera'].forEach(k => $('#av-'+k).classList.toggle('on', !!p[k]));
+  ['inicio','fim','vespera','pag'].forEach(k => $('#av-'+k).classList.toggle('on', !!p[k]));
   let txt, cor = '';
   if(!notifSuportada()){
     txt = /iP(hone|ad|od)/.test(navigator.userAgent)
@@ -3975,7 +4053,7 @@ function renderAvisosUI(){
     if(prox){
       const d = new Date(prox.at);
       txt = `Próximo: ${quandoDia(prox.at)} às ${pad2(d.getHours())}:${pad2(d.getMinutes())} — ${prox.title.toLowerCase()}`;
-    } else txt = (p.inicio || p.fim || p.vespera) ? 'Ativados · nenhum plantão nos próximos dias' : 'Ativados, mas todos os tipos estão desligados';
+    } else txt = (p.inicio || p.fim || p.vespera || p.pag) ? 'Ativados · nenhum plantão nos próximos dias' : 'Ativados, mas todos os tipos estão desligados';
     cor = 'var(--ok)';
     btn.classList.add('hidden');
   }
@@ -4004,7 +4082,7 @@ const pushSuportado = () => 'serviceWorker' in navigator && 'PushManager' in win
 function hashTxt(t){ let h = 2166136261; for(let i = 0; i < t.length; i++){ h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
 function b64url(b64){ const pad = '='.repeat((4 - b64.length % 4) % 4); const raw = atob((b64 + pad).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from(raw, c => c.charCodeAt(0)); }
 async function pushConfig(){
-  if(_pushCfg) return _pushCfg;
+  if(_pushCfg && !_pushCfg.offline) return _pushCfg;
   try{ const r = await fetch('./api/config', { cache:'no-store' }); _pushCfg = r.ok ? await r.json() : { ativo:false }; }
   catch(e){ _pushCfg = { ativo:false, offline:true }; }
   if(!_pushCfg || typeof _pushCfg.ativo !== 'boolean') _pushCfg = { ativo:false };
@@ -4019,10 +4097,42 @@ async function pushAssinatura(cfg){
   return sub;
 }
 function avisosParaServidor(now){
-  return avisosPendentes(now, PUSH_HORIZONTE).filter(a => a.at > now + 20000).slice(0, 40).map(a => {
-    const sid = a.tag.split(':')[1] || '';
-    return { at:a.at, tag:a.tag, title:a.title, body:a.body, sid, url:'./?action=plantao&id='+encodeURIComponent(sid) };
-  });
+  return paraServidor(avisosPendentes(now, PUSH_HORIZONTE).filter(a => a.at > now + 20000).slice(0, 40));
+}
+const paraServidor = lista => lista.map(a => {
+  const sid = a.sid || a.tag.split(':')[1] || '';
+  return { at:a.at, tag:a.tag, title:a.title, body:a.body, sid, url: a.url || urlPlantao(sid), acoes: (a.acoes || []).slice(0, 2) };
+});
+/* Espelho da agenda de avisos (35 dias) no Cache Storage: o service worker não lê o
+   localStorage, então é por aqui que ele renova os agendamentos em segundo plano
+   (Periodic Background Sync), sem o app aberto. O "estado" (hash, ids no QStash) é
+   compartilhado: quem sincronizou por último vale.                                   */
+const ESTADO_CACHE = 'plantoes-estado', ESPELHO_URL = new URL('./__estado/avisos.json', location.href).href;
+let _espelhoHash = '';
+async function lerEspelho(){
+  try{ const r = await (await caches.open(ESTADO_CACHE)).match(ESPELHO_URL); return r ? await r.json() : null; }catch(e){ return null; }
+}
+async function gravarEspelho(esp){
+  try{ await (await caches.open(ESTADO_CACHE)).put(ESPELHO_URL, new Response(JSON.stringify(esp), { headers:{ 'content-type':'application/json' } })); }catch(e){}
+}
+async function espelharAvisos(subJ, estado){
+  if(!('caches' in window)) return;
+  const avisos = paraServidor(avisosPendentes(Date.now(), 35 * 86400000).slice(0, 300));
+  const h = hashTxt(JSON.stringify([subJ.endpoint, avisos, estado]));
+  if(h === _espelhoHash) return;
+  _espelhoHash = h;
+  await gravarEspelho({ sub: subJ, avisos, estado, em: Date.now() });
+}
+let _renovacaoPedida = false;
+async function registrarRenovacao(){
+  if(_renovacaoPedida) return; _renovacaoPedida = true;
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    if(!reg.periodicSync) return;
+    const p = navigator.permissions ? await navigator.permissions.query({ name:'periodic-background-sync' }).catch(() => null) : null;
+    if(p && p.state !== 'granted') return;           // o Chrome libera para apps instalados e usados com frequência
+    await reg.periodicSync.register('avisos', { minInterval: 12 * 3600000 });
+  }catch(e){}
 }
 function agendarSyncPush(){ clearTimeout(_pushTimer); _pushTimer = setTimeout(()=>sincronizarPush(false), 2500); }
 async function sincronizarPush(forcar){
@@ -4036,13 +4146,19 @@ async function sincronizarPush(forcar){
     const subJ = sub.toJSON ? sub.toJSON() : sub;
     const hash = hashTxt(subJ.endpoint + JSON.stringify(avisos.map(a => [a.at, a.tag, a.title, a.body])));
     let ult = {}; try{ ult = JSON.parse(lsGet('plantoes:pushSync') || '{}'); }catch(e){}
+    // o service worker pode ter renovado em segundo plano: adota o estado mais recente
+    const esp = await lerEspelho();
+    if(esp && esp.estado && (esp.estado.em || 0) > (ult.em || 0)){ ult = esp.estado; lsSet('plantoes:pushSync', JSON.stringify(ult)); }
     // nada mudou e sincronizou há menos de 20h: não gasta agendamentos à toa
-    if(!forcar && ult.hash === hash && now - (ult.em||0) < PUSH_RESYNC && pushAtivo()) return;
+    if(!forcar && ult.hash === hash && now - (ult.em||0) < PUSH_RESYNC && pushAtivo()){ espelharAvisos(subJ, ult); registrarRenovacao(); return; }
     const r = await fetch('./api/agendar', { method:'POST', headers:{ 'content-type':'application/json' },
       body: JSON.stringify({ sub: subJ, cancelar: ult.ids || [], avisos }) });
     if(!r.ok) throw new Error('agendar respondeu ' + r.status);
     const d = await r.json();
-    lsSet('plantoes:pushSync', JSON.stringify({ hash, em: now, ids: (d.ids || []).filter(Boolean), n: avisos.length }));
+    const estado = { hash, em: now, ids: (d.ids || []).filter(Boolean), n: avisos.length };
+    lsSet('plantoes:pushSync', JSON.stringify(estado));
+    await espelharAvisos(subJ, estado);
+    registrarRenovacao();
     const antes = pushAtivo();
     lsSet('plantoes:pushOk', '1');
     if(!antes){ _avisoTimers.forEach(clearTimeout); _avisoTimers = []; }
@@ -4586,15 +4702,7 @@ function normalize(d){ return aplicarPadroes(migrar(d)); }
   // Safari fora do modo app não expõe Notification — antes isso lançava erro e
   // interrompia o init (atalhos ?action=novo / proximo não funcionavam)
   if('Notification' in window && Notification.permission==='granted') agendarNotificacoes();
-  // App Shortcuts: tratar URL params
-  const params=new URLSearchParams(location.search);
-  const acao = params.get('action');
-  if(acao) history.replaceState(history.state, '', location.pathname);
-  if(acao==='buscar') setTimeout(abrirBusca, 300);
-  if(acao==='plantao'){ const alvo = S.shifts.find(x=>x.id===params.get('id')); if(alvo) setTimeout(()=>openSheet(alvo), 300); }
-  if(params.get('action')==='novo') setTimeout(()=>openSheet(null),300);
-  if(params.get('action')==='proximo'){
-    const nx=S.shifts.filter(s=>naAgenda(s)&&s.data>=iso(hoje())).sort((a,b)=>a.data.localeCompare(b.data))[0];
-    if(nx) setTimeout(()=>openSheet(nx),300);
-  }
+  // atalhos do ícone e botões dos avisos chegam como ?action=…
+  const params = new URLSearchParams(location.search);
+  if(params.get('action')){ history.replaceState(history.state, '', location.pathname); setTimeout(()=>tratarAcao(params), 300); }
 })();

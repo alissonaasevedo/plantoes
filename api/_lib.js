@@ -33,6 +33,19 @@ export function validarAssinatura(sub) {
 }
 
 const txt = (v, n) => String(v ?? '').slice(0, n);
+// botões da notificação (Android): só ações conhecidas e endereços do próprio app ou do Google Maps
+const ACOES = ['ver', 'rota', 'anotar', 'recebi'];
+const urlInterna = u => u.startsWith('./') || (u.startsWith('/') && !u.startsWith('//'));
+const urlMapa = u => u.startsWith('https://www.google.com/maps/');
+export function limparAcoes(lista) {
+  if (!Array.isArray(lista)) return [];
+  return lista.slice(0, 2).map(x => {
+    const acao = txt(x && x.acao, 12), url = txt(x && x.url, 400);
+    if (!ACOES.includes(acao) || !(urlInterna(url) || (acao === 'rota' && urlMapa(url)))) return null;
+    return { acao, titulo: txt(x.titulo, 24) || acao, url };
+  }).filter(Boolean);
+}
+
 export function limparAviso(a, agora) {
   const at = Number(a && a.at);
   if (!Number.isFinite(at) || at < agora - 60000 || at > agora + HORIZONTE_MS) return null;
@@ -43,8 +56,9 @@ export function limparAviso(a, agora) {
       title: txt(a.title, 80) || 'Plantaê!',
       body: txt(a.body, 200),
       tag: txt(a.tag, 120),
-      url: url.startsWith('./') || url.startsWith('/') ? url : './',
+      url: urlInterna(url) ? url : './',
       sid: txt(a.sid, 60),
+      acoes: limparAcoes(a.acoes),
     },
   };
 }

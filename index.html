@@ -20,6 +20,7 @@
 <script>
 /* ── Paleta aplicada antes da primeira pintura (evita piscar a cor errada) ── */
 (function(){
+  try{ if(localStorage.getItem('plantoes:trava')) document.documentElement.classList.add('travado'); }catch(e){}
   try{
     const p = localStorage.getItem('plantoes:paleta');
     if(p){ const r = document.documentElement; r.dataset.paleta = p;
@@ -49,6 +50,15 @@
 <link rel="stylesheet" href="./css/app.css">
 </head>
 <body>
+
+<!-- ===== TRAVA (digital / rosto) ===== -->
+<div id="trava" role="dialog" aria-modal="true" aria-label="App travado">
+  <img src="./icon-192.png" alt="" width="84" height="84">
+  <b>Plantaê! travado</b>
+  <span id="trava-msg">Toque para desbloquear</span>
+  <button class="btn prim" id="trava-btn">Desbloquear</button>
+  <button class="btn ghost sm" id="trava-recad" hidden>Não consigo desbloquear — cadastrar de novo</button>
+</div>
 
 <!-- ===== SPLASH SCREEN ===== -->
 <div id="splash">
@@ -279,6 +289,34 @@
     <button class="btn prim wide hidden" id="btn-instalar" style="margin-bottom:12px">Instalar o app neste celular</button>
     <p class="hint" style="margin-top:4px">A paleta acompanha o tema claro/escuro do celular. Em <b>Dia e Noite</b>, o destaque fica âmbar das 6h às 18h e índigo à noite.</p>
 
+    <div class="sec" style="margin-top:26px"><h2>Conta Google</h2></div>
+    <div class="row" style="cursor:default;border-bottom:0;padding-top:4px">
+      <div class="txt"><b>Google Agenda e backup no Drive</b><small id="g-status">—</small></div>
+      <button class="btn sm prim hidden" id="g-conectar">Conectar</button>
+    </div>
+    <div id="g-opcoes" class="hidden">
+      <div class="toggle on" id="g-agenda"><div class="lb">Plantões na agenda Plantaê!</div><div class="sw"></div></div>
+      <div class="toggle on" id="g-drive"><div class="lb">Backup automático no Drive</div><div class="sw"></div></div>
+      <div class="g-linhas"><small id="g-agenda-st"></small><small id="g-drive-st"></small></div>
+      <div class="row2">
+        <button class="btn sm" id="g-sync">Sincronizar agora</button>
+        <button class="btn sm" id="g-restaurar">Restaurar do Drive</button>
+      </div>
+      <button class="btn sm wide" id="g-sair" style="margin-top:8px;color:var(--dim)">Desconectar</button>
+    </div>
+    <p class="hint" style="margin-top:10px">A agenda <b>Plantaê!</b> aparece sozinha no Calendário Samsung e no Google Agenda. Editar, trocar ou excluir um plantão aqui atualiza o evento — sem duplicar. O app só mexe na agenda que ele criou e numa pasta oculta do Drive só dele; não vê suas outras agendas nem seus arquivos.</p>
+
+    <div class="sec" style="margin-top:26px"><h2>Privacidade</h2></div>
+    <div class="toggle" id="trava-on"><div class="lb">Pedir digital ou rosto para abrir</div><div class="sw"></div></div>
+    <label class="f hidden" id="trava-tempo-wrap"><span>Pedir de novo depois de sair do app por</span>
+      <select id="trava-tempo">
+        <option value="0">Qualquer tempo (sempre)</option>
+        <option value="60000">1 minuto</option>
+        <option value="300000">5 minutos</option>
+        <option value="1800000">30 minutos</option>
+      </select></label>
+    <p class="hint" style="margin-top:4px" id="trava-hint"></p>
+
     <div class="sec" style="margin-top:26px"><h2>Renda Fixa</h2></div>
     <p class="hint" style="margin-top:0;margin-bottom:12px">Configure cada parcela individualmente. "Até" em branco = gera 12 meses à frente. Rodar de novo não duplica o que já existe.</p>
 
@@ -314,7 +352,7 @@
       <button class="btn sm" id="ics-mes">Exportar mês</button>
       <button class="btn sm" id="ics-all">Exportar tudo</button>
     </div>
-    <p class="hint" style="margin-top:14px">Gera um arquivo .ics com vários plantões de uma vez, já com alarmes 1h antes de começar e 30 min antes de terminar. No iPhone, toque no arquivo e escolha Adicionar tudo. No Galaxy, abra o arquivo baixado com o Calendário Samsung. No Google Agenda, importe pelo computador em Configurações → Importar e exportar (o Google ignora os alarmes do arquivo).</p>
+    <p class="hint" style="margin-top:14px">Para manter a agenda sempre em dia sem duplicar, use <b>Conta Google</b> (acima). O arquivo .ics serve para outros calendários (iPhone, Outlook): cada importação cria eventos novos.</p>
 
     <div class="sec" style="margin-top:26px"><h2>Avisos</h2></div>
     <div class="row" style="cursor:default;border-bottom:0;padding-top:4px">
@@ -325,8 +363,9 @@
     <div class="toggle" id="av-inicio"><div class="lb">1 hora antes de começar</div><div class="sw"></div></div>
     <div class="toggle" id="av-fim"><div class="lb">30 min antes de terminar</div><div class="sw"></div></div>
     <div class="toggle" id="av-vespera"><div class="lb">Na véspera, às 20h</div><div class="sw"></div></div>
+    <div class="toggle" id="av-pag"><div class="lb">No dia previsto do pagamento, às 10h</div><div class="sw"></div></div>
     <button class="btn sm wide" id="btn-notif-teste">Enviar aviso de teste</button>
-    <p class="hint" style="margin-top:12px" id="push-hint">Com a entrega pelo servidor ativa, os avisos chegam mesmo com o app fechado. Sem ela, iPhone e Android pausam apps em segundo plano e os avisos só saem com o app aberto ou usado há pouco. Para ter o aviso garantido com o app fechado, use <b>Exportar mês</b> em Calendário: cada evento leva os mesmos dois alarmes (1h antes e 30 min antes do fim).</p>
+    <p class="hint" style="margin-top:12px" id="push-hint">Com a entrega pelo servidor ativa, os avisos chegam mesmo com o app fechado. Sem ela, iPhone e Android pausam apps em segundo plano e os avisos só saem com o app aberto ou usado há pouco. No Android, os avisos têm botões: <b>Como chegar</b> (1h antes), <b>Anotar</b> (perto do fim) e <b>Recebi</b> (no dia do pagamento, dá baixa sem procurar o lançamento).</p>
 
     <div class="sec" style="margin-top:26px"><h2>Conferência de lançamentos (14 dias)</h2></div>
     <div id="conf-grid-wrap"></div>
@@ -650,6 +689,7 @@
 </div>
 
 <script src="./js/app.js"></script>
+<script src="./js/conta.js"></script>
 <!-- splash movido para o topo do body -->
 <canvas id="pay-canvas" style="display:none"></canvas>
 

@@ -67,7 +67,7 @@ def abrir(navegador, base_url):
     contextos, erros = [], []
 
     def _abrir(dados=BACKUP, hora=HOJE_14H, largura=390, altura=844, tema='light', paleta=None,
-               sw=False, notificacoes=False, relogio=True, ls=None, aparelho=None, query='', rotas=None, init=None):
+               sw=False, notificacoes=False, relogio=True, ls=None, aparelho=None, query='', rotas=None, init=None, host=None):
         extra = {}
         if aparelho:
             a = APARELHOS[aparelho]
@@ -95,7 +95,7 @@ def abrir(navegador, base_url):
         pg.on('pageerror', lambda e: erros.append(str(e)))
         if relogio:
             pg.clock.install(time=hora)
-        pg.goto(base_url + '/index.html' + query)
+        pg.goto((base_url.replace('127.0.0.1', host) if host else base_url) + '/index.html' + query)
         if relogio:
             pg.clock.run_for(2500)
         else:

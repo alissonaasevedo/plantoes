@@ -1341,3 +1341,19 @@ html { overscroll-behavior-y: contain; -webkit-text-size-adjust: 100%; text-size
 .mnav button.mn-hoje { font-size: 12px !important; font-weight: 700; letter-spacing: .01em !important; }
 .mnav button.mn-hoje.atual { opacity: .45; }
 .mnav button.mn-hoje:not(.atual) { color: var(--accent) !important; border-color: var(--accent) !important; }
+
+/* ── Conta Google ── */
+.g-linhas { display: flex; flex-direction: column; gap: 3px; margin: 2px 0 12px; font-size: 12px; color: var(--dim); }
+.g-bk { cursor: default; }
+
+/* ── Trava com digital/rosto: cobre tudo até confirmar ── */
+#trava { display: none; position: fixed; inset: 0; z-index: 10001; background: var(--bg);
+  flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; }
+html.travado #trava { display: flex; }
+html.travado body > :not(#trava) { visibility: hidden !important; }
+#trava img { border-radius: 22px; margin-bottom: 6px; }
+#trava b { font-size: 18px; color: var(--ink); }
+#trava span { font-size: 13px; color: var(--dim); min-height: 18px; }
+#trava .btn.prim { min-width: 200px; margin-top: 8px; }
+#trava-recad[hidden] { display: none; }
+.toggle.desab { opacity: .5; }

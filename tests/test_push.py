@@ -109,3 +109,34 @@ def test_botao_de_teste_usa_o_servidor(abrir):
     teste = chamadas[n]
     assert teste['cancelar'] == [] and len(teste['avisos']) == 1 and teste['avisos'][0]['tag'].startswith('teste-')
     assert 'servidor' in pg.inner_text('#toast')
+
+
+ESPELHO = "caches.open('plantoes-estado').then(c=>c.match(new URL('./__estado/avisos.json', location.href).href)).then(r=>r && r.json())"
+
+
+def test_app_deixa_a_agenda_de_35_dias_para_o_segundo_plano(abrir):
+    chamadas = []
+    pg = abrir(hora=quando(20, 17, 30), notificacoes=True, init=SW_FALSO, rotas=servidor(chamadas))
+    rodar(pg, NOTURNO + """ S.shifts.push({id:'LONGE',categoria:'remunerado',data:'2026-11-15',hora:'07:00',duracao:12,turno:'diurno',localId:S.locais[0].id,
+        valor:900,liquido:900,pago:false,pagoEm:'',venc:'',tipo:'meu',colega:'',contra:'',quitado:false,obs:''}); await store.save(S); render();""")
+    sincroniza(pg)
+    esp = pg.evaluate(ESPELHO)
+    assert esp['sub']['endpoint'].startswith('https://fcm.googleapis.com/')
+    tags = [a['tag'] for a in esp['avisos']]
+    assert any(t.startswith('ini:LONGE') for t in tags), 'avisos além dos 6,5 dias ficam no espelho'
+    assert not any(t.startswith('ini:LONGE') for t in [a['tag'] for a in chamadas[-1]['avisos']]), 'o servidor só recebe a janela'
+    assert esp['estado']['ids'] == js(pg, "JSON.parse(localStorage.getItem('plantoes:pushSync')).ids")
+
+
+def test_app_adota_o_que_o_segundo_plano_ja_reagendou(abrir):
+    chamadas = []
+    pg = abrir(hora=quando(20, 17, 30), notificacoes=True, init=SW_FALSO, rotas=servidor(chamadas))
+    rodar(pg, NOTURNO); sincroniza(pg)
+    n = len(chamadas)
+    # o service worker renovou enquanto o app estava fechado: estado mais novo no espelho
+    pg.evaluate("""async()=>{ const c = await caches.open('plantoes-estado'); const u = new URL('./__estado/avisos.json', location.href).href;
+        const esp = await (await c.match(u)).json(); esp.estado = { ...esp.estado, em: Date.now() + 1000, ids: ['do-sw-1'] };
+        await c.put(u, new Response(JSON.stringify(esp))); }""")
+    rodar(pg, "S.shifts.find(s=>s.id==='N1').hora = '20:00'; await store.save(S); render();"); sincroniza(pg)
+    assert len(chamadas) == n + 1
+    assert chamadas[-1]['cancelar'] == ['do-sw-1'], 'cancela o que o segundo plano agendou — sem aviso em dobro'

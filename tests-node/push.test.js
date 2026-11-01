@@ -89,17 +89,17 @@ test('enviar: inscrição expirada não gera nova tentativa; outras falhas sim',
 
 test('rota /api/config real: desligada sem variáveis, ligada com elas', async () => {
   const { GET } = await import('../api/config.js?' + Date.now());
-  for (const k of ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'QSTASH_TOKEN', 'QSTASH_CURRENT_SIGNING_KEY', 'QSTASH_NEXT_SIGNING_KEY']) delete process.env[k];
-  assert.deepEqual(await GET().json(), { ativo: false, vapidPublica: null });
+  for (const k of ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'QSTASH_TOKEN', 'QSTASH_CURRENT_SIGNING_KEY', 'QSTASH_NEXT_SIGNING_KEY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']) delete process.env[k];
+  assert.deepEqual(await GET().json(), { ativo: false, vapidPublica: null, google: null });
   Object.assign(process.env, { VAPID_PUBLIC_KEY: 'PUB', VAPID_PRIVATE_KEY: 'p', QSTASH_TOKEN: 't', QSTASH_CURRENT_SIGNING_KEY: 'c', QSTASH_NEXT_SIGNING_KEY: 'n' });
-  assert.deepEqual(await GET().json(), { ativo: true, vapidPublica: 'PUB' });
+  assert.deepEqual(await GET().json(), { ativo: true, vapidPublica: 'PUB', google: null });
+  Object.assign(process.env, { GOOGLE_CLIENT_ID: 'cid', GOOGLE_CLIENT_SECRET: 's' });
+  assert.equal((await GET().json()).google, 'cid', 'só o ID público do cliente, nunca o segredo');
 });
 
 test('rotas reais carregam as bibliotecas sem erro', async () => {
-  const ag = await import('../api/agendar.js');
-  const en = await import('../api/enviar.js');
-  assert.equal(typeof ag.POST, 'function');
-  assert.equal(typeof en.POST, 'function');
+  for (const rota of ['agendar', 'enviar', 'google/conectar', 'google/renovar', 'google/sair'])
+    assert.equal(typeof (await import(`../api/${rota}.js`)).POST, 'function', rota);
 });
 
 test('verificador real do QStash: aceita assinatura legítima, recusa corpo adulterado', async () => {
