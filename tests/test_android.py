@@ -7,7 +7,7 @@ from PIL import Image
 
 from conftest import RAIZ, passo, js, rodar
 
-GALAXY = 'galaxy_s25plus'
+GALAXY = 'galaxy_s25ultra'
 ABAS = ['mes', 'caixa', 'resumo', 'locais', 'ajustes']
 
 
@@ -136,7 +136,9 @@ def test_restaurar_aceita_backup_vindo_do_whatsapp(abrir):
 
 def test_manifesto_e_icones_para_android():
     m = json.loads((RAIZ / 'manifest.json').read_text(encoding='utf-8'))
-    assert m['background_color'].upper() == '#F8F9FA'
+    # o Chrome pinta a faixa do gesto (abaixo da barra de abas) com a cor do manifesto, que não
+    # acompanha o tema: escura, para não aparecer uma faixa branca sob o app escuro/modo plantão
+    assert m['background_color'].upper() == m['theme_color'].upper() == '#000000'
     propositos = {i['purpose'] for i in m['icons']}
     assert {'any', 'maskable', 'monochrome'} <= propositos
     for ic in m['icons'] + [s for s in m.get('screenshots', [])]:
@@ -161,3 +163,22 @@ def test_botao_mais_some_ao_rolar_e_volta(abrir):
     assert js(pg, "$('#fab').classList.contains('fab-oculto')")
     pg.mouse.wheel(0, -400); pg.wait_for_timeout(300)
     assert not js(pg, "$('#fab').classList.contains('fab-oculto')")
+
+
+def test_botao_hoje_na_troca_de_mes(abrir):
+    pg = abrir(aparelho=GALAXY)
+    assert pg.inner_text('#today').strip() == 'Hoje'
+    assert js(pg, "$('#today').classList.contains('atual')"), 'no mês atual fica apagado'
+    pg.click('#next'); passo(pg, 300)
+    assert not js(pg, "$('#today').classList.contains('atual')")
+    pg.click('#today'); passo(pg, 300)
+    assert js(pg, "$('#today').classList.contains('atual')")
+
+
+def test_cabecalho_cabe_no_mes_de_nome_mais_longo(abrir):
+    pg = abrir(aparelho=GALAXY)
+    rodar(pg, "cursor = new Date(2027, 1, 1); render();"); passo(pg, 200)   # Fevereiro 2027
+    assert 'Fevereiro' in pg.inner_text('#title')
+    assert js(pg, "document.documentElement.scrollWidth") <= 385
+    caixa = js(pg, "(()=>{ const r=$('#next').getBoundingClientRect(); return r.right; })()")
+    assert caixa <= 384

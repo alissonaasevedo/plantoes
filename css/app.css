@@ -15,7 +15,7 @@
   /* ── Tipografia ── */
   --ink:      #0F172A;
   --dim:      #64748B;
-  --dim-2:    #94A3B8;
+  --dim-2:    #7286A2;
 
   /* ── Cores de ação ── */
   --accent:   #6366F1;
@@ -810,16 +810,20 @@ nav button.on .nav-ico { transform: translateY(-1px); }
   transition: opacity .35s ease, transform .35s ease;
 }
 #splash.out { opacity: 0; transform: scale(1.04); pointer-events: none; }
+#splash.out { transition-duration: .22s; }
+/* logo e textos só entram se o app demorar mais de 0,3 s para abrir — aberturas rápidas
+   (o normal, com o app guardado no aparelho) vão direto para a tela, sem animação de espera */
 .splash-logo {
   width: 220px; display: grid; place-items: center;
-  animation: splashBounceIn .6s cubic-bezier(.34,1.56,.64,1) both;
+  animation: splashBounceIn .6s .3s cubic-bezier(.34,1.56,.64,1) both;
 }
+.splash-dots { animation: splashFadeUp .4s .6s ease both; }
 .splash-logo img {
   width: 220px; height: auto; object-fit: contain;
   filter: drop-shadow(0 8px 24px rgba(0,0,0,.18));
 }
 .splash-name { font-size: 22px; font-weight: 800; letter-spacing: -.03em; color: var(--accent); animation: splashFadeUp .5s .3s ease both; }
-.splash-tag { font-size: 13px; color: var(--dim); font-weight: 500; animation: splashFadeUp .5s .45s ease both; }
+.splash-tag { font-size: 13px; color: var(--dim); font-weight: 500; animation: splashFadeUp .5s .75s ease both; }
 .splash-dots { display: flex; gap: 6px; margin-top: 8px; }
 .splash-dots span {
   width: 6px; height: 6px; border-radius: 99px; background: var(--accent);
@@ -998,7 +1002,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* A · Dia e Noite — destaque muda com a hora: âmbar de dia, índigo à noite */
 :root[data-paleta="diaenoite"] {
   --bg:#FAF8F5; --bg-soft:#F5F2EC; --surface:#FFFFFF; --surface-2:#F3EFE8;
-  --line:#ECE6DC; --line-2:#DDD5C8; --ink:#1C1917; --dim:#78716C; --dim-2:#A8A29E;
+  --line:#ECE6DC; --line-2:#DDD5C8; --ink:#1C1917; --dim:#78716C; --dim-2:#8B837E;
   --amber:#0284C7; --amber-soft:rgba(2,132,199,.11);          /* "a receber" em azul: não briga com o âmbar do dia */
   --ok:#059669; --ok-soft:rgba(5,150,105,.1); --due:#DC2626; --due-soft:rgba(220,38,38,.08);
   --nav-bg:rgba(250,248,245,.94);
@@ -1009,7 +1013,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* B · Cirúrgico — verde-azulado do pijama do centro cirúrgico */
 :root[data-paleta="cirurgico"] {
   --bg:#F3F7F7; --bg-soft:#ECF2F2; --surface:#FFFFFF; --surface-2:#EAF1F1;
-  --line:#DFE8E8; --line-2:#CBD8D8; --ink:#0E1B1D; --dim:#55686B; --dim-2:#8FA2A5;
+  --line:#DFE8E8; --line-2:#CBD8D8; --ink:#0E1B1D; --dim:#55686B; --dim-2:#71898D;
   --accent:#0D9488; --accent-2:#0F766E; --accent-soft:rgba(13,148,136,.11);
   --amber:#D97706; --amber-soft:rgba(217,119,6,.11);
   --ok:#15803D; --ok-soft:rgba(21,128,61,.1); --due:#DC2626; --due-soft:rgba(220,38,38,.08);
@@ -1019,7 +1023,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* C · Fintech — preto e branco, verde-limão como único destaque */
 :root[data-paleta="fintech"] {
   --bg:#F5F5F2; --bg-soft:#EFEFEB; --surface:#FFFFFF; --surface-2:#EEEEEA;
-  --line:#E5E5E0; --line-2:#D2D2CC; --ink:#0A0A0A; --dim:#66665F; --dim-2:#9E9E96;
+  --line:#E5E5E0; --line-2:#D2D2CC; --ink:#0A0A0A; --dim:#66665F; --dim-2:#84847A;
   --accent:#0A0A0A; --accent-2:#000000; --accent-soft:rgba(190,242,30,.42);   /* ativo = fundo limão, texto preto */
   --amber:#C2410C; --amber-soft:rgba(194,65,12,.09);
   --ok:#3F7D0B; --ok-soft:rgba(132,204,22,.16); --due:#DC2626; --due-soft:rgba(220,38,38,.08);
@@ -1332,3 +1336,8 @@ html { overscroll-behavior-y: contain; -webkit-text-size-adjust: 100%; text-size
 .push-linha i { width:8px; height:8px; border-radius:50%; background:var(--dim-2); flex:none; }
 .push-linha.ok i { background:var(--ok); box-shadow:0 0 0 3px var(--ok-soft); }
 .push-linha.ok { color:var(--ink); }
+
+/* botão "Hoje" da navegação de meses: apagado quando já está no mês atual, em destaque quando não */
+.mnav button.mn-hoje { font-size: 12px !important; font-weight: 700; letter-spacing: .01em !important; }
+.mnav button.mn-hoje.atual { opacity: .45; }
+.mnav button.mn-hoje:not(.atual) { color: var(--accent) !important; border-color: var(--accent) !important; }

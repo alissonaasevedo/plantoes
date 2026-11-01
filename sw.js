@@ -1,4 +1,4 @@
-const CACHE = 'plantoes-v1.21';
+const CACHE = 'plantoes-v1.22';
 // Versionamento: v1.0, v1.01, v1.02 ... → grandes reformulações = v2.0, v3.0 ...
 const ASSETS = ['./','./index.html','./css/app.css','./js/app.js','./js/sw-register.js',
   './fonts/inter.woff2','./fonts/geist.woff2',
@@ -45,32 +45,49 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Código (HTML, CSS, JS) pela rede primeiro: toda atualização chega sozinha.
-// Ícones, fontes e manifest pelo cache primeiro, por velocidade. Offline cai no cache em ambos.
+// Código (HTML, CSS, JS) pela rede primeiro: toda atualização chega sozinha. Com internet
+// ruim (plantão, sinal fraco) espera no máximo REDE_MS e abre com a cópia guardada — a versão
+// nova continua baixando em segundo plano e vale na próxima abertura.
+// Ícones, fontes e manifest pelo cache primeiro, por velocidade. /api/ nunca passa pelo cache.
+const REDE_MS = 3000;
+
+function guardar(req, resp){
+  if(!resp || !resp.ok || resp.type !== 'basic') return;     // não guarda erro (404/500) por cima da cópia boa
+  const copia = resp.clone();
+  caches.open(CACHE).then(c => c.put(req, copia));
+}
+
+function daCopia(req){
+  return caches.match(req, { ignoreSearch: true })
+    .then(hit => hit || (req.mode === 'navigate' ? caches.match('./index.html') : undefined));
+}
+
+function redePrimeiro(e){
+  const req = e.request;
+  const rede = fetch(req).then(resp => { guardar(req, resp); return resp; });
+  e.waitUntil(rede.then(() => {}, () => {}));                // termina de baixar e guardar mesmo se a cópia já respondeu
+  return new Promise(resolve => {
+    let pronto = false;
+    const responder = r => { if(!pronto && r){ pronto = true; resolve(r); return true; } return false; };
+    const espera = setTimeout(() => daCopia(req).then(responder), REDE_MS);
+    rede.then(resp => { clearTimeout(espera); responder(resp); })
+      .catch(() => { clearTimeout(espera); daCopia(req).then(hit => { if(!responder(hit)) responder(Response.error()); }); });
+  });
+}
+
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
-  if (new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;
+  if (url.pathname.startsWith('/api/')) return;             // respostas do servidor de avisos: sempre ao vivo
 
   const ehCodigo = req.mode === 'navigate' || req.destination === 'script' || req.destination === 'style'
     || (req.headers.get('accept') || '').includes('text/html');
 
-  if (ehCodigo) {
-    e.respondWith(
-      fetch(req).then(resp => {
-        const copia = resp.clone();
-        caches.open(CACHE).then(c => c.put(req, copia));
-        return resp;
-      }).catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || (req.mode === 'navigate' ? caches.match('./index.html') : Response.error())))
-    );
-    return;
-  }
+  if (ehCodigo) { e.respondWith(redePrimeiro(e)); return; }
 
   e.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).then(resp => {
-      const copia = resp.clone();
-      caches.open(CACHE).then(c => c.put(req, copia));
-      return resp;
-    }))
+    caches.match(req).then(hit => hit || fetch(req).then(resp => { guardar(req, resp); return resp; }))
   );
 });

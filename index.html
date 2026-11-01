@@ -12,8 +12,10 @@
 <meta name="apple-mobile-web-app-title" content="Plantaê!">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<meta name="description" content="Plantões, o que entra na conta e quando — escala, valores, pagamentos e avisos.">
 <meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#09090B" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#18181B" media="(prefers-color-scheme: dark)">
 <title>Plantaê!</title>
 <script>
 /* ── Paleta aplicada antes da primeira pintura (evita piscar a cor errada) ── */
@@ -51,7 +53,7 @@
 <!-- ===== SPLASH SCREEN ===== -->
 <div id="splash">
   <div class="splash-logo">
-    <img src="./icon-512.png" alt="Plantaê!">
+    <img src="./icon-512.png" alt="Plantaê!" width="220" height="220" decoding="async">
   </div>
   <div class="splash-tag">Sua renda, organizada.</div>
   <div class="splash-dots"><span></span><span></span><span></span></div>
@@ -80,7 +82,7 @@
     <button class="btn sm prim" id="add-top">Novo plantão</button>
     <div class="mnav" id="mnav">
       <button id="prev" aria-label="Mês anterior">‹</button>
-      <button id="today" aria-label="Mês atual">◦</button>
+      <button id="today" class="mn-hoje" aria-label="Hoje — voltar ao mês atual">Hoje</button>
       <button id="next" aria-label="Próximo mês">›</button>
     </div>
     </div>
@@ -93,7 +95,7 @@
       <h1 id="il-mes">Mês</h1>
       <div class="mnav">
         <button id="prev-il">‹</button>
-        <button id="today-il">◦</button>
+        <button id="today-il" class="mn-hoje" aria-label="Hoje — voltar ao mês atual">Hoje</button>
         <button id="next-il">›</button>
       </div>
     </div>
@@ -180,7 +182,7 @@
       <h1 id="il-caixa">Caixa</h1>
       <div class="mnav">
         <button id="cx-prev-il">‹</button>
-        <button id="cx-today-il">◦</button>
+        <button id="cx-today-il" class="mn-hoje" aria-label="Hoje — voltar ao mês atual">Hoje</button>
         <button id="cx-next-il">›</button>
       </div>
     </div>
@@ -659,7 +661,7 @@
   <!-- splash de entrada do wrapped -->
   <div id="wrapped-splash" style="display:none">
     <div class="wsp-logo">
-      <img src="./icon-512.png" alt="Plantaê!">
+      <img src="./icon-512.png" alt="Plantaê!" loading="lazy" decoding="async">
     </div>
     <div class="wsp-title">Plantaê!</div>
     <div class="wsp-sub">Calculando seus números…</div>

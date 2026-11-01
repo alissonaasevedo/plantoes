@@ -37,7 +37,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.21', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.22', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -323,6 +323,8 @@ function render(){
   const titles = { mes: MES[cursor.getMonth()]+' '+cursor.getFullYear(), caixa:'Caixa · '+MES[cursor.getMonth()],
                    resumo:'Resumo', locais:'Locais', ajustes:'Ajustes' };
   $('#title').textContent = titles[view];
+  const noMesAtual = sameMonth(iso(new Date()), cursor);
+  document.querySelectorAll('.mn-hoje').forEach(b => b.classList.toggle('atual', noMesAtual));
   const ilMes=$('#il-mes'); if(ilMes) ilMes.textContent=MES[cursor.getMonth()]+' '+cursor.getFullYear();
   const ilCx=$('#il-caixa'); if(ilCx) ilCx.textContent='Caixa · '+MES[cursor.getMonth()];
   $('#mnav').classList.toggle('hidden', view !== 'mes' && view !== 'caixa');
@@ -1475,6 +1477,12 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.22', d:'Nov 2026', items:[
+    { t:'fix', txt:'Android: a faixa do gesto embaixo da tela não fica mais branca com o app escuro e no modo plantão' },
+    { t:'fix', txt:'Avisos pelo servidor: o app podia guardar a configuração antiga do servidor e nunca ativar' },
+    { t:'imp', txt:'Abre mais rápido: sem espera fixa na tela de abertura; com internet ruim, abre com a cópia do aparelho em até 3 s' },
+    { t:'imp', txt:'Botão "Hoje" no lugar do ◦ na troca de mês; textos secundários mais legíveis no tema claro' },
+  ]},
   { v:'1.21', d:'Out 2026', items:[
     { t:'new', txt:'Avisos pelo servidor: chegam mesmo com o app fechado (quando o servidor de avisos está configurado)' },
     { t:'imp', txt:'Ajustes → Avisos mostra como os avisos estão sendo entregues; o aviso de teste passa pelo servidor' },
@@ -3624,7 +3632,7 @@ function boasVindas(){
 
 /* ================= paletas ================= */
 const PALETAS = [
-  { id:'',          nome:'Clássico',     desc:'Índigo original',                 sw:['#F8F9FA','#6366F1','#059669','#D97706'], bg:['#F8F9FA','#09090B'] },
+  { id:'',          nome:'Clássico',     desc:'Índigo original',                 sw:['#F8F9FA','#6366F1','#059669','#D97706'], bg:['#F8F9FA','#18181B'] },
   { id:'diaenoite', nome:'Dia e Noite',  desc:'Âmbar de dia, índigo à noite',    sw:['#FAF8F5','#D97706','#4F46E5','#0284C7'], bg:['#FAF8F5','#0F1115'] },
   { id:'cirurgico', nome:'Cirúrgico',    desc:'Verde-azulado sobre grafite',     sw:['#F3F7F7','#0D9488','#0E1B1D','#15803D'], bg:['#F3F7F7','#0A1213'] },
   { id:'fintech',   nome:'Fintech',      desc:'Preto, branco e verde-limão',     sw:['#F5F5F2','#0A0A0A','#C6F432','#3F7D0B'], bg:['#F5F5F2','#0A0A0A'] },
@@ -4561,13 +4569,14 @@ function normalize(d){ return aplicarPadroes(migrar(d)); }
   // pede ao navegador para não apagar os dados por falta de espaço/uso (iOS/Chrome)
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
   // dismiss splash screen — usa RAF para garantir que o elemento existe no DOM
+  // sai assim que a primeira tela está pronta (antes esperava 0,8 s fixos a cada abertura)
   function dismissSplash(){
     const splash = document.getElementById('splash');
     if(!splash) return;
-    setTimeout(()=>{
+    requestAnimationFrame(()=>{
       splash.classList.add('out');
-      setTimeout(()=>{ if(splash.parentNode) splash.parentNode.removeChild(splash); }, 380);
-    }, 820);
+      setTimeout(()=>{ if(splash.parentNode) splash.parentNode.removeChild(splash); }, 260);
+    });
   }
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', dismissSplash, {once:true});

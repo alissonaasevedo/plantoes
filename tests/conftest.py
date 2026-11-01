@@ -28,6 +28,8 @@ HOJE_14H = dt.datetime(2026, 10, 19, 14, 0, tzinfo=SP)
 APARELHOS = {
     'galaxy_s25plus': dict(largura=384, altura=832, dpr=2.8125,
         ua='Mozilla/5.0 (Linux; Android 15; SM-S936B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36'),
+    'galaxy_s25ultra': dict(largura=384, altura=832, dpr=2.8125,
+        ua='Mozilla/5.0 (Linux; Android 16; SM-S938B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36'),
     'iphone': dict(largura=390, altura=844, dpr=3,
         ua='Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1'),
 }
