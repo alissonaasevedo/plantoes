@@ -658,6 +658,9 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
     <div class="swatches" id="l-cores"></div>
   </label>
 
+  <div class="toggle" id="l-resid"><div class="lb">Local da residência — plantões sem remuneração</div><div class="sw"></div></div>
+  <p class="hint hidden" id="l-resid-hint" style="margin-top:-4px">Tudo o que for lançado aqui entra como plantão da residência: na agenda e nos avisos, fora das contas.</p>
+  <div id="l-pag-wrap">
   <div class="row2">
     <label class="f"><span>Diurno · 12h (R$)</span><input type="number" id="l-dia" inputmode="decimal" step="0.01" placeholder="0,00"></label>
     <label class="f"><span>Noturno · 12h (R$)</span><input type="number" id="l-noite" inputmode="decimal" step="0.01" placeholder="0,00"></label>
@@ -683,6 +686,7 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
 <label class="f"><span>Procedimento padrão (R$)</span><input type="number" id="l-vproc" step="0.01" placeholder="0,00" inputmode="decimal"></label>
 <p class="hint">Valores sugeridos nos dias de atendimento deste local.</p>
 <p class="hint">É o que alimenta a previsão de caixa. Plantão em 15/09 num local que paga dia 10 do mês seguinte entra em 10/10.</p>
+  </div>
 
   <div class="actions">
     <button class="btn danger hidden" id="l-del">Excluir</button>

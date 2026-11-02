@@ -159,11 +159,57 @@ def test_plantao_noturno_da_residencia(abrir):
     assert js(pg, f"localName({json.dumps(s['localId'])})") == 'Hospital Felício Rocho'
     assert js(pg, "$('#h-total').textContent") == total, 'fora das contas'
     avisos = js(pg, "avisosPendentes(Date.now()).filter(a=>a.sid===S.shifts.find(s=>s.categoria==='residencia').id).map(a=>a.title)")
-    assert 'Residência em 1 hora' in avisos
-    assert any(c['summary'].startswith('Residência · Hospital Felício Rocho') for c in js(pg, "[...gDesejado().values()].map(x=>x.corpo)") if 'summary' in c)
+    assert 'Plantão noturno da residência em 1 hora' in avisos
+    assert 'Plantão noturno da residência · Hospital Felício Rocho' in [c.get('summary') for c in js(pg, "[...gDesejado().values()].map(x=>x.corpo)")]
+    assert js(pg, f"evTitulo({{...S.shifts.find(s=>s.categoria==='residencia'), turno:'diurno'}})").startswith('Plantão diurno da residência')
     # o próximo já abre no mesmo hospital, sem criar outro
     rodar(pg, "novoPlantaoResidencia('2026-10-29')"); passo(pg, 300)
     assert js(pg, "$('#f-local').value") == s['localId']
     # turno troca o horário padrão
     pg.click('#f-turno .chip[data-v="diurno"]'); passo(pg, 100)
     assert js(pg, "$('#f-hora').value") == '07:00'
+
+
+def test_local_da_residencia_lanca_sem_remuneracao(abrir):
+    pg = abrir()
+    total = js(pg, "$('#h-total').textContent")
+    # o usuário criou o local e lançou como plantão comum: entrou nas contas
+    rodar(pg, """S.locais.push({id:'FR', nome:'Hospital Felício Rocho', cor:'#888', vDia:0, vNoite:0});
+        S.shifts.push({id:'R1',categoria:'remunerado',data:'2026-10-21',hora:'19:00',duracao:12,turno:'noturno',localId:'FR',
+          valor:500,liquido:500,pago:false,pagoEm:'',venc:'',tipo:'meu',colega:'',contra:'',quitado:false,obs:''});
+        await store.save(S); render();""")
+    pg.click('nav button[data-v="locais"]'); passo(pg, 300)
+    pg.click('[data-loc="FR"]'); passo(pg, 400)
+    assert not js(pg, "$('#l-pag-wrap').classList.contains('hidden')")
+    pg.click('#l-resid'); passo(pg, 100)
+    assert js(pg, "$('#l-pag-wrap').classList.contains('hidden')"), 'esconde os campos de pagamento'
+    pg.click('#l-save'); passo(pg, 400)
+    s = js(pg, "S.shifts.find(s=>s.id==='R1')")
+    assert s['categoria'] == 'residencia' and s['valor'] == 0
+    assert 'residência' in pg.inner_text('#toast')
+    assert 'sem remuneração' in pg.inner_text('[data-loc="FR"]')
+    pg.click('nav button[data-v="mes"]'); passo(pg, 300)
+    assert js(pg, "$('#h-total').textContent") == total
+    # novo plantão: o local da residência não é sugerido para plantão pago,
+    # e escolhê-lo troca a categoria sozinho
+    rodar(pg, "openSheet(null,'2026-10-28','remunerado')"); passo(pg, 300)
+    assert js(pg, "$('#f-local').value") != 'FR'
+    pg.select_option('#f-local', 'FR'); passo(pg, 100)
+    assert js(pg, "chipGet('#f-cat')") == 'residencia' and js(pg, "$('#f-valor-wrap').classList.contains('hidden')")
+    rodar(pg, "closeSheets(); novoPlantaoResidencia('2026-10-30')"); passo(pg, 300)
+    assert js(pg, "$('#f-local').value") == 'FR'
+
+
+def test_felicio_rocho_ja_cadastrado_vira_residencia_uma_vez(abrir):
+    import json as _j
+    from conftest import BACKUP
+    dados = _j.loads(_j.dumps(BACKUP))
+    dados['locais'].append({'id': 'FR', 'nome': 'Hospital Felício Rocho', 'cor': '#888', 'vDia': 0, 'vNoite': 0})
+    dados['shifts'].append({'id': 'R9', 'categoria': 'remunerado', 'data': '2026-10-21', 'hora': '19:00', 'duracao': 12, 'turno': 'noturno',
+                            'localId': 'FR', 'valor': 0, 'liquido': 0, 'pago': False, 'tipo': 'meu'})
+    pg = abrir(dados=dados)
+    passo(pg, 1500)
+    assert js(pg, "getLocal('FR').residencia") is True
+    assert js(pg, "S.shifts.find(s=>s.id==='R9').categoria") == 'residencia'
+    pg.reload(); passo(pg, 4000)
+    assert 'agora é local' not in pg.inner_text('#toast'), 'só uma vez'

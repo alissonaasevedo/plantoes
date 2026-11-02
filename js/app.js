@@ -38,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.28', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.29', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -154,14 +154,16 @@ function evJanela(s){
 const stampLocal = d => `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}T${pad2(d.getHours())}${pad2(d.getMinutes())}00`;
 const stampUTC = d => d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
 
-function evTitulo(s){ return (ehResid(s) ? 'Residência · ' : ehAmb(s) ? 'Consultório · ' : 'Plantão · ') + localName(s.localId); }
+// "Plantão noturno da residência" (ou diurno) — nome usado na agenda, nos avisos e na lista
+const nomeResid = s => `Plantão ${s.turno === 'diurno' ? 'diurno' : 'noturno'} da residência`;
+function evTitulo(s){ return (ehResid(s) ? nomeResid(s) + ' · ' : ehAmb(s) ? 'Consultório · ' : 'Plantão · ') + localName(s.localId); }
 function evLocal(s){
   const l = getLocal(s.localId); if(!l) return '';
   return [l.endereco, l.cidade].filter(Boolean).join(', ') || [l.nome, l.cidade].filter(Boolean).join(', ');
 }
 function evDetalhe(s){
   const p = [`${s.duracao}h · ${s.turno}`];
-  if(ehResid(s)) p.push('Plantão obrigatório — agenda bloqueada');
+  if(ehResid(s)) p.push('Obrigatório da residência, sem remuneração');
   else if(liq(s)) p.push(brl(liq(s)));
   if(s.tipo==='peguei') p.push('Peguei de '+(s.colega||'colega'));
   if(s.tipo==='passei') p.push('Passei para '+(s.colega||'colega'));
@@ -802,7 +804,7 @@ function renderMes(){
     if(!tag && s.urgente && !ehResid(s) && !ehBolsa(s)) tag = `<div class="chip-urg">⚠️ Atenção</div>`;
     else if(!tag && s.obs) tag = `<div class="tag">${esc(s.obs.slice(0,42))}</div>`;
     const resid = ehResid(s), bloq = ehBloq(s);
-    if(resid) tag = `<div class="tag">Residência · sem remuneração</div>`;
+    if(resid) tag = `<div class="tag">${nomeResid(s)} · sem remuneração</div>`;
     if(bloq){
       const icos={'ferias':'🏖️','viagem':'✈️','sobreaviso':'📟','compromisso':'📌','outro':'📋'};
       tag = `<div class="chip-bl">${icos[s.blTipo]||'📋'} ${s.blTipo||'bloqueio'}${s.blFim?' até '+pad2(parseDate(s.blFim).getDate())+'/'+pad2(parseDate(s.blFim).getMonth()+1):''}</div>`;
@@ -875,7 +877,7 @@ function renderDia(){
             : esc(localName(s.localId));
           let meta = '';
           if(bolsa) meta = 'Entrada mensal fixa';
-          else if(resid) meta = `${s.hora||'--:--'} → ${fim(s.hora,s.duracao)} · ${s.duracao}h · Residência`;
+          else if(resid) meta = `${s.hora||'--:--'} → ${fim(s.hora,s.duracao)} · ${s.duracao}h · ${nomeResid(s)}`;
           else if(bloq){
             const dIni = parseDate(s.data);
             const iniStr = `${pad2(dIni.getDate())}/${pad2(dIni.getMonth()+1)}`;
@@ -889,7 +891,7 @@ function renderDia(){
 
           const tags = [];
           if(s.urgente && !resid && !bolsa) tags.push(`<span class="chip-urg">⚠️ Atenção</span>`);
-          if(resid) tags.push(`<span class="tag">Residência · sem remuneração</span>`);
+          if(resid) tags.push(`<span class="tag">Sem remuneração</span>`);
           if(s.tipo==='peguei') tags.push(`<span class="tag">Peguei de ${esc(s.colega||'colega')}</span>`);
           if(s.tipo==='passei') tags.push(`<span class="tag">Passei para ${esc(s.colega||'colega')}</span>`);
           if(s.obs) tags.push(`<span class="tag">${esc(s.obs.slice(0,48))}</span>`);
@@ -1408,7 +1410,8 @@ function renderLocais(){
       ? `paga ${PAGMES[typeof l.pagMes==='number'?l.pagMes:1]}, dia a confirmar`
       : `paga dia ${l.pagDia||10} ${PAGMES[typeof l.pagMes==='number'?l.pagMes:1]}`;
     // só mostra valores preenchidos (consultório e renda fixa não têm valor de plantão)
-    const sub = [l.cidade, l.vDia ? `dia ${brl(l.vDia)}/12h` : '', l.vNoite ? `noite ${brl(l.vNoite)}/12h` : '', regra].filter(Boolean).join(' · ');
+    const sub = l.residencia ? [l.cidade, 'Residência · sem remuneração'].filter(Boolean).join(' · ')
+      : [l.cidade, l.vDia ? `dia ${brl(l.vDia)}/12h` : '', l.vNoite ? `noite ${brl(l.vNoite)}/12h` : '', regra].filter(Boolean).join(' · ');
     return `<div class="row" data-loc="${l.id}">
       <div class="swatch" style="background:${l.cor}"></div>
       <div class="txt"><b>${esc(l.nome)}</b><small>${esc(sub)}</small></div>
@@ -1478,6 +1481,10 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.29', d:'Nov 2026', items:[
+    { t:'imp', txt:'Residência aparece como "Plantão noturno da residência" (ou diurno) na agenda, nos avisos e na lista' },
+    { t:'new', txt:'Local da residência: marque em Locais e tudo lançado nele entra sem remuneração, sem campos de pagamento' },
+  ]},
   { v:'1.28', d:'Nov 2026', items:[
     { t:'new', txt:'Plantão da residência no botão +: noturno obrigatório, sem remuneração, já com 19h, 12h e o Felício Rocho' },
     { t:'imp', txt:'Residência com turno, duração e trocas editáveis; entra na agenda, nos avisos e no Google Agenda, fora das contas' },
@@ -2014,13 +2021,23 @@ function janela(){
 // local sugerido num lançamento novo: o do último lançamento da mesma categoria
 // (antes era sempre o primeiro local cadastrado, mesmo que nunca usado para aquilo)
 function localPadrao(cat){
-  const ult = S.shifts.filter(s => (s.categoria||'remunerado') === cat && getLocal(s.localId))
+  const resid = cat === 'residencia';
+  const ok = l => l && (resid || !l.residencia);
+  const ult = S.shifts.filter(s => (s.categoria||'remunerado') === cat && ok(getLocal(s.localId)))
                       .sort((a,b) => b.data.localeCompare(a.data))[0];
   if(ult) return ult.localId;
-  if(cat === 'residencia'){ const h = S.locais.find(l => /fel[ií]cio\s*rocho/i.test(semAcentoLocal(l.nome))); return h ? h.id : '__new'; }
-  return (S.locais[0]||{}).id || '__new';
+  if(resid){
+    const h = S.locais.find(l => l.residencia) || S.locais.find(l => /felicio\s*rocho/i.test(semAcentoLocal(l.nome)));
+    return h ? h.id : '__new';
+  }
+  return (S.locais.find(l => !l.residencia) || {}).id || '__new';
 }
 const semAcentoLocal = t => String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+// escolher no formulário um local da residência já troca a categoria (sem campos de valor)
+function categoriaPeloLocal(){
+  const l = getLocal($('#f-local').value), cat = chipGet('#f-cat');
+  if(l && l.residencia && cat !== 'residencia' && cat !== 'bolsa'){ chipSet('#f-cat', 'residencia'); aplicarCategoria(); }
+}
 // plantão noturno obrigatório da residência: já abre com noturno, 19h, 12h e o hospital
 function novoPlantaoResidencia(data){
   openSheet(null, data || null, 'residencia');
@@ -2078,6 +2095,7 @@ function openSheet(shift, presetDate, presetCategoria){
   $('#f-rep-ate-wrap').classList.add('hidden'); $('#f-rep-ate').value = '';
   $('#rep-hint').textContent = '—';
   aplicarCategoria();
+  if(!shift) categoriaPeloLocal();
   chipSet('#f-tipo', s.tipo);
   chipSet('#f-contra', s.contra || 'devolver');
   $('#troca-wrap').classList.toggle('hidden', s.tipo === 'meu');
@@ -2364,7 +2382,7 @@ async function saveShift(){
     const dur0 = duracaoAtual() || 12;
     const b = Math.round(v * 12 / dur0 * 100) / 100;   // converte para base de 12h
     const novo = { id:uid(), nome, cidade:'', endereco:'', cor:CORES[S.locais.length % CORES.length],
-                   vDia: turno==='diurno'?b:0, vNoite: turno==='noturno'?b:0 };
+                   vDia: turno==='diurno'?b:0, vNoite: turno==='noturno'?b:0, residencia: chipGet('#f-cat') === 'residencia' };
     S.locais.push(novo); localId = novo.id;
   }
   const durSel = chipGet('#f-dur');
@@ -2461,6 +2479,9 @@ function openLocal(l){
   $('#l-pagincerto').classList.toggle('on', inc);
   $('#l-pagdia-wrap').classList.toggle('hidden', inc);
   $('#l-del').classList.toggle('hidden', !l);
+  const resid = !!(l && l.residencia);
+  $('#l-resid').classList.toggle('on', resid);
+  $('#l-pag-wrap').classList.toggle('hidden', resid); $('#l-resid-hint').classList.toggle('hidden', !resid);
   paintCores();
   $('#sheet2').classList.add('open'); $('#scrim').classList.add('open');
   lockScroll();
@@ -2477,8 +2498,21 @@ async function saveLocal(){
     retencao: Math.min(50, Math.max(0, parseFloat($('#l-reten').value)||0)),
     vPart: parseFloat($('#l-vpart').value)||0,
     vPlano: parseFloat($('#l-vplano').value)||0,
-    vProc: parseFloat($('#l-vproc').value)||0
+    vProc: parseFloat($('#l-vproc').value)||0,
+    residencia: $('#l-resid').classList.contains('on')
   };
+  // virou local da residência: os lançamentos dele que estavam como plantão pago (e ainda não
+  // recebidos) passam a ser plantões da residência — com Desfazer
+  const alvo = editingLocal && dados.residencia
+    ? S.shifts.filter(s => s.localId === editingLocal.id && (s.categoria||'remunerado') === 'remunerado' && !s.pago) : [];
+  if(alvo.length){
+    const local = editingLocal; closeSheets();
+    comDesfazer(`Local salvo · ${alvo.length} lançamento${alvo.length>1?'s':''} passa${alvo.length>1?'ram':'ou'} para residência, sem remuneração`, ()=>{
+      Object.assign(local, dados);
+      alvo.forEach(s => { s.categoria = 'residencia'; s.valor = 0; s.liquido = 0; s.venc = ''; s.urgente = false; });
+    });
+    return;
+  }
   if(editingLocal) Object.assign(editingLocal, dados);
   else S.locais.push({ id:uid(), ...dados });
   await store.save(S); closeSheets(); render(); toast('Local salvo');
@@ -3191,6 +3225,11 @@ document.addEventListener('click', e=>{
       agendarNotificacoes(); renderAvisosUI();
       return;
     }
+    if(tog.id === 'l-resid'){
+      const on = tog.classList.contains('on');
+      $('#l-pag-wrap').classList.toggle('hidden', on); $('#l-resid-hint').classList.toggle('hidden', !on);
+      return;
+    }
     if(tog.id === 'l-pagincerto'){
       $('#l-pagdia-wrap').classList.toggle('hidden', tog.classList.contains('on'));
     }
@@ -3228,7 +3267,7 @@ $('#ics-all').onclick = ()=> baixarIcs(
   `plantoes-todos.ics`
 );
 
-$('#f-local').onchange = ()=>{ $('#f-newlocal-wrap').classList.toggle('hidden', $('#f-local').value!=='__new'); autoValor(); atualizarVenc(); };
+$('#f-local').onchange = ()=>{ $('#f-newlocal-wrap').classList.toggle('hidden', $('#f-local').value!=='__new'); categoriaPeloLocal(); autoValor(); atualizarVenc(); };
 $('#f-date').onchange = ()=>{ atualizarVenc(); atualizarRepHint(); conflitoOk = false; };
 $('#f-venc').oninput = ()=>{ vencTouched = true; $('#venc-hint').textContent = 'Data definida manualmente para este plantão.'; };
 $('#f-valor').oninput = ()=>{ valorTouched = true; autoLiquido(); };
@@ -3845,7 +3884,7 @@ function aplicarModelo(m){
   $('#f-durc-wrap').classList.toggle('hidden', preset);
   if(!preset) $('#f-durc').value = m.duracao;
   $('#f-hora').value = m.hora;
-  aplicarCategoria();
+  aplicarCategoria(); categoriaPeloLocal();
   if(!ehAmb(m)){
     $('#f-valor').value = m.valor || ''; valorTouched = true;
     $('#f-liquido').value = liq(m) || ''; liqTouched = true;
@@ -3981,7 +4020,7 @@ function avisosPendentes(now = Date.now(), horizonte = 8*86400000){
     const j = janelaDe(s), nome = localName(s.localId), l = getLocal(s.localId);
     const hIni = s.hora || '07:00', hFim = fim(hIni, s.duracao);
     const onde = l && l.cidade ? ` · ${l.cidade}` : '';
-    const tipo = ehResid(s) ? 'Residência' : ehAmb(s) ? 'Consultório' : 'Plantão';
+    const tipo = ehResid(s) ? nomeResid(s) : ehAmb(s) ? 'Consultório' : 'Plantão';
     // botões do aviso (Android; o iPhone mostra só o aviso): rota até o local e o próprio plantão
     const url = urlPlantao(s.id), ver = { acao:'ver', titulo:'Ver plantão', url };
     const mapa = mapsUrl(l), rota = mapa ? [{ acao:'rota', titulo:'Como chegar', url: mapa }] : [];
@@ -4314,7 +4353,7 @@ function montarLive(box, modo, s, now){
   const j = janelaDe(s);
   const cor = localCor(s.localId), nome = esc(localName(s.localId));
   const hIni = s.hora || '07:00', hFim = fim(hIni, s.duracao), dur = +s.duracao;
-  const tipo = ehResid(s) ? 'Residência' : ehAmb(s) ? 'Consultório' : (s.turno === 'noturno' ? 'Noturno' : 'Diurno');
+  const tipo = ehResid(s) ? nomeResid(s) : ehAmb(s) ? 'Consultório' : (s.turno === 'noturno' ? 'Noturno' : 'Diurno');
   const valor = liq(s), remunerado = counts(s) && valor > 0;
 
   if(modo === 'bar'){
@@ -4723,6 +4762,7 @@ function normalize(d){ return aplicarPadroes(migrar(d)); }
   render();
   if(saldoOculto) aplicarOcultar();
   boasVindas();
+  marcarLocalResidencia();
   // pede ao navegador para não apagar os dados por falta de espaço/uso (iOS/Chrome)
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
   // dismiss splash screen — usa RAF para garantir que o elemento existe no DOM
@@ -4761,3 +4801,17 @@ document.addEventListener('click', e => {
   toast(b.dataset.tema ? 'Tema ' + b.textContent.toLowerCase() : 'Tema automático — acompanha o celular');
 });
 renderTema();
+
+/* uma vez: o Hospital Felício Rocho cadastrado antes desta versão vira local da residência
+   (pedido do usuário), e os plantões dele ainda não recebidos passam a ser sem remuneração */
+function marcarLocalResidencia(){
+  if(lsGet('plantoes:residAuto') || S.locais.some(l => l.residencia)) return;
+  const l = S.locais.find(x => /felicio\s*rocho/i.test(semAcentoLocal(x.nome)));
+  lsSet('plantoes:residAuto', '1');
+  if(!l) return;
+  const alvo = S.shifts.filter(s => s.localId === l.id && (s.categoria||'remunerado') === 'remunerado' && !s.pago);
+  setTimeout(() => comDesfazer(`${l.nome} agora é local da residência${alvo.length ? ` · ${alvo.length} lançamento${alvo.length>1?'s':''} sem remuneração` : ''}`, () => {
+    l.residencia = true;
+    alvo.forEach(s => { s.categoria = 'residencia'; s.valor = 0; s.liquido = 0; s.venc = ''; s.urgente = false; });
+  }), 1200);
+}
