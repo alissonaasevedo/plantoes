@@ -38,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.24', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.25', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -721,7 +721,7 @@ function renderMes(){
             <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(localName(s.localId))}</div>
             <div style="font-size:12px;color:var(--dim)">${inc?'previsto em '+MES[d.getMonth()]:pad2(d.getDate())+'/'+pad2(d.getMonth()+1)} · ${brl(liq(s))}</div>
           </div>
-          <div style="font-size:11px;padding:3px 9px;border-radius:99px;background:rgba(200,56,79,.07);color:var(--due);border:1px solid rgba(200,56,79,.22);flex:none">Pendente</div>
+          <div class="tag-pend" style="font-size:11px;padding:3px 9px;border-radius:99px;background:rgba(200,56,79,.07);color:var(--due);border:1px solid rgba(200,56,79,.22);flex:none">Pendente</div>
         </div>`;
       }).join('')}
       ${pendentes.length>4?`<div style="text-align:center;padding:8px 0;font-size:12.5px;color:var(--dim)">+${pendentes.length-4} mais · ver na aba Caixa</div>`:''}
@@ -1478,6 +1478,9 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.25', d:'Nov 2026', items:[
+    { t:'new', txt:'Paleta Daltonismo: azul para recebido e laranja para a receber, com símbolos ✓ e ○ — sem depender de verde e vermelho' },
+  ]},
   { v:'1.24', d:'Nov 2026', items:[
     { t:'fix', txt:'Avisos rápidos (embaixo da tela) ilegíveis no tema escuro: agora sempre escuros com texto branco' },
   ]},
@@ -3691,6 +3694,7 @@ const PALETAS = [
   { id:'diaenoite', nome:'Dia e Noite',  desc:'Âmbar de dia, índigo à noite',    sw:['#FAF8F5','#D97706','#4F46E5','#0284C7'], bg:['#FAF8F5','#0F1115'] },
   { id:'cirurgico', nome:'Cirúrgico',    desc:'Verde-azulado sobre grafite',     sw:['#F3F7F7','#0D9488','#0E1B1D','#15803D'], bg:['#F3F7F7','#0A1213'] },
   { id:'fintech',   nome:'Fintech',      desc:'Preto, branco e verde-limão',     sw:['#F5F5F2','#0A0A0A','#C6F432','#3F7D0B'], bg:['#F5F5F2','#0A0A0A'] },
+  { id:'daltonico', nome:'Daltonismo',   desc:'Azul e laranja, sem verde e vermelho', sw:['#F7F8FA','#1D4ED8','#0072B2','#E69F00'], bg:['#F7F8FA','#111318'] },
 ];
 function aplicarPaleta(){
   const id = lsGet('plantoes:paleta'), r = document.documentElement;

@@ -1060,7 +1060,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 :root { --on-accent:#fff; }
 :root[data-paleta="diaenoite"][data-fase="dia"] { --on-accent:#fff; }
 @media (prefers-color-scheme: dark) {
-  :root[data-paleta="fintech"], :root[data-paleta="diaenoite"][data-fase="dia"], :root[data-paleta="cirurgico"] { --on-accent:#0A0A0A; }
+  :root[data-paleta="fintech"], :root[data-paleta="diaenoite"][data-fase="dia"], :root[data-paleta="cirurgico"], :root[data-paleta="daltonico"] { --on-accent:#0A0A0A; }
 }
 .btn.prim, .fab, .cl-tag .v, .wkd.hoje .wkd-n, .sd-acts button.prim, .wr-share, .quick-banner, .quick-banner b, .quick-banner small { color: var(--on-accent); }
 .quick-banner svg { stroke: var(--on-accent); }
@@ -1363,3 +1363,39 @@ html.travado body > :not(#trava) { visibility: hidden !important; }
    Antes usava a cor do texto como fundo: no tema escuro virava branco com letra branca. */
 @media (prefers-color-scheme: dark) { .toast { background: #2A2A31; border-color: rgba(255,255,255,.22); } }
 .modo-plantao .toast { background: #2A2A31; border-color: rgba(255,255,255,.22); }
+
+/* ═══ Paleta Daltonismo (dificuldade com verde e vermelho) ═══
+   Cores da paleta Okabe-Ito: azul = recebido, laranja = a receber/pendente.
+   Diferença também por claro/escuro e por símbolo (✓ ○), nunca só pela cor.             */
+:root[data-paleta="daltonico"] {
+  --bg:#F7F8FA; --bg-soft:#EFF1F5; --surface:#FFFFFF; --surface-2:#F1F3F7;
+  --line:#E3E6EC; --line-2:#D2D7E0; --ink:#0F172A; --dim:#4B5563; --dim-2:#6B7280;
+  --accent:#1D4ED8; --accent-2:#1E40AF; --accent-soft:rgba(29,78,216,.1);
+  --ok:#0072B2; --ok-soft:rgba(0,114,178,.11);
+  --amber:#B35C00; --amber-soft:rgba(230,159,0,.18);
+  --due:#B35C00; --due-soft:rgba(230,159,0,.18);
+  --noite:#1D4ED8; --nav-bg:rgba(247,248,250,.96);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-paleta="daltonico"] {
+    --bg:#111318; --bg-soft:#161920; --surface:#1B1F27; --surface-2:#232833;
+    --line:#2C3240; --line-2:#3A4152; --ink:#F3F4F6; --dim:#B4BAC6; --dim-2:#8A92A3;
+    --accent:#7AA7FF; --accent-2:#5B8DEF; --accent-soft:rgba(122,167,255,.15);
+    --ok:#56B4E9; --ok-soft:rgba(86,180,233,.15);
+    --amber:#E69F00; --amber-soft:rgba(230,159,0,.16);
+    --due:#F0A35E; --due-soft:rgba(240,163,94,.15);
+    --noite:#7AA7FF; --nav-bg:rgba(17,19,24,.94);
+  }
+}
+:root.modo-plantao[data-paleta="daltonico"] { --accent:#7AA7FF; --accent-2:#5B8DEF; --accent-soft:rgba(122,167,255,.15);
+  --ok:#56B4E9; --ok-soft:rgba(86,180,233,.15); --amber:#E69F00; --due:#F0A35E; --noite:#7AA7FF; --on-accent:#0A0A0A; }
+:root[data-paleta="daltonico"] .live-dot { background: var(--ok); }
+:root[data-paleta="daltonico"] .live.live-done { --lc: var(--ok); }
+:root[data-paleta="daltonico"] .ld-check { background: var(--ok-soft); color: var(--ok); }
+:root[data-paleta="daltonico"] .pill.pago { border-color: var(--ok); }
+:root[data-paleta="daltonico"] .pill.pend { border-color: var(--amber); border-style: dashed; }
+:root[data-paleta="daltonico"] .pill.pago::before { content: '✓ '; font-weight: 800; }
+:root[data-paleta="daltonico"] .pill.pend::before { content: '○ '; font-weight: 800; }
+.pal[data-pal="daltonico"] { grid-column: 1 / -1; }
+:root[data-paleta="daltonico"] .tag-pend { background: var(--due-soft) !important; border: 1px dashed var(--due) !important; }
+:root[data-paleta="daltonico"] .tag-pend::before { content: '○ '; font-weight: 800; }

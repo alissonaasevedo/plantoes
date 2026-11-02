@@ -93,10 +93,10 @@ def test_paletas_trocam_tokens(abrir):
     pg = abrir()
     pg.click('nav button[data-v="ajustes"]'); passo(pg, 300)
     vistos = set()
-    for pid in ['diaenoite', 'cirurgico', 'fintech', '']:
+    for pid in ['diaenoite', 'cirurgico', 'fintech', 'daltonico', '']:
         pg.click(f'[data-pal="{pid}"]'); passo(pg, 150)
         vistos.add(js(pg, "getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()"))
-    assert len(vistos) == 4
+    assert len(vistos) == 5
     assert js(pg, "localStorage.getItem('plantoes:paleta')") is None   # Clássico = sem preferência gravada
 
 
