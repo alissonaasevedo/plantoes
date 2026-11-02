@@ -111,3 +111,30 @@ def test_local_padrao_e_o_ultimo_usado(abrir):
     esperado = js(pg, "S.shifts.filter(s=>s.categoria==='remunerado'&&getLocal(s.localId)).sort((a,b)=>b.data.localeCompare(a.data))[0].localId")
     rodar(pg, "openSheet(null,'2026-12-20','remunerado')"); passo(pg)
     assert js(pg, "$('#f-local').value") == esperado
+
+
+def _fundo(pg):
+    return js(pg, "getComputedStyle(document.documentElement).getPropertyValue('--bg').trim().toUpperCase()")
+
+
+def test_tema_automatico_claro_e_escuro(abrir):
+    pg = abrir(tema='light')
+    assert _fundo(pg) == '#F8F9FA'
+    pg.click('nav button[data-v="ajustes"]'); passo(pg, 300)
+    assert js(pg, "$('#tema-segs [data-tema=\"\"]').classList.contains('on')")
+    pg.click('#tema-segs [data-tema="escuro"]'); passo(pg, 200)
+    assert _fundo(pg) == '#18181B' and js(pg, "temaEscuro()")
+    assert js(pg, "document.querySelector('meta[name=theme-color][data-tema=dark]').media") == 'all'
+    pg.reload(); passo(pg, 2500)
+    assert _fundo(pg) == '#18181B', 'a escolha fica gravada'
+    pg.click('nav button[data-v="ajustes"]'); passo(pg, 300)
+    pg.click('#tema-segs [data-tema=""]'); passo(pg, 200)
+    assert _fundo(pg) == '#F8F9FA', 'automático volta a seguir o celular'
+
+
+def test_tema_claro_com_celular_escuro_e_paleta(abrir):
+    pg = abrir(tema='dark', paleta='daltonico')
+    assert _fundo(pg) == '#111318'
+    pg.click('nav button[data-v="ajustes"]'); passo(pg, 300)
+    pg.click('#tema-segs [data-tema="claro"]'); passo(pg, 200)
+    assert _fundo(pg) == '#F7F8FA' and not js(pg, "temaEscuro()")

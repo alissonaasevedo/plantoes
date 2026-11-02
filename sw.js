@@ -1,4 +1,4 @@
-const CACHE = 'plantoes-v1.26';
+const CACHE = 'plantoes-v1.27';
 const ESTADO = 'plantoes-estado';                 // espelho da agenda de avisos (não é apagado nas atualizações)
 // Versionamento: v1.0, v1.01, v1.02 ... → grandes reformulações = v2.0, v3.0 ...
 const ASSETS = ['./','./index.html','./css/app.css','./js/app.js','./js/conta.js','./js/sw-register.js',

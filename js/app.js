@@ -38,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.26', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.27', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -1478,6 +1478,9 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.27', d:'Nov 2026', items:[
+    { t:'new', txt:'Tema Automático, Claro ou Escuro em Ajustes → Aparência (Automático acompanha o celular)' },
+  ]},
   { v:'1.26', d:'Nov 2026', items:[
     { t:'fix', txt:'Conta Google: o app dizia "sem permissão" mesmo com Agenda e Drive autorizados — agora confere direto no Google' },
   ]},
@@ -3707,7 +3710,7 @@ function aplicarPaleta(){
   // cor da barra de status acompanha o fundo da paleta
   const pal = PALETAS.find(p => p.id === id) || PALETAS[0];
   THEME_META.forEach(par => {
-    const escuro = (par[0].getAttribute('media')||'').includes('dark');
+    const escuro = (par[0].dataset.tema || par[0].getAttribute('media') || '').includes('dark');
     par[1] = pal.bg[escuro ? 1 : 0];
     if(!r.classList.contains('modo-plantao')) par[0].content = par[1];
   });
@@ -4459,7 +4462,7 @@ async function relatorioDiagnostico(){
     `Plantaê! v${APP_VERSAO} · dados v${S.v||'?'} (app espera v${SCHEMA})`,
     `Gerado em ${new Date().toLocaleString('pt-BR')}`,
     `Aparelho: ${navigator.userAgent}`,
-    `Tela ${screen.width}×${screen.height} · ${instalado ? 'instalado na Tela de Início' : 'aberto no navegador'} · tema ${matchMedia('(prefers-color-scheme: dark)').matches?'escuro':'claro'} · paleta ${lsGet('plantoes:paleta')||'clássico'}`,
+    `Tela ${screen.width}×${screen.height} · ${instalado ? 'instalado na Tela de Início' : 'aberto no navegador'} · tema ${temaEscuro()?'escuro':'claro'}${lsGet('plantoes:tema')?' (fixo)':' (automático)'} · paleta ${lsGet('plantoes:paleta')||'clássico'}`,
     `Dados: ${S.shifts.length} lançamentos · ${S.locais.length} locais · ${S.bloqueios.length} bloqueios · ${tam} KB${uso ? ' · armazenamento '+uso : ''} · persistente: ${persist}`,
     `Avisos: ${notifSuportada() ? Notification.permission : 'não suportado'} · saúde dos dados: ${problemasDados().length} item(ns) · histórico: ${histLer().length} ações`,
     '',
@@ -4716,3 +4719,17 @@ function normalize(d){ return aplicarPadroes(migrar(d)); }
   const params = new URLSearchParams(location.search);
   if(params.get('action')){ history.replaceState(history.state, '', location.pathname); setTimeout(()=>tratarAcao(params), 300); }
 })();
+
+/* ================= tema: Automático / Claro / Escuro ================= */
+function renderTema(){
+  const atual = lsGet('plantoes:tema');
+  document.querySelectorAll('#tema-segs button').forEach(b => b.classList.toggle('on', b.dataset.tema === atual));
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('#tema-segs button'); if(!b) return;
+  lsSet('plantoes:tema', b.dataset.tema);
+  aplicarTema(b.dataset.tema);
+  aplicarPaleta(); renderTema(); haptic(8);
+  toast(b.dataset.tema ? 'Tema ' + b.textContent.toLowerCase() : 'Tema automático — acompanha o celular');
+});
+renderTema();

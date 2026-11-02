@@ -14,8 +14,8 @@
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <meta name="description" content="Plantões, o que entra na conta e quando — escala, valores, pagamentos e avisos.">
-<meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#18181B" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)" data-tema="light">
+<meta name="theme-color" content="#18181B" media="(prefers-color-scheme: dark)" data-tema="dark">
 <title>Plantaê!</title>
 <script>
 /* ── Paleta aplicada antes da primeira pintura (evita piscar a cor errada) ── */
@@ -48,6 +48,44 @@
 })();
 </script>
 <link rel="stylesheet" href="./css/app.css">
+<script>
+/* ── Tema: Automático (segue o celular), Claro ou Escuro ──
+   O CSS escuro vive em @media (prefers-color-scheme: dark). Para forçar um tema, troca cada
+   condição dessas por uma sempre verdadeira ou sempre falsa — sem duplicar o CSS. Roda logo
+   depois do CSS carregar, antes da primeira pintura.                                      */
+window.aplicarTema = function(modo){
+  var alvo = modo === 'escuro' ? 'dark' : modo === 'claro' ? 'light' : '';
+  var re = /\(\s*prefers-color-scheme\s*:\s*(dark|light)\s*\)/g;
+  function trocar(regras){
+    for(var i = 0; i < regras.length; i++){
+      var r = regras[i];
+      if(r.media && r.cssRules){
+        if(r.__mediaOrig == null) r.__mediaOrig = r.media.mediaText;
+        if(re.test(r.__mediaOrig)){
+          re.lastIndex = 0;
+          r.media.mediaText = !alvo ? r.__mediaOrig
+            : r.__mediaOrig.replace(re, function(_, v){ return v === alvo ? '(min-width: 0px)' : '(max-width: 0px)'; });
+        }
+        re.lastIndex = 0;
+        trocar(r.cssRules);
+      }
+    }
+  }
+  for(var s = 0; s < document.styleSheets.length; s++){ try{ trocar(document.styleSheets[s].cssRules); }catch(e){} }
+  var raiz = document.documentElement;
+  raiz.style.colorScheme = alvo || '';
+  if(alvo) raiz.dataset.tema = alvo; else delete raiz.dataset.tema;
+  var cs = document.querySelector('meta[name="color-scheme"]'); if(cs) cs.content = alvo || 'light dark';
+  document.querySelectorAll('meta[name="theme-color"][data-tema]').forEach(function(m){
+    m.media = !alvo ? '(prefers-color-scheme: ' + m.dataset.tema + ')' : (m.dataset.tema === alvo ? 'all' : 'not all');
+  });
+};
+window.temaEscuro = function(){
+  var t = document.documentElement.dataset.tema;
+  return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+};
+try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }catch(e){}
+</script>
 </head>
 <body>
 
@@ -285,9 +323,14 @@
   <section id="v-ajustes" class="hidden">
     <div class="sec" style="margin-top:0"><h2>Aparência</h2></div>
     <div class="pal-grid" id="pal-grid"></div>
+    <div class="tema-linha"><span>Tema</span>
+      <div class="segs" id="tema-segs" role="group" aria-label="Tema">
+        <button data-tema="">Automático</button><button data-tema="claro">Claro</button><button data-tema="escuro">Escuro</button>
+      </div>
+    </div>
     <div class="toggle" id="pref-vibrar" style="margin-top:4px"><div class="lb">Vibração ao tocar</div><div class="sw"></div></div>
     <button class="btn prim wide hidden" id="btn-instalar" style="margin-bottom:12px">Instalar o app neste celular</button>
-    <p class="hint" style="margin-top:4px">A paleta acompanha o tema claro/escuro do celular. Em <b>Dia e Noite</b>, o destaque fica âmbar das 6h às 18h e índigo à noite.</p>
+    <p class="hint" style="margin-top:4px">Em <b>Automático</b>, o app fica claro ou escuro junto com o celular (inclusive no horário programado do modo escuro do Galaxy). Em <b>Dia e Noite</b>, o destaque fica âmbar das 6h às 18h e índigo à noite.</p>
 
     <div class="sec" style="margin-top:26px"><h2>Conta Google</h2></div>
     <div class="row" style="cursor:default;border-bottom:0;padding-top:4px">

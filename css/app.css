@@ -1399,3 +1399,6 @@ html.travado body > :not(#trava) { visibility: hidden !important; }
 .pal[data-pal="daltonico"] { grid-column: 1 / -1; }
 :root[data-paleta="daltonico"] .tag-pend { background: var(--due-soft) !important; border: 1px dashed var(--due) !important; }
 :root[data-paleta="daltonico"] .tag-pend::before { content: '○ '; font-weight: 800; }
+.tema-linha { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:4px 0 10px; }
+.tema-linha > span { font-size:14px; font-weight:600; color:var(--ink); }
+.tema-linha .segs button { padding:7px 12px; font-size:12.5px; }
