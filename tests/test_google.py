@@ -170,3 +170,23 @@ def test_google_pedindo_calma_espera_e_tenta_de_novo(abrir):
         pg.wait_for_timeout(700); passo(pg, 2500)
     assert estado['recusas'] == 2
     assert len(g.eventos_ativos()) == esperado(pg)
+
+
+def test_login_sem_lista_de_permissoes_confere_no_google(abrir):
+    """No celular real o login voltou sem a lista de permissões e o app achou que não tinha acesso."""
+    g = GoogleFalso()
+    g.escopos_login = []
+    pg, g = conectar(abrir, g)
+    espera(pg, 1500)
+    assert ('GET', '/tokeninfo') in g.chamadas
+    assert len(g.eventos_ativos()) == esperado(pg) and len(g.arquivos) == 1
+    assert 'sem permissão' not in pg.inner_text('#g-agenda-st')
+
+
+def test_sem_permissao_de_verdade_avisa_ao_sincronizar(abrir):
+    g = GoogleFalso()
+    g.escopos_login = g.escopos_reais = ['openid', 'email']
+    pg, g = conectar(abrir, g)
+    pg.click('#g-sync'); espera(pg, 1000)
+    assert 'não deu permissão' in pg.inner_text('#toast')
+    assert not g.agendas

@@ -18,6 +18,8 @@ class GoogleFalso:
         self.token_valido = 'at1'
         self.renovar_status = 200
         self.n = 0
+        self.escopos_login = ESCOPOS        # o que /api/google/conectar devolve
+        self.escopos_reais = ESCOPOS        # o que o token de fato tem (tokeninfo)
 
     # ---------- servidor do app ----------
     def rotas(self, google_cfg='cid.apps.googleusercontent.com', refresh='rt1'):
@@ -27,7 +29,7 @@ class GoogleFalso:
             self.chamadas.append(('POST', '/api/google/conectar'))
             route.fulfill(status=200, content_type='application/json', body=json.dumps({
                 'access_token': self.token_valido, 'expires_in': 3600, 'refresh_token': refresh,
-                'email': 'medico@gmail.com', 'escopos': ESCOPOS}))
+                'email': 'medico@gmail.com', 'escopos': self.escopos_login}))
         def renovar(route):
             self.chamadas.append(('POST', '/api/google/renovar'))
             if self.renovar_status != 200:
@@ -39,7 +41,11 @@ class GoogleFalso:
         def sair(route):
             self.chamadas.append(('POST', '/api/google/sair'))
             route.fulfill(status=200, content_type='application/json', body='{"ok":true}')
-        return {'**/api/config': config, '**/api/google/conectar': conectar, '**/api/google/renovar': renovar,
+        def tokeninfo(route):
+            self.chamadas.append(('GET', '/tokeninfo'))
+            route.fulfill(status=200, content_type='application/json', headers={'access-control-allow-origin': '*'},
+                          body=json.dumps({'scope': ' '.join(self.escopos_reais), 'expires_in': '3500'}))
+        return {'https://oauth2.googleapis.com/tokeninfo**': tokeninfo, '**/api/config': config, '**/api/google/conectar': conectar, '**/api/google/renovar': renovar,
                 '**/api/google/sair': sair, 'https://www.googleapis.com/**': self.api}
 
     # ---------- APIs do Google ----------

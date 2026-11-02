@@ -38,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.25', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.26', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -1478,6 +1478,9 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.26', d:'Nov 2026', items:[
+    { t:'fix', txt:'Conta Google: o app dizia "sem permissão" mesmo com Agenda e Drive autorizados — agora confere direto no Google' },
+  ]},
   { v:'1.25', d:'Nov 2026', items:[
     { t:'new', txt:'Paleta Daltonismo: azul para recebido e laranja para a receber, com símbolos ✓ e ○ — sem depender de verde e vermelho' },
   ]},

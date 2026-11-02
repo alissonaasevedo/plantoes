@@ -333,8 +333,23 @@ async function gRestaurar(id, botao){
 }
 
 /* ---------- gatilhos ---------- */
-function gSincronizarTudo({ completo } = {}){
+// confere no próprio Google quais permissões o token tem (a resposta do login às vezes
+// vem sem a lista ou com o nome em outro formato) e guarda a lista certa
+let _gEscoposConferidos = false;
+async function gConferirEscopos(){
   if(!gConectado()) return;
+  try{
+    const t = await gToken(false);
+    const r = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(t));
+    if(!r.ok) return;
+    const d = await gJson(r);
+    const lista = String(d.scope || '').split(/\s+/).filter(Boolean);
+    if(lista.length){ gSalvarConta({ ...gConta(), escopos: lista }); _gEscoposConferidos = true; }
+  }catch(e){}
+}
+async function gSincronizarTudo({ completo } = {}){
+  if(!gConectado()) return;
+  if(!_gEscoposConferidos || !gTemEscopo(G_ESC_AGENDA) || !gTemEscopo(G_ESC_DRIVE)){ await gConferirEscopos(); renderConta(); }
   gSincronizarAgenda({ completo }).catch(() => {});
   gBackupDrive().catch(() => {});
 }
@@ -397,6 +412,8 @@ document.addEventListener('click', async e => {
   if(e.target.closest('#g-sync')){
     const b = e.target.closest('#g-sync'); b.disabled = true;
     try{
+      await gConferirEscopos(); renderConta();
+      if(!gTemEscopo(G_ESC_AGENDA) && !gTemEscopo(G_ESC_DRIVE)){ toast('O Google não deu permissão de Agenda nem de Drive — Desconectar e Conectar de novo marcando as caixas'); b.disabled = false; return; }
       const r = await gSincronizarAgenda({ completo: true });
       await gBackupDrive({ forcar: true }).catch(() => {});
       toast(r ? `Agenda em dia · ${r.gravados} enviado${r.gravados===1?'':'s'}, ${r.apagados} removido${r.apagados===1?'':'s'}` : 'Sincronizado');
@@ -529,8 +546,11 @@ document.addEventListener('visibilitychange', () => {
   // ao abrir: confere a agenda (completa 1×/dia) e faz backup se o último tem mais de 12 h
   setTimeout(() => {
     if(!gConectado()) return;
-    gSincronizarAgenda().catch(() => {});
-    const sd = gLer('plantoes:gdrive', {});
-    if(Date.now() - (sd.em || 0) > 12 * 3600000) gBackupDrive().catch(() => {});
+    gConferirEscopos().then(() => {
+      renderConta();
+      gSincronizarAgenda().catch(() => {});
+      const sd = gLer('plantoes:gdrive', {});
+      if(Date.now() - (sd.em || 0) > 12 * 3600000) gBackupDrive().catch(() => {});
+    });
   }, 3000);
 })();
