@@ -38,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.23', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.24', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -1478,6 +1478,9 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.24', d:'Nov 2026', items:[
+    { t:'fix', txt:'Avisos rápidos (embaixo da tela) ilegíveis no tema escuro: agora sempre escuros com texto branco' },
+  ]},
   { v:'1.23', d:'Nov 2026', items:[
     { t:'new', txt:'Google Agenda: os plantões numa agenda Plantaê! que aparece no Calendário Samsung — editar ou excluir atualiza, sem duplicar' },
     { t:'new', txt:'Backup automático no Google Drive (pasta oculta do app, últimas 30 cópias) e restaurar pelo Drive no celular novo' },

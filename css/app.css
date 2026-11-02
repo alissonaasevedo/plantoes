@@ -411,7 +411,8 @@ textarea { min-height: 62px; resize: vertical; }
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%) translateY(16px);
   bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 60;
-  background: var(--ink); color: #fff; font-size: 13.5px; font-weight: 600;
+  background: #1C1C21; color: #FAFAFA; font-size: 13.5px; font-weight: 600;
+  border: 1px solid rgba(255,255,255,.16); box-shadow: 0 8px 28px rgba(0,0,0,.45);
   padding: 10px 18px; border-radius: 99px; opacity: 0; transition: .22s; pointer-events: none;
 }
 .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -985,7 +986,7 @@ nav button:active { transform: scale(.92); }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .toast { width: max-content; max-width: calc(100vw - 32px); text-align: center; line-height: 1.4; }
 .toast.has-act { pointer-events: auto; display: flex; align-items: center; gap: 14px; text-align: left; padding: 8px 8px 8px 18px; }
-.toast-act { flex: none; border: 0; border-radius: 99px; background: rgba(255,255,255,.14); color: #C7D2FE; font: inherit; font-weight: 700; padding: 6px 12px; cursor: pointer; }
+.toast-act { flex: none; border: 0; border-radius: 99px; background: rgba(255,255,255,.2); color: #FFFFFF; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; padding: 6px 12px; cursor: pointer; }
 .toast-act:active { transform: scale(.95); }
 /* números trocando de valor não "pulam" de largura */
 #h-total, .sc-val, .val, .money { font-variant-numeric: tabular-nums; }
@@ -1357,3 +1358,8 @@ html.travado body > :not(#trava) { visibility: hidden !important; }
 #trava .btn.prim { min-width: 200px; margin-top: 8px; }
 #trava-recad[hidden] { display: none; }
 .toggle.desab { opacity: .5; }
+
+/* aviso rápido (toast): sempre escuro com texto branco — contraste alto em qualquer tema e paleta.
+   Antes usava a cor do texto como fundo: no tema escuro virava branco com letra branca. */
+@media (prefers-color-scheme: dark) { .toast { background: #2A2A31; border-color: rgba(255,255,255,.22); } }
+.modo-plantao .toast { background: #2A2A31; border-color: rgba(255,255,255,.22); }
