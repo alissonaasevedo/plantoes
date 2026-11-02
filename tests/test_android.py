@@ -182,3 +182,16 @@ def test_cabecalho_cabe_no_mes_de_nome_mais_longo(abrir):
     assert js(pg, "document.documentElement.scrollWidth") <= 385
     caixa = js(pg, "(()=>{ const r=$('#next').getBoundingClientRect(); return r.right; })()")
     assert caixa <= 384
+
+
+def test_lancar_pelo_botao_mais_e_fechar_nao_sai_do_app(abrir):
+    pg = abrir(aparelho=GALAXY)
+    for item, fechar in [('#fab-am', '#sh-close'), ('#fab-r', '#sh-close'), ('#fab-b', '#sbl-close')]:
+        pg.click('#fab'); passo(pg, 300)
+        pg.click(item); passo(pg, 400)
+        pg.click(fechar); passo(pg, 400)
+        assert 'index.html' in pg.url, f'{item}: fechar a tela saiu do app'
+    pg.click('#fab'); passo(pg, 300)
+    pg.click('#fab-p'); passo(pg, 400)
+    pg.go_back(); passo(pg, 400)
+    assert 'index.html' in pg.url and not js(pg, "!!document.querySelector('.sheet.open')"), 'Voltar fecha a tela e continua no app'

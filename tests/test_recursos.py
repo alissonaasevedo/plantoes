@@ -1,3 +1,4 @@
+import json
 """Recursos: frequentes, desfazer, saúde dos dados, busca, escala fixa, boas-vindas, paletas."""
 from conftest import passo, js, rodar, salvo
 
@@ -138,3 +139,31 @@ def test_tema_claro_com_celular_escuro_e_paleta(abrir):
     pg.click('nav button[data-v="ajustes"]'); passo(pg, 300)
     pg.click('#tema-segs [data-tema="claro"]'); passo(pg, 200)
     assert _fundo(pg) == '#F7F8FA' and not js(pg, "temaEscuro()")
+
+
+def test_plantao_noturno_da_residencia(abrir):
+    from conftest import quando
+    pg = abrir(hora=quando(19, 14, 0))
+    total = js(pg, "$('#h-total').textContent")
+    pg.click('#fab'); passo(pg, 300)
+    pg.click('#fab-r'); passo(pg, 400)
+    assert js(pg, "chipGet('#f-cat')") == 'residencia' and js(pg, "chipGet('#f-turno')") == 'noturno'
+    assert js(pg, "$('#f-hora').value") == '19:00' and js(pg, "duracaoAtual()") == 12
+    assert not js(pg, "$('#f-turno-wrap').classList.contains('hidden')"), 'turno e duração editáveis'
+    assert js(pg, "$('#f-valor-wrap').classList.contains('hidden')"), 'sem campos de valor'
+    assert js(pg, "$('#f-newlocal').value") == 'Hospital Felício Rocho'
+    pg.fill('#f-date', '2026-10-22'); pg.dispatch_event('#f-date', 'change')
+    pg.click('#sh-save'); passo(pg, 400)
+    s = js(pg, "S.shifts.find(s=>s.categoria==='residencia')")
+    assert (s['turno'], s['hora'], s['duracao'], s['valor']) == ('noturno', '19:00', 12, 0)
+    assert js(pg, f"localName({json.dumps(s['localId'])})") == 'Hospital Felício Rocho'
+    assert js(pg, "$('#h-total').textContent") == total, 'fora das contas'
+    avisos = js(pg, "avisosPendentes(Date.now()).filter(a=>a.sid===S.shifts.find(s=>s.categoria==='residencia').id).map(a=>a.title)")
+    assert 'Residência em 1 hora' in avisos
+    assert any(c['summary'].startswith('Residência · Hospital Felício Rocho') for c in js(pg, "[...gDesejado().values()].map(x=>x.corpo)") if 'summary' in c)
+    # o próximo já abre no mesmo hospital, sem criar outro
+    rodar(pg, "novoPlantaoResidencia('2026-10-29')"); passo(pg, 300)
+    assert js(pg, "$('#f-local').value") == s['localId']
+    # turno troca o horário padrão
+    pg.click('#f-turno .chip[data-v="diurno"]'); passo(pg, 100)
+    assert js(pg, "$('#f-hora').value") == '07:00'

@@ -38,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.27', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.28', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -867,7 +867,7 @@ function renderDia(){
       : lista.map(s => {
           const resid = ehResid(s), bolsa = ehBolsa(s), amb = ehAmb(s), bloq = ehBloq(s);
           const cor = localCor(s.localId);
-          const icone = resid ? '' : (s.turno==='noturno' ? ICON_MOON : ICON_SUN);
+          const icone = s.turno==='noturno' ? ICON_MOON : ICON_SUN;
           const icos={'ferias':'🏖️','viagem':'✈️','sobreaviso':'📟','compromisso':'📌','outro':'📋'};
           const nomesBloq={ferias:'Férias',viagem:'Viagem',sobreaviso:'Sobreaviso',compromisso:'Compromisso',outro:'Bloqueio'};
           const nome = bloq
@@ -1478,6 +1478,11 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.28', d:'Nov 2026', items:[
+    { t:'new', txt:'Plantão da residência no botão +: noturno obrigatório, sem remuneração, já com 19h, 12h e o Felício Rocho' },
+    { t:'imp', txt:'Residência com turno, duração e trocas editáveis; entra na agenda, nos avisos e no Google Agenda, fora das contas' },
+    { t:'fix', txt:'Lançar pelo botão + e fechar a tela voltava uma página a mais — no app instalado, podia sair do app' },
+  ]},
   { v:'1.27', d:'Nov 2026', items:[
     { t:'new', txt:'Tema Automático, Claro ou Escuro em Ajustes → Aparência (Automático acompanha o celular)' },
   ]},
@@ -2011,7 +2016,18 @@ function janela(){
 function localPadrao(cat){
   const ult = S.shifts.filter(s => (s.categoria||'remunerado') === cat && getLocal(s.localId))
                       .sort((a,b) => b.data.localeCompare(a.data))[0];
-  return ult ? ult.localId : ((S.locais[0]||{}).id || '__new');
+  if(ult) return ult.localId;
+  if(cat === 'residencia'){ const h = S.locais.find(l => /fel[ií]cio\s*rocho/i.test(semAcentoLocal(l.nome))); return h ? h.id : '__new'; }
+  return (S.locais[0]||{}).id || '__new';
+}
+const semAcentoLocal = t => String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+// plantão noturno obrigatório da residência: já abre com noturno, 19h, 12h e o hospital
+function novoPlantaoResidencia(data){
+  openSheet(null, data || null, 'residencia');
+  chipSet('#f-turno', 'noturno'); $('#f-hora').value = '19:00';
+  chipSet('#f-dur', '12'); $('#f-durc-wrap').classList.add('hidden');
+  if($('#f-local').value === '__new'){ $('#f-newlocal-wrap').classList.remove('hidden'); $('#f-newlocal').value = 'Hospital Felício Rocho'; }
+  janela();
 }
 function openSheet(shift, presetDate, presetCategoria){
   editing = shift || null;
@@ -2193,10 +2209,11 @@ function aplicarCategoria(){
   const cat = chipGet('#f-cat');
   const resid = cat === 'residencia', amb = cat === 'ambulatorio', bolsa = cat === 'bolsa';
 
-  // Turno e Duração: ocultar para renda fixa e residência
-  $('#f-turno-wrap').classList.toggle('hidden', bolsa || resid);
-  // Origem: ocultar para renda fixa e residência
-  $('#f-origem-wrap').classList.toggle('hidden', bolsa || resid);
+  // Turno e Duração: só a renda fixa não tem (residência tem horário e duração reais)
+  $('#f-turno-wrap').classList.toggle('hidden', bolsa);
+  // Origem (meu / peguei / passei): trocas também acontecem entre residentes
+  $('#f-origem-wrap').classList.toggle('hidden', bolsa);
+  $('#resid-hint').classList.toggle('hidden', !resid);
   // Repetir: ocultar para renda fixa ou quando editando
   $('#f-rep-wrap').classList.toggle('hidden', bolsa || !!editing);
 
@@ -2213,7 +2230,7 @@ function aplicarCategoria(){
 
   $('#amb-wrap').classList.toggle('hidden', !amb);
 
-  const nomes = { residencia:'compromisso de residência', ambulatorio:'dia de atendimento', remunerado:'plantão', bolsa:'renda fixa' };
+  const nomes = { residencia:'plantão da residência', ambulatorio:'dia de atendimento', remunerado:'plantão', bolsa:'renda fixa' };
   $('#sh-title').textContent = (editing ? 'Editar ' : 'Novo ') + (nomes[cat] || 'plantão');
   if(amb) calcAmb();
 }
@@ -3020,20 +3037,25 @@ function novoItem(){
           <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nomeCurto(m.localId))}<small style="display:block;font-weight:500;color:var(--dim);font-size:12px">${rotuloModelo(m)}</small></span></button>`).join('') : '') + `
     <button id="fab-p"  style="${itemStyle}${sep}">🏥 <span>Novo plantão</span></button>
     <button id="fab-am" style="${itemStyle}${sep}">🩺 <span>Dia de consultório</span></button>
+    <button id="fab-r"  style="${itemStyle}${sep}">🌙 <span>Plantão da residência<small style="display:block;font-weight:500;color:var(--dim);font-size:12px">obrigatório · sem remuneração</small></span></button>
     <button id="fab-b"  style="${itemStyle}">🔒 <span>Bloqueio de agenda</span></button>`;
   menu.style.animation = 'fabIn .18s cubic-bezier(.32,.72,0,1)';
   document.body.appendChild(menu);
   haptic(6);
   // um único listener, sempre removido — antes ficava pendurado quando se escolhia um item
-  function fechar(){ menu.remove(); document.removeEventListener('click', fora, true); if(!_locked) fecharCamadaHist(); }
+  // escolher um item passa a "camada" do histórico para a tela que abre (o Voltar fecha essa tela);
+  // antes o menu desfazia a entrada enquanto a tela criava outra, e fechar a tela voltava uma
+  // página a mais — no app instalado, saía do app
+  function fechar(passarCamada){ menu.remove(); document.removeEventListener('click', fora, true); if(!passarCamada && !_locked) fecharCamadaHist(); }
   abrirCamadaHist();
   function fora(e){ if(!menu.contains(e.target) && !e.target.closest('#fab, #add-top')) fechar(); }
   setTimeout(()=>document.addEventListener('click', fora, true), 0);
-  menu.querySelector('#fab-p') .onclick = ()=>{ fechar(); openSheet(null, null, 'remunerado'); };
-  menu.querySelector('#fab-am').onclick = ()=>{ fechar(); openSheet(null, null, 'ambulatorio'); };
-  menu.querySelector('#fab-b') .onclick = ()=>{ fechar(); openBloqueio(null); };
+  menu.querySelector('#fab-p') .onclick = ()=>{ fechar(true); openSheet(null, null, 'remunerado'); };
+  menu.querySelector('#fab-am').onclick = ()=>{ fechar(true); openSheet(null, null, 'ambulatorio'); };
+  menu.querySelector('#fab-r') .onclick = ()=>{ fechar(true); novoPlantaoResidencia(); };
+  menu.querySelector('#fab-b') .onclick = ()=>{ fechar(true); openBloqueio(null); };
   menu.querySelectorAll('[data-fab-mod]').forEach(b=> b.onclick = ()=>{
-    fechar(); openSheet(null, iso(new Date()), freq[+b.dataset.fabMod].categoria); aplicarModelo(freq[+b.dataset.fabMod]);
+    fechar(true); openSheet(null, iso(new Date()), freq[+b.dataset.fabMod].categoria); aplicarModelo(freq[+b.dataset.fabMod]);
   });
 }
 $('#fab').onclick = novoItem;
@@ -3140,7 +3162,13 @@ document.addEventListener('click', e=>{
     Array.from(box.children).forEach(c=>c.classList.remove('on'));
     chip.classList.add('on');
     if(box.id === 'f-cat'){ aplicarCategoria(); autoValor(); }
-    if(box.id==='f-turno') autoValor();
+    if(box.id==='f-turno'){
+      // horário padrão acompanha o turno (só troca se ainda estava no padrão do outro turno)
+      const h = $('#f-hora');
+      if(chip.dataset.v === 'noturno' && h.value === '07:00') h.value = '19:00';
+      if(chip.dataset.v === 'diurno' && h.value === '19:00') h.value = '07:00';
+      autoValor(); janela();
+    }
     if(box.id==='l-pagmes') return;
     if(box.id==='f-dur'){ $('#f-durc-wrap').classList.toggle('hidden', chip.dataset.v!=='custom'); autoValor(); }
     if(box.id==='f-tipo'){ $('#troca-wrap').classList.toggle('hidden', chip.dataset.v==='meu'); contraHint(); }
