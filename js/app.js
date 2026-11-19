@@ -38,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.29', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.30', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -234,14 +234,17 @@ function toast(msg, acao){
   if(acao){
     const b = document.createElement('button');
     b.className = 'toast-act'; b.textContent = acao.label;
-    b.onclick = ()=>{ clearTimeout(toastT); t.classList.remove('on'); acao.fn(); };
+    b.onclick = ()=>{
+      if(!t.classList.contains('on')) return;         // aviso já sumiu: nada de desfazer escondido
+      clearTimeout(toastT); t.classList.remove('on'); t.classList.remove('has-act'); acao.fn();
+    };
     t.appendChild(b);
   }
   t.classList.toggle('has-act', !!acao);
   t.classList.add('on');
   // mensagens longas (conflitos) ficam mais tempo; com ação, 5s para dar tempo de desfazer
   const dur = acao ? 5500 : Math.min(5000, Math.max(1900, msg.length * 55));
-  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), dur);
+  clearTimeout(toastT); toastT = setTimeout(()=>{ t.classList.remove('on'); t.classList.remove('has-act'); }, dur);
 }
 
 // Exclusões são imediatas e reversíveis: guarda uma cópia antes de mudar e
@@ -1481,6 +1484,9 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.30', d:'Nov 2026', items:[
+    { t:'fix', txt:'Tocar no + depois de excluir algo desfazia a exclusão: o botão Desfazer ficava sobre o +, mesmo depois de o aviso sumir' },
+  ]},
   { v:'1.29', d:'Nov 2026', items:[
     { t:'imp', txt:'Residência aparece como "Plantão noturno da residência" (ou diurno) na agenda, nos avisos e na lista' },
     { t:'new', txt:'Local da residência: marque em Locais e tudo lançado nele entra sem remuneração, sem campos de pagamento' },

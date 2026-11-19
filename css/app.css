@@ -985,7 +985,7 @@ nav button:active { transform: scale(.92); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .toast { width: max-content; max-width: calc(100vw - 32px); text-align: center; line-height: 1.4; }
-.toast.has-act { pointer-events: auto; display: flex; align-items: center; gap: 14px; text-align: left; padding: 8px 8px 8px 18px; }
+.toast.has-act { display: flex; align-items: center; gap: 14px; text-align: left; padding: 8px 8px 8px 18px; }
 .toast-act { flex: none; border: 0; border-radius: 99px; background: rgba(255,255,255,.2); color: #FFFFFF; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; padding: 6px 12px; cursor: pointer; }
 .toast-act:active { transform: scale(.95); }
 /* números trocando de valor não "pulam" de largura */
@@ -1402,3 +1402,10 @@ html.travado body > :not(#trava) { visibility: hidden !important; }
 .tema-linha { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:4px 0 10px; }
 .tema-linha > span { font-size:14px; font-weight:600; color:var(--ink); }
 .tema-linha .segs button { padding:7px 12px; font-size:12.5px; }
+
+/* aviso com botão (Desfazer): só aceita toque enquanto está visível, e no celular fica acima
+   do botão + — antes ficava em cima dele e, mesmo invisível, o toque no + caía no Desfazer */
+.toast.has-act.on { pointer-events: auto; }
+@media (max-width: 899px) {
+  .toast { bottom: calc(154px + env(safe-area-inset-bottom)); }
+}

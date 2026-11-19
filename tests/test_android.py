@@ -195,3 +195,37 @@ def test_lancar_pelo_botao_mais_e_fechar_nao_sai_do_app(abrir):
     pg.click('#fab-p'); passo(pg, 400)
     pg.go_back(); passo(pg, 400)
     assert 'index.html' in pg.url and not js(pg, "!!document.querySelector('.sheet.open')"), 'Voltar fecha a tela e continua no app'
+
+
+def _toque_no_mais(pg):
+    """Toque de dedo no centro do botão + (sem as checagens do Playwright, como no celular)."""
+    r = js(pg, "(()=>{ const b=$('#fab').getBoundingClientRect(); return [b.x+b.width/2, b.y+b.height/2]; })()")
+    pg.mouse.click(r[0], r[1])
+
+
+def test_tocar_no_mais_depois_de_excluir_nao_desfaz(abrir):
+    pg = abrir(aparelho=GALAXY)
+    n0 = js(pg, "S.shifts.length")
+    rodar(pg, "openSheet(S.shifts[3])"); pg.wait_for_timeout(700)
+    pg.click('#sh-del'); passo(pg, 300)
+    assert js(pg, "S.shifts.length") == n0 - 1 and 'Desfazer' in pg.inner_text('#toast')
+    # com o aviso ainda na tela: o + abre o menu e não toca no Desfazer
+    _toque_no_mais(pg); passo(pg, 300)
+    assert js(pg, "!!$('#fab-menu')") and js(pg, "S.shifts.length") == n0 - 1
+    pg.keyboard.press('Escape'); passo(pg, 300)
+    # depois que o aviso some: o botão Desfazer invisível não pode continuar pegando toques
+    passo(pg, 6000)
+    rodar(pg, "document.querySelector('#fab-menu') && document.querySelector('#fab-menu').remove()")
+    alvo = js(pg, "(()=>{ const b=$('#fab').getBoundingClientRect(); const el=document.elementFromPoint(b.x+b.width/2, b.y+b.height/2); return el && (el.closest('#fab') ? 'fab' : el.className || el.id); })()")
+    assert alvo == 'fab', f'o toque no + cai em: {alvo}'
+    _toque_no_mais(pg); passo(pg, 300)
+    assert js(pg, "S.shifts.length") == n0 - 1, 'a exclusão continua valendo'
+
+
+def test_desfazer_continua_funcionando(abrir):
+    pg = abrir(aparelho=GALAXY)
+    n0 = js(pg, "S.shifts.length")
+    rodar(pg, "openSheet(S.shifts[3])"); pg.wait_for_timeout(700)
+    pg.click('#sh-del'); passo(pg, 300)
+    pg.click('.toast-act'); passo(pg, 300)
+    assert js(pg, "S.shifts.length") == n0
