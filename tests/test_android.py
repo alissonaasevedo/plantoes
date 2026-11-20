@@ -208,6 +208,7 @@ def test_tocar_no_mais_depois_de_excluir_nao_desfaz(abrir):
     n0 = js(pg, "S.shifts.length")
     rodar(pg, "openSheet(S.shifts[3])"); pg.wait_for_timeout(700)
     pg.click('#sh-del'); passo(pg, 300)
+    pg.wait_for_timeout(600)   # a folha desliza para fora no tempo real da tela
     assert js(pg, "S.shifts.length") == n0 - 1 and 'Desfazer' in pg.inner_text('#toast')
     # com o aviso ainda na tela: o + abre o menu e não toca no Desfazer
     _toque_no_mais(pg); passo(pg, 300)
