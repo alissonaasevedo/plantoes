@@ -38,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.30', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.31', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -530,6 +530,7 @@ function renderMes(){
     sgEl.innerHTML = `<div class="kpis">
       <button class="kpi" id="sc-plantoes"><b>${nPlantoes}</b><span>plantões</span><small>${nPlantoes ? nDiurnos+'d · '+nNoturnos+'n' : 'nenhum'}</small></button>
       <button class="kpi" id="sc-horas"><b>${hPlantoes}h</b><span>escaladas</span><small>${pctCarga && pctCarga!==100 ? pctCarga+'% da média' : (nPlantoes ? Math.round(hPlantoes/nPlantoes)+'h cada' : '—')}</small></button>
+      <button class="kpi kpi-ok" id="sc-receb-kpi"><b class="money">${brl(cxRec)}</b><span>recebido</span><small>${cxTot ? Math.round(cxRec/cxTot*100)+'% do previsto' : '—'}</small></button>
       <button class="kpi" id="sc-ticket"><b class="money">${valHora ? brl(valHora) : '—'}</b><span>por hora</span><small>no mês</small></button>
     </div>`;
 
@@ -603,6 +604,7 @@ function renderMes(){
         : `<div style="text-align:center;padding:24px 0;color:var(--dim)">Nenhuma entrada em ${mes}</div>`;
       openDetail(`Recebido · ${mes}`, rows);
     };
+    $('#sc-receb-kpi').onclick = $('#sc-recebido').onclick;
 
     // card: Valor da hora — lista de plantões com valor e duração
     $('#sc-ticket').onclick = () => {
@@ -762,70 +764,84 @@ function renderMes(){
 
   renderNext();
   renderCal(list);
-  renderWeekStrip();
   renderDia();
   renderSemana();
 
-  const shown = filter==='due' ? list.filter(s=>counts(s) && !s.pago) : list;
-  $('#list-count').textContent = filter==='due' ? 'Pendentes de pagamento' : 'Plantões';
+  const shown = filter==='due' ? list.filter(s=>counts(s) && !s.pago) : list.filter(s => !ehBolsa(s));
+  $('#list-count').textContent = filter==='due' ? 'Pendentes de pagamento' : 'Plantões do mês';
 
   const el = $('#shift-list');
   if(!shown.length){
     el.innerHTML = list.length
-      ? `<div class="empty">Tudo recebido neste mês.</div>`
+      ? `<div class="empty">${filter==='due' ? 'Tudo recebido neste mês.' : 'Nenhum plantão neste mês — só entradas fixas.'}</div>`
       : `<div class="empty">Mês em branco.<br>Toque em + ou em um dia do calendário para lançar.</div>`;
     return;
   }
-  const t = iso(hoje());
-  // Agrupar por período: Hoje / Ontem / Esta semana / + antigos por data
-  const hj = iso(hoje());
-  const ant = iso(new Date(Date.now()-86400000));
-  const semAtr = iso(new Date(Date.now()-7*86400000));
-  function grupoData(s){
-    if(s.data === hj)  return 'Hoje';
-    if(s.data === ant) return 'Ontem';
-    if(s.data > semAtr) return 'Esta semana';
-    return pad2(parseDate(s.data).getDate())+'/'+pad2(parseDate(s.data).getMonth()+1);
-  }
-  // montar html com separadores de grupo
-  let grupoAtual = null;
-  let shiftIdx = 0;
   // anima a entrada só ao trocar de mês/filtro — não a cada toque em "Pago"
   const listKey = cursor.getFullYear()+'-'+cursor.getMonth()+'-'+filter;
   const animar = el.dataset.k !== listKey; el.dataset.k = listKey;
-  el.innerHTML = shown.map(s=>{
-    const grupo = grupoData(s);
-    const sep = grupo !== grupoAtual
-      ? `<div class="list-sep">${grupo}</div>`
-      : '';
-    grupoAtual = grupo;
-    const d = parseDate(s.data), off = !counts(s), l = getLocal(s.localId);
-    const cid = l && l.cidade ? ` · ${esc(l.cidade)}` : '';
-    let tag = '';
-    if(s.tipo==='peguei') tag = `<div class="tag">Peguei de ${esc(s.colega||'colega')}</div>`;
-    if(s.tipo==='passei') tag = `<div class="tag">Passei para ${esc(s.colega||'colega')}</div>`;
-    if(!tag && s.urgente && !ehResid(s) && !ehBolsa(s)) tag = `<div class="chip-urg">⚠️ Atenção</div>`;
-    else if(!tag && s.obs) tag = `<div class="tag">${esc(s.obs.slice(0,42))}</div>`;
-    const resid = ehResid(s), bloq = ehBloq(s);
-    if(resid) tag = `<div class="tag">${nomeResid(s)} · sem remuneração</div>`;
-    if(bloq){
-      const icos={'ferias':'🏖️','viagem':'✈️','sobreaviso':'📟','compromisso':'📌','outro':'📋'};
-      tag = `<div class="chip-bl">${icos[s.blTipo]||'📋'} ${s.blTipo||'bloqueio'}${s.blFim?' até '+pad2(parseDate(s.blFim).getDate())+'/'+pad2(parseDate(s.blFim).getMonth()+1):''}</div>`;
-    }
-    if(ehBolsa(s) && s.obs) tag = `<div class="tag">${esc(s.obs)}</div>`;
-    const pill = (off || resid) ? '' : `<div class="pill ${s.pago?'pago':'pend'}" data-pay="${s.id}">${s.pago?'Pago':'Pendente'}</div>`;
-    const dinheiro = (resid||bloq) ? `<div class="money" style="color:var(--dim-2);font-size:12.5px">${bloq?'—':'bloqueado'}</div>` : `<div class="money">${brl(liq(s))}</div>`;
-    const animDelay = `animation-delay:${Math.min(shiftIdx++, 8) * 35}ms`;
-    return sep + `<div class="shift ${animar?'animate-in':''} ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${animDelay}">
-        <div class="daycol ${s.data===t?'is-today':''}"><div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div></div>
-        <div class="info">
-          <div class="place">${ehBolsa(s)?'':(s.turno==='noturno'?ICON_MOON:ICON_SUN)}<span>${esc(localName(s.localId))}</span>${(s.notas||[]).length?`<span class="note-ind" title="Anotações">📝${s.notas.length}</span>`:''}</div>
-          <div class="meta">${metaLinha(s, cid)}</div>
-          ${tag}
-        </div>
-        <div class="right">${dinheiro}${pill}</div>
-      </div>`;
+  // grupos por semana (domingo a sábado), com o resumo da semana no cabeçalho
+  const semanas = new Map();
+  shown.forEach(s => { const k = iso(domingoSemana(parseDate(s.data))); if(!semanas.has(k)) semanas.set(k, []); semanas.get(k).push(s); });
+  const domHoje = iso(domingoSemana(hoje()));
+  const domProx = (()=>{ const d = domingoSemana(hoje()); d.setDate(d.getDate()+7); return iso(d); })();
+  let idx = 0;
+  el.innerHTML = [...semanas].map(([k, itens]) => {
+    const d0 = parseDate(k), d6 = new Date(d0); d6.setDate(d6.getDate()+6);
+    const nome = k === domHoje ? 'Esta semana' : k === domProx ? 'Próxima semana'
+      : `${pad2(d0.getDate())}/${pad2(d0.getMonth()+1)} – ${pad2(d6.getDate())}/${pad2(d6.getMonth()+1)}`;
+    const pl = itens.filter(s => naAgenda(s) && !ehBolsa(s) && !ehBloq(s));
+    const h = pl.reduce((a,s)=>a+(+s.duracao||0),0);
+    const res = filter==='due'
+      ? brl(itens.reduce((a,s)=>a+liq(s),0)) + ' a receber'
+      : `${pl.length} ${pl.length===1?'plantão':'plantões'}${h ? ' · '+h+'h' : ''}`;
+    let ant = '';
+    const linhas = itens.map(s => { const r = linhaPlantao(s, { repete: s.data === ant, anim: animar, i: idx++ }); ant = s.data; return r; }).join('');
+    return `<div class="list-sep"><span>${nome}</span><em>${res}</em></div>${linhas}`;
   }).join('');
+}
+
+// sigla do local para calendário, lista e semana: "UPA São Benedito" → "SB"
+// (ou a sigla escolhida no cadastro do local). Dá para reconhecer o local sem depender da cor.
+const PALAVRAS_GENERICAS = /^(upa|ubs|hospital|hosp\.?|cl[ií]nica|policl[ií]nica|unidade|centro|de|da|do|das|dos|e|em)$/i;
+function siglaLocal(id){
+  const l = getLocal(id);
+  if(!l) return '?';
+  if(l.sigla) return String(l.sigla).trim().slice(0,4).toUpperCase();
+  const nome = String(l.nome||'').replace(/\(.*?\)/g,' ').trim();
+  const pal = nome.split(/\s+/).filter(Boolean);
+  const sig = pal.filter(p => !PALAVRAS_GENERICAS.test(p));
+  if(sig.length >= 2) return (sig[0][0] + sig[1][0]).toUpperCase();
+  if(sig.length === 1) return sig[0].slice(0,3).toUpperCase();
+  return (pal[0]||'?').slice(0,3).toUpperCase();
+}
+
+// começa até 1h depois do fim de outro plantão: está emendado
+function emendaComAnterior(s){
+  if(!s.hora || ehBolsa(s) || ehBloq(s) || !naAgenda(s)) return false;
+  const { ini } = evJanela(s);
+  return S.shifts.some(o => o !== s && o.hora && naAgenda(o) && !ehBolsa(o) && !ehBloq(o) && (()=>{ const f = evJanela(o).f; return ini - f >= -EMENDA_MS && ini - f <= EMENDA_MS && evJanela(o).ini < ini; })());
+}
+// uma linha da agenda (lista do mês e painel do dia)
+function linhaPlantao(s, o = {}){
+  const d = parseDate(s.data), t = iso(hoje());
+  const resid = ehResid(s), bolsa = ehBolsa(s), bloq = ehBloq(s), off = !counts(s) && !resid;   // residência não fica apagada
+  const extra = s.tipo==='peguei' ? `peguei de ${s.colega||'colega'}` : s.tipo==='passei' ? `passei para ${s.colega||'colega'}`
+    : resid ? 'sem remuneração' : bolsa ? (s.obs || 'entrada fixa') : '';
+  const pill = (off || resid || bloq) ? '' : `<div class="pill ${s.pago?'pago':'pend'}" data-pay="${s.id}">${s.pago?'Pago':'Pendente'}</div>`;
+  const dinheiro = (resid || bloq) ? '' : `<div class="money">${brl(liq(s))}</div>`;
+  const ico = bolsa || bloq ? '' : (s.turno==='noturno' ? ICON_MOON : ICON_SUN);
+  const notas = (s.notas||[]).length ? `<span class="note-ind" title="Anotações">📝${s.notas.length}</span>` : '';
+  const data = o.semData ? '' : `<div class="daycol ${s.data===t?'is-today':''}">${o.repete ? '' : `<div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div>`}</div>`;
+  return `<div class="shift lin ${o.anim?'animate-in':''} ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente&&!bolsa)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${o.anim?`animation-delay:${Math.min(o.i||0,8)*30}ms`:''}">
+      ${data}
+      <div class="sig ${resid?'resid':''} ${bolsa?'bolsa':''}">${ico}<b>${esc(bolsa ? 'R$' : siglaLocal(s.localId))}</b></div>
+      <div class="info">
+        <div class="place"><span>${esc(localName(s.localId))}</span>${notas}</div>
+        <div class="meta">${emendaComAnterior(s) ? '<b class="emd" title="Emenda com o plantão anterior">⛓</b> ' : ''}${metaLinha(s, '')}${extra ? ` · <em>${esc(extra)}</em>` : ''}${(!off&&s.urgente&&!bolsa&&!resid) ? ' · <b class="urg">⚠️ atenção</b>' : ''}</div>
+      </div>
+      <div class="right">${dinheiro}${pill}</div>
+    </div>`;
 }
 
 function metaLinha(s, cid){
@@ -988,63 +1004,122 @@ function renderNext(){
   </div>`;
 }
 
-function renderCal(list){
+let selDia = null;   // dia escolhido no calendário (aaaa-mm-dd)
+const NOME_BLOQ_CAL = { ferias:'Férias', viagem:'Viagem', sobreaviso:'Sobreaviso', compromisso:'Compromisso', outro:'Bloqueio' };
+function itensDoDia(ds){
+  return S.shifts.filter(s => s.data === ds && naAgenda(s) && !ehBolsa(s) && !ehBloq(s))
+    .sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
+}
+const bloqueioDoDia = ds => S.bloqueios.find(b => b.ini && ds >= b.ini && ds <= (b.fim||b.ini));
+function chipCal(s){
+  return `<i class="ev ${ehResid(s)?'resid':''} ${s.turno==='noturno'?'noite':''}" style="--c:${localCor(s.localId)}">${s.turno==='noturno'?ICON_MOON:ICON_SUN}<b>${esc(siglaLocal(s.localId))}</b></i>`;
+}
+function renderCal(){
   const y = cursor.getFullYear(), m = cursor.getMonth();
-  const first = new Date(y,m,1).getDay();
-  const dim = new Date(y,m+1,0).getDate();
-  const byDay = {};
-  list.forEach(s=>{ const k = parseDate(s.data).getDate(); (byDay[k] = byDay[k] || []).push(s); });
-  const t = new Date(); const isThis = t.getMonth()===m && t.getFullYear()===y;
-
-  // heatmap: valor por dia
-  const valPorDia = {};
-  list.filter(counts).forEach(s=>{ const k=parseDate(s.data).getDate(); valPorDia[k]=(valPorDia[k]||0)+liq(s); });
-  const maxVal = Math.max(...Object.values(valPorDia), 1);
-
-  // Marcar dias de S.bloqueios (objeto separado dos shifts)
-  const bloqDias = new Set();
-  const bloqMotivosDia = {};
-  S.bloqueios.forEach(b=>{
-    if(!b.ini) return;
-    const cur = new Date(parseDate(b.ini));
-    const fim2 = parseDate(b.fim||b.ini);
-    while(cur <= fim2){
-      if(cur.getMonth()===m && cur.getFullYear()===y){
-        const dd = cur.getDate();
-        bloqDias.add(dd);
-        bloqMotivosDia[dd] = b.motivo||'ferias';
-      }
-      cur.setDate(cur.getDate()+1);
-    }
-  });
-
-  const emojisBloq = {ferias:'🏖️',viagem:'✈️',sobreaviso:'📟',compromisso:'📌',outro:'🔒'};
-
-  let html = '';
-  for(let i=0;i<first;i++) html += '<button class="void"></button>';
-  for(let d=1;d<=dim;d++){
-    const arr = byDay[d] || [];
-    const val = valPorDia[d] || 0;
-    const alpha = val>0 ? Math.max(0.10, Math.min(0.70, val/maxVal)) : 0;
-    const bg = val>0 ? `color-mix(in srgb, var(--accent) ${Math.round(alpha*60)}%, transparent)` : '';
-    const temBloq = bloqDias.has(d);
-    const bloqBg = temBloq ? 'var(--due-soft)' : '';
-    const dotsRes = arr.filter(s=>ehResid(s)).slice(0,2).map(()=>'<i class="oca"></i>').join('');
-    const bloqIcon = temBloq ? `<span style="font-size:9px;line-height:1">${emojisBloq[bloqMotivosDia[d]]||'🔒'}</span>` : '';
-    // ícone de turno: noturno > diurno (prioridade)
-    const plantoesDia = arr.filter(s => counts(s));
-    const temNoturno = plantoesDia.some(s => s.turno === 'noturno');
-    const temDiurno  = plantoesDia.some(s => s.turno !== 'noturno');
-    const turnoIcon  = plantoesDia.length
-      ? `<span style="font-size:8px;line-height:1;opacity:.85">${temNoturno ? '🌙' : '☀️'}</span>`
-      : '';
-    html += `<button data-day="${d}" class="${(arr.length||temBloq)?'has':''} ${isThis&&t.getDate()===d?'today':''}"
-      style="${bg?`background:${bg};`:bloqBg?`background:${bloqBg};`:''}">
-      <span>${d}</span><span class="dots">${dotsRes}${turnoIcon}${bloqIcon}</span></button>`;
+  const first = new Date(y,m,1).getDay(), dim = new Date(y,m+1,0).getDate();
+  const hj = iso(hoje());
+  if(!selDia || !sameMonth(selDia, cursor)) selDia = sameMonth(hj, cursor) ? hj : null;
+  let html = '', nPl = 0, nRes = 0, horas = 0;
+  for(let i=0;i<first;i++) html += '<div class="void"></div>';
+  for(let d=1; d<=dim; d++){
+    const ds = iso(new Date(y,m,d)), its = itensDoDia(ds), bl = bloqueioDoDia(ds);
+    its.forEach(s => { if(ehResid(s)) nRes++; else if(counts(s)) nPl++; horas += (+s.duracao||0); });
+    const chips = its.length > 2 ? chipCal(its[0]) + `<i class="ev mais">+${its.length-1}</i>` : its.map(chipCal).join('');
+    const blTag = bl && !its.length ? `<em class="bl-tag">${NOME_BLOQ_CAL[bl.motivo]||'Bloqueio'}</em>` : '';
+    const rotulo = `${d} de ${MES[m]}` + (its.length ? ': ' + its.map(s => `${s.turno==='noturno'?'noturno':'diurno'} ${localName(s.localId)}`).join(', ') : '') + (bl ? ', bloqueado' : '');
+    html += `<button data-day="${d}" class="cd ${its.length?'has':''} ${bl?'bl':''} ${ds===hj?'today':''} ${ds===selDia?'sel':''} ${ds<hj?'passou':''}" aria-label="${esc(rotulo)}">
+      <span class="cd-n">${d}</span><span class="cd-ev">${chips}${blTag}</span></button>`;
   }
   $('#cal-grid').innerHTML = html;
+  const partes = [];
+  if(nPl) partes.push(`${nPl} ${nPl===1?'plantão':'plantões'}`);
+  if(nRes) partes.push(`${nRes} da residência`);
+  if(horas) partes.push(`${horas}h`);
+  $('#ag-resumo').textContent = partes.join(' · ');
+  renderAgDia();
+}
+function renderAgDia(){
+  const box = $('#ag-dia'); if(!box) return;
+  if(!selDia){ box.innerHTML = `<p class="ag-dica">Toque num dia para ver o que tem nele ou lançar um plantão.</p>`; return; }
+  const d = parseDate(selDia), its = itensDoDia(selDia), bl = bloqueioDoDia(selDia);
+  const nome = `${WD_LONG[d.getDay()]}, ${d.getDate()} de ${MES[d.getMonth()]}`;
+  const blTxt = bl ? `${NOME_BLOQ_CAL[bl.motivo]||'Bloqueio'}${bl.fim && bl.fim !== bl.ini ? ` até ${pad2(parseDate(bl.fim).getDate())}/${pad2(parseDate(bl.fim).getMonth()+1)}` : ''}${bl.obs ? ' · '+esc(bl.obs) : ''}` : '';
+  const dif = Math.round((d - hoje()) / 86400000);
+  const quando = dif === 0 ? '<em>hoje</em>' : dif === 1 ? '<em>amanhã</em>' : dif === -1 ? '<em class="passou">ontem</em>'
+    : dif > 1 && dif <= 60 ? `<em>em ${dif} dias</em>` : '';
+  // lançar rápido: os modelos mais usados viram atalhos de um toque (abre já preenchido)
+  const rapidos = !bl ? lancarRapido(selDia) : '';
+  box.innerHTML = `<div class="ag-dia-h"><b>${nome.charAt(0).toUpperCase()+nome.slice(1)} ${quando}</b>
+      <button class="btn sm" data-novo="${selDia}">+ Lançar</button></div>
+    ${bl ? `<button class="ag-bl" data-bl="${bl.id}"><i class="lg-bl"></i>${blTxt}</button>` : ''}
+    ${its.map(s => linhaPlantao(s, { semData: true })).join('') || (bl ? '' : '<p class="ag-vazio">Nenhum plantão neste dia.</p>')}
+    ${its.length ? notasDescanso(its) : ''}
+    ${rapidos}`;
+}
+/* Plantões emendados (um termina e outro começa em até 1h) e o descanso até o próximo:
+   "⛓ 24h seguidas" e "descanso de 6h" — o que pesa no corpo, num relance. */
+const EMENDA_MS = 3600000;
+function plantoesPorHorario(){
+  return S.shifts.filter(s => naAgenda(s) && !ehBolsa(s) && !ehBloq(s) && s.hora)
+    .map(s => ({ s, ...evJanela(s) })).sort((a,b) => a.ini - b.ini);
+}
+function emendaDe(s){
+  const todos = plantoesPorHorario();
+  let ini0 = todos.find(x => x.s.id === s.id); if(!ini0) return null;
+  // para trás: alguém que termina até 1h antes/depois do começo deste
+  let a = ini0, guarda = 0;
+  for(;;){ const p = todos.find(x => x.ini < a.ini && Math.abs(a.ini - x.f) <= EMENDA_MS); if(!p || ++guarda > 20) break; a = p; }
+  // para frente: alguém que começa até 1h antes/depois do fim deste
+  let b = a, n = 1; guarda = 0;
+  for(;;){ const q = todos.find(x => x.ini > b.ini && Math.abs(x.ini - b.f) <= EMENDA_MS); if(!q || ++guarda > 20) break; b = q; n++; }
+  const prox = todos.find(x => +x.ini > +b.f + EMENDA_MS) || null;
+  return { ini: a.ini, f: b.f, n, prox, primeiro: a.s.id, ultimo: b.s.id };
+}
+function notasDescanso(its){
+  const hh = d => `${WD[d.getDay()]} ${pad2(d.getHours())}h${d.getMinutes() ? pad2(d.getMinutes()) : ''}`;
+  const vistas = new Set(), out = [];
+  its.forEach(s => {
+    const e = emendaDe(s); if(!e || vistas.has(e.primeiro)) return;
+    vistas.add(e.primeiro);
+    const horas = Math.round((e.f - e.ini) / 3600000);
+    if(e.n > 1) out.push(`<div class="ag-nota emenda">⛓ <b>${horas}h seguidas</b> · ${e.n} plantões emendados, de ${hh(e.ini)} a ${hh(e.f)}</div>`);
+    if(e.prox){
+      const desc = Math.round((e.prox.ini - e.f) / 3600000);
+      if(desc < 11) out.push(`<div class="ag-nota curto">⚠️ Só <b>${desc}h de descanso</b> até o próximo (${esc(siglaLocal(e.prox.s.localId))}, ${hh(e.prox.ini)})</div>`);
+      else if(desc <= 72) out.push(`<div class="ag-nota">Descanso de ${desc}h até o próximo · ${hh(e.prox.ini)}</div>`);
+    }
+  });
+  return out.join('');
+}
+function lancarRapido(ds){
+  const ms = modelosFrequentes(4);
+  const resLocal = S.locais.find(l => l.residencia);
+  if(!ms.length && !resLocal) return '';
+  const fimH = (h, dur) => pad2((+h.split(':')[0] + +dur) % 24);
+  const chips = ms.map((m, i) => `<button class="rap" data-rap="${i}" style="--c:${localCor(m.localId)}">${m.turno==='noturno'?ICON_MOON:ICON_SUN}<b>${esc(siglaLocal(m.localId))}</b> ${m.hora.slice(0,2)}–${fimH(m.hora, m.duracao)}</button>`).join('')
+    + (resLocal ? `<button class="rap resid" data-rap="res" style="--c:${resLocal.cor||'#7C8BA1'}">${ICON_MOON}<b>${esc(siglaLocal(resLocal.id))}</b> residência</button>` : '');
+  return `<div class="ag-rap" data-dia="${ds}"><span>Lançar rápido</span><div>${chips}</div></div>`;
+}
+// tocar num dia (calendário, busca etc.): escolhe o dia e mostra o que tem nele
+function irParaDia(ds){
+  const d = parseDate(ds);
+  if(!sameMonth(ds, cursor)) cursor = new Date(d.getFullYear(), d.getMonth(), 1);
+  selDia = ds;
+  if(viewTipo === 'semana'){ semanaAtual = new Date(d); }
+  render();
+  const ag = $('#ag-dia'); if(ag) ag.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
+async function alternarPago(id){
+  const s = S.shifts.find(x=>x.id===id);
+  if(!s) return;
+  s.pago = !s.pago;
+  haptic(s.pago ? 12 : 6);
+  s.pagoEm = s.pago ? (s.pagoEm || iso(new Date())) : '';
+  await store.save(S); render();
+  if(s.pago){ confettiPay(liq(s)); toast('💰 '+brl(liq(s))+' confirmado'); }
+  else { toast('Desmarcado'); }
+}
 function abertas(){
   return S.shifts.filter(s=>(s.tipo==='peguei'||s.tipo==='passei') && s.contra==='devolver' && !s.quitado);
 }
@@ -1484,6 +1559,17 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.31', d:'Nov 2026', items:[
+    { t:'new', txt:'Calendário mostra o plantão dentro do dia: sigla do local, ☀/☾, residência tracejada e bloqueio hachurado' },
+    { t:'new', txt:'Tocar num dia mostra o que tem nele logo abaixo, com + Lançar' },
+    { t:'imp', txt:'Lista compacta, uma linha por plantão, agrupada por semana com plantões e horas' },
+    { t:'imp', txt:'Semana em linha do tempo de 0h a 24h — o noturno aparece atravessando a meia-noite' },
+    { t:'imp', txt:'Métricas de volta em quadrado 2×2: plantões, horas, recebido e valor da hora' },
+    { t:'new', txt:'Sigla do local (automática ou escolhida em Locais), para reconhecer sem depender da cor' },
+    { t:'new', txt:'Plantões emendados: o dia mostra "40h seguidas" e avisa quando sobra pouco descanso até o próximo' },
+    { t:'new', txt:'Lançar rápido no dia escolhido: seus plantões mais comuns viram atalhos de um toque' },
+    { t:'imp', txt:'Deslize o dedo no calendário para trocar o mês, e na semana para trocar a semana; linha do "agora" na semana' },
+  ]},
   { v:'1.30', d:'Nov 2026', items:[
     { t:'fix', txt:'Tocar no + depois de excluir algo desfazia a exclusão: o botão Desfazer ficava sobre o +, mesmo depois de o aviso sumir' },
   ]},
@@ -1658,65 +1744,67 @@ let semanaAtual = new Date();
 // domingo da semana atual
 function domingoSemana(d){ const x=new Date(d); x.setDate(x.getDate()-x.getDay()); x.setHours(0,0,0,0); return x; }
 
+/* Semana em linha do tempo: uma linha por dia, régua de 0 a 24h e uma barra por plantão,
+   com sigla e horário. O noturno aparece atravessando a meia-noite (continua no dia seguinte). */
 function renderSemana(){
-  const box=$('#week-view');
-  if(viewTipo!=='semana'){ box.classList.add('hidden'); return; }
+  const box = $('#week-view');
+  if(viewTipo !== 'semana'){ box.classList.add('hidden'); return; }
   box.classList.remove('hidden');
   $('#shift-list').classList.add('hidden');
   $('#day-view').classList.add('hidden');
   $$('#filter button').forEach(b=>b.closest('.segs').classList.add('hidden'));
 
-  const dom=domingoSemana(semanaAtual);
-  const dias=Array.from({length:7},(_,i)=>{ const d=new Date(dom); d.setDate(d.getDate()+i); return d; });
-  const hj=iso(hoje());
-  const nomeSemana=`${pad2(dias[0].getDate())}/${pad2(dias[0].getMonth()+1)} – ${pad2(dias[6].getDate())}/${pad2(dias[6].getMonth()+1)}/${dias[6].getFullYear()}`;
+  const dom = domingoSemana(semanaAtual);
+  const dias = Array.from({length:7}, (_,i)=>{ const d = new Date(dom); d.setDate(d.getDate()+i); return d; });
+  const hj = iso(hoje()), DIA = 86400000;
+  const titulo = `${pad2(dias[0].getDate())}/${pad2(dias[0].getMonth()+1)} – ${pad2(dias[6].getDate())}/${pad2(dias[6].getMonth()+1)}`;
+  // inclui o dia anterior à semana: um noturno de sábado continua no domingo
+  const desde = new Date(dom); desde.setDate(desde.getDate()-1);
+  const fonte = S.shifts.filter(s => naAgenda(s) && !ehBolsa(s) && !ehBloq(s) && s.data >= iso(desde) && s.data <= iso(dias[6]));
+  let nPl = 0, horas = 0;
+  fonte.forEach(s => { if(s.data >= iso(dom)){ nPl++; horas += (+s.duracao||0); } });
+  const hh = d => pad2(d.getHours()) + (d.getMinutes() ? ':'+pad2(d.getMinutes()) : 'h');
 
-  const WD_S=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  const slots=[7,12,19]; // turnos visuais: manhã, tarde, noite
-
-  const colunas=dias.map(d=>{
-    const isoDia=iso(d);
-    const lista=S.shifts.filter(s=>naAgenda(s)&&s.data===isoDia)
-                        .sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
-    return {d,isoDia,lista};
-  });
-
-  const eventosHTML=(col)=>col.lista.map(s=>{
-    const cor=localCor(s.localId);
-    const resid=ehResid(s), bolsa=ehBolsa(s), bloq=ehBloq(s);
-    const label=bolsa?'Entrada':bloq?'🔒':resid?'Resid.':localName(s.localId).split(' ')[0];
-    const bg=resid||bloq?'':cor;
-    return `<div class="wg-event ${resid?'resid':''}" style="background:${bg};top:${s.hora?Math.max(0,(parseInt(s.hora)-7)*4)+'px':'4px'};position:relative;margin-bottom:3px" data-id="${s.id}">${label}${s.hora?' '+s.hora:''}</div>`;
+  const linhas = dias.map(d => {
+    const ds = iso(d), d0 = d.getTime(), d1 = d0 + DIA, bl = bloqueioDoDia(ds);
+    const barras = fonte.map(s => {
+      const { ini, f } = evJanela(s);
+      const a = Math.max(ini.getTime(), d0), b = Math.min(f.getTime(), d1);
+      if(b <= a) return '';
+      const left = (a - d0) / DIA * 100, larg = (b - a) / DIA * 100;
+      const cont = ini.getTime() < d0, segue = f.getTime() > d1;
+      const rot = larg >= 34 ? ` ${cont ? '…' : hh(ini)}–${segue ? '…' : hh(f)}` : '';
+      return `<button class="tl-bar ${ehResid(s)?'resid':''} ${cont?'cont':''} ${segue?'segue':''}" data-id="${s.id}" style="--c:${localCor(s.localId)};left:${left}%;width:${larg}%"
+        aria-label="${esc(localName(s.localId))}, ${hh(ini)} a ${hh(f)}">${s.turno==='noturno'?ICON_MOON:ICON_SUN}<b>${esc(siglaLocal(s.localId))}</b>${rot}</button>`;
+    }).join('');
+    const agora = ds === hj ? `<i class="tl-agora" style="left:${((Date.now() - d0) / DIA * 100).toFixed(2)}%" title="Agora"></i>` : '';
+    return `<div class="tl-row ${ds===hj?'hoje':''}">
+      <div class="tl-d"><span>${WD[d.getDay()]}</span><b>${d.getDate()}</b></div>
+      <div class="tl-track ${bl?'bl':''}" data-dia="${ds}">${bl && !barras ? `<em>${NOME_BLOQ_CAL[bl.motivo]||'Bloqueio'}</em>` : ''}${barras}${agora}</div>
+    </div>`;
   }).join('');
 
-  box.innerHTML=`
-    <div class="week-nav">
-      <button class="mnav" onclick="semanaAtual.setDate(semanaAtual.getDate()-7);renderSemana()" style="width:33px;height:33px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--dim);cursor:pointer;font-size:15px">‹</button>
-      <h3>${nomeSemana}</h3>
-      <button class="mnav" onclick="semanaAtual=new Date();renderSemana()" style="border:0;background:var(--accent-soft);color:var(--accent);font-family:inherit;font-size:12.5px;font-weight:600;padding:5px 10px;border-radius:8px;cursor:pointer">Hoje</button>
-      <button class="mnav" onclick="semanaAtual.setDate(semanaAtual.getDate()+7);renderSemana()" style="width:33px;height:33px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--dim);cursor:pointer;font-size:15px">›</button>
+  box.innerHTML = `
+    <div class="tl-nav">
+      <button class="wk-arrow" data-sem="-7" aria-label="Semana anterior">‹</button>
+      <b>${titulo}</b>
+      <button class="wk-arrow" data-sem="7" aria-label="Próxima semana">›</button>
+      <button class="tl-hoje" data-sem="0">Hoje</button>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px">
-      ${dias.map((d,i)=>`<div style="text-align:center;font-size:11px;color:${iso(d)===hj?'var(--accent)':'var(--dim)'};font-weight:${iso(d)===hj?'600':'400'}">${WD_S[i]}<br><span style="font-size:15px;font-weight:600;color:${iso(d)===hj?'var(--accent)':'var(--ink)'}">${d.getDate()}</span></div>`).join('')}
+    <div class="tl">
+      <div class="tl-axis"><span style="left:0">0h</span><span style="left:25%">6h</span><span style="left:50%">12h</span><span style="left:75%">18h</span><span style="left:100%">24h</span></div>
+      ${linhas}
     </div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
-      ${colunas.map(col=>`
-        <div class="wg-cell ${col.isoDia===hj?'wg-today':''}" data-day="${col.isoDia}" style="min-height:80px;padding:4px">
-          ${eventosHTML(col)}
-        </div>`).join('')}
-    </div>`;
-
-  // clicar numa célula vazia abre lançamento; clicar num evento edita
-  box.querySelectorAll('[data-id]').forEach(el=>{
-    el.addEventListener('click', e=>{
-      e.stopPropagation();
-      openSheet(S.shifts.find(x=>x.id===el.dataset.id));
-    });
-  });
-  box.querySelectorAll('[data-day]').forEach(el=>{
-    el.addEventListener('click', ()=> openSheet(null, el.dataset.day));
-  });
+    <p class="tl-tot">${nPl ? `${nPl} ${nPl===1?'plantão':'plantões'} · ${horas}h na semana` : 'Semana livre'} · toque num dia vazio para lançar</p>`;
 }
+$('#week-view').addEventListener('click', e => {
+  const sem = e.target.closest('[data-sem]');
+  if(sem){ const n = +sem.dataset.sem; if(n) semanaAtual.setDate(semanaAtual.getDate()+n); else semanaAtual = new Date(); renderSemana(); haptic(5); return; }
+  const bar = e.target.closest('.tl-bar');
+  if(bar){ openSheet(S.shifts.find(x => x.id === bar.dataset.id)); return; }
+  const tr = e.target.closest('[data-dia]');
+  if(tr) openSheet(null, tr.dataset.dia);
+});
 
 /* ─── GRÁFICOS ─── */
 function mesesRetroativos(n){
@@ -2471,6 +2559,8 @@ function openLocal(l){
   corSel = l ? (l.cor||CORES[0]) : CORES[S.locais.length % CORES.length];
   $('#l-title').textContent = l ? 'Editar local' : 'Novo local';
   $('#l-nome').value  = l ? l.nome : '';
+  $('#l-sigla').value = l && l.sigla ? l.sigla : '';
+  $('#l-sigla').placeholder = 'Automática' + (l ? ': ' + siglaLocal(l.id).replace(/^\?$/,'') : '');
   $('#l-cidade').value= l ? (l.cidade||'') : '';
   $('#l-end').value   = l ? (l.endereco||'') : '';
   $('#l-dia').value   = l ? (l.vDia||'') : '';
@@ -2505,7 +2595,8 @@ async function saveLocal(){
     vPart: parseFloat($('#l-vpart').value)||0,
     vPlano: parseFloat($('#l-vplano').value)||0,
     vProc: parseFloat($('#l-vproc').value)||0,
-    residencia: $('#l-resid').classList.contains('on')
+    residencia: $('#l-resid').classList.contains('on'),
+    sigla: $('#l-sigla').value.trim().toUpperCase().slice(0,4)
   };
   // virou local da residência: os lançamentos dele que estavam como plantão pago (e ainda não
   // recebidos) passam a ser plantões da residência — com Desfazer
@@ -3379,18 +3470,7 @@ $('#f-durc').oninput = autoValor;
 $('#shift-list').addEventListener('click', async e=>{
   if(e.target.closest('[data-map]')) return;
   const pay = e.target.closest('[data-pay]');
-  if(pay){
-    e.stopPropagation();
-    const s = S.shifts.find(x=>x.id===pay.dataset.pay);
-    if(!s) return;
-    s.pago = !s.pago;
-    haptic(s.pago ? 12 : 6);
-    s.pagoEm = s.pago ? (s.pagoEm || iso(new Date())) : '';
-    await store.save(S); render();
-    if(s.pago){ confettiPay(liq(s)); toast('💰 '+brl(liq(s))+' confirmado'); }
-    else { toast('Desmarcado'); }
-    return;
-  }
+  if(pay){ e.stopPropagation(); await alternarPago(pay.dataset.pay); return; }
   const row = e.target.closest('.shift');
   if(row) abrirComTransicao(row, ()=>openSheet(S.shifts.find(x=>x.id===row.dataset.id)));
 });
@@ -3404,26 +3484,30 @@ $('#next-card').addEventListener('click', e=>{
 });
 
 $('#cal-grid').addEventListener('click', e=>{
-  haptic(5);
-  const btnBl = e.target.closest('button[data-day]');
-  if(btnBl){
-    const dBl = +btnBl.dataset.day;
-    const dStr = iso(new Date(cursor.getFullYear(), cursor.getMonth(), dBl));
-    const blEncontrado = S.bloqueios.find(b=>dStr>=b.ini && dStr<=(b.fim||b.ini));
-    if(blEncontrado){ openBloqueio(blEncontrado); return; }
-  }
   const b = e.target.closest('[data-day]'); if(!b) return;
-  const d = new Date(cursor.getFullYear(), cursor.getMonth(), +b.dataset.day);
-  if(viewTipo === 'dia'){
-    diaAtual = new Date(d); renderDia();
-  } else {
-    const alvo = document.querySelector(`.shift[data-date="${iso(d)}"]`);
-    if(alvo){
-      alvo.scrollIntoView({behavior:'smooth',block:'center'});
-      alvo.classList.add('flash'); setTimeout(()=>alvo.classList.remove('flash'),1400);
-    }else openSheet(null, iso(d));
-  }
+  haptic(5);
+  const ds = iso(new Date(cursor.getFullYear(), cursor.getMonth(), +b.dataset.day));
+  if(selDia === ds && !itensDoDia(ds).length && !bloqueioDoDia(ds)){ openSheet(null, ds); return; }   // 2º toque num dia vazio lança
+  selDia = ds;
+  document.querySelectorAll('#cal-grid .cd.sel').forEach(x => x.classList.remove('sel'));
+  b.classList.add('sel');
+  renderAgDia();
 });
+$('#ag-dia').addEventListener('click', async e=>{
+  const novo = e.target.closest('[data-novo]'); if(novo){ openSheet(null, novo.dataset.novo); return; }
+  const rap = e.target.closest('[data-rap]');
+  if(rap){
+    const ds = rap.closest('[data-dia]').dataset.dia;
+    if(rap.dataset.rap === 'res'){ novoPlantaoResidencia(ds); return; }
+    const m = modelosFrequentes(4)[+rap.dataset.rap]; if(!m) return;
+    openSheet(null, ds, m.categoria || 'remunerado'); aplicarModelo(m); haptic(8);
+    return;
+  }
+  const bl = e.target.closest('[data-bl]'); if(bl){ const x = S.bloqueios.find(b => b.id === bl.dataset.bl); if(x) openBloqueio(x); return; }
+  const pay = e.target.closest('[data-pay]'); if(pay){ e.stopPropagation(); await alternarPago(pay.dataset.pay); return; }
+  const row = e.target.closest('.shift'); if(row) abrirComTransicao(row, ()=>openSheet(S.shifts.find(x=>x.id===row.dataset.id)));
+});
+
 
 // aba Caixa
 document.addEventListener('click', async e=>{
@@ -3800,54 +3884,6 @@ document.addEventListener('click', e=>{
   lsSet('plantoes:paleta', b.dataset.pal);
   aplicarPaleta(); renderPaletas(); haptic(8);
   toast('Paleta ' + (PALETAS.find(p=>p.id===b.dataset.pal)||PALETAS[0]).nome);
-});
-
-/* ================= faixa da semana =================
-   Substitui o mês inteiro na tela inicial; "Ver mês" abre a grade completa.
-   Pontos: cheio = diurno, vazado = noturno, quadrado = bloqueio.          */
-let wkRef = null, wkKey = '';
-function renderWeekStrip(){
-  const box = $('#wk-days'); if(!box) return;
-  const hj = hoje(), key = cursor.getFullYear()+'-'+cursor.getMonth();
-  if(!wkRef || key !== wkKey){
-    wkKey = key;
-    wkRef = sameMonth(iso(hj), cursor) ? new Date(hj) : new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-  }
-  const dom = domingoSemana(wkRef);
-  const dias = Array.from({length:7}, (_,i)=>{ const d = new Date(dom); d.setDate(d.getDate()+i); return d; });
-  const temHoje = dias.some(d => iso(d) === iso(hj));
-  $('#wk-title').textContent = temHoje ? 'Esta semana'
-    : `${pad2(dias[0].getDate())}/${pad2(dias[0].getMonth()+1)} – ${pad2(dias[6].getDate())}/${pad2(dias[6].getMonth()+1)}`;
-  box.innerHTML = dias.map(d => {
-    const ds = iso(d);
-    const sh = S.shifts.filter(s => s.data === ds && naAgenda(s) && !ehBloq(s)).slice(0,3);
-    const bl = S.bloqueios.some(b => ds >= b.ini && ds <= (b.fim||b.ini));
-    const dots = sh.map(s => `<i class="${s.turno==='noturno'?'noite':''}" style="--c:${localCor(s.localId)}"></i>`).join('') + (bl ? '<i class="bl"></i>' : '');
-    return `<button class="wkd ${ds===iso(hj)?'hoje':''} ${d.getMonth()!==cursor.getMonth()?'fora':''}" data-wk="${ds}" aria-label="${WD_LONG[d.getDay()]} ${d.getDate()}">
-      <span class="wkd-w">${WD[d.getDay()]}</span><span class="wkd-n">${d.getDate()}</span><span class="wkd-dots">${dots}</span></button>`;
-  }).join('');
-  const aberto = lsGet('plantoes:calMes') === '1';
-  $('#cal-mes').classList.toggle('hidden', !aberto);
-  $('#cal-toggle').textContent = aberto ? 'Ocultar mês' : 'Ver mês';
-  $('#cal-toggle').setAttribute('aria-expanded', aberto);
-}
-// tocar num dia: mesmo comportamento da grade do mês (vai até o plantão ou lança)
-function irParaDia(ds){
-  const d = parseDate(ds);
-  const bl = S.bloqueios.find(b => ds >= b.ini && ds <= (b.fim||b.ini));
-  if(bl && !S.shifts.some(s => s.data === ds && naAgenda(s))){ openBloqueio(bl); return; }
-  if(!sameMonth(ds, cursor)){ cursor = new Date(d.getFullYear(), d.getMonth(), 1); wkKey = cursor.getFullYear()+'-'+cursor.getMonth(); wkRef = d; render(); }
-  if(viewTipo === 'dia'){ diaAtual = new Date(d); renderDia(); return; }
-  if(viewTipo === 'semana'){ semanaAtual = new Date(d); renderSemana(); $('#week-view').scrollIntoView({behavior:'smooth', block:'start'}); return; }
-  const alvo = document.querySelector(`.shift[data-date="${ds}"]`);
-  if(alvo){ alvo.scrollIntoView({behavior:'smooth', block:'center'}); alvo.classList.add('flash'); setTimeout(()=>alvo.classList.remove('flash'), 1400); }
-  else openSheet(null, ds);
-}
-$('#wk').addEventListener('click', e=>{
-  const d = e.target.closest('[data-wk]'); if(d){ haptic(5); irParaDia(d.dataset.wk); return; }
-  if(e.target.closest('#wk-prev')){ wkRef.setDate(wkRef.getDate()-7); renderWeekStrip(); return; }
-  if(e.target.closest('#wk-next')){ wkRef.setDate(wkRef.getDate()+7); renderWeekStrip(); return; }
-  if(e.target.closest('#cal-toggle')){ lsSet('plantoes:calMes', lsGet('plantoes:calMes') === '1' ? '' : '1'); renderWeekStrip(); haptic(5); }
 });
 
 /* ================= modelos de plantão =================
@@ -4821,3 +4857,26 @@ function marcarLocalResidencia(){
     alvo.forEach(s => { s.categoria = 'residencia'; s.valor = 0; s.liquido = 0; s.venc = ''; s.urgente = false; });
   }), 1200);
 }
+
+/* deslizar o dedo para o lado troca o mês (calendário) ou a semana (linha do tempo) */
+function aoDeslizar(el, fn){
+  let x0 = null, y0 = 0, t0 = 0;
+  el.addEventListener('touchstart', e => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if(x0 === null) return;
+    const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
+    if(Math.abs(dx) > 60 && Math.abs(dy) < 45 && Date.now() - t0 < 700) fn(dx < 0 ? 1 : -1);
+  }, { passive: true });
+}
+function animarTroca(el, dir){
+  el.classList.remove('vem-esq', 'vem-dir'); void el.offsetWidth;
+  el.classList.add(dir > 0 ? 'vem-dir' : 'vem-esq');
+}
+aoDeslizar($('#cal-mes'), dir => {
+  cursor = new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1); render(); haptic(6);
+  animarTroca($('#cal-grid'), dir);
+});
+aoDeslizar($('#week-view'), dir => {
+  semanaAtual.setDate(semanaAtual.getDate() + 7 * dir); renderSemana(); haptic(6);
+  const tl = document.querySelector('#week-view .tl'); if(tl) animarTroca(tl, dir);
+});

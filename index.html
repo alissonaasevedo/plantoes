@@ -174,23 +174,21 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
       <div id="h-streak" style="display:none"></div>
     </div>
     <div id="h-saude"></div>
-    <div id="h-checklist"></div>
 
     <div id="next-card"></div>
 
-    <!-- faixa da semana; o mês inteiro fica a um toque -->
-    <div class="wk" id="wk">
-      <div class="wk-head">
-        <b id="wk-title">Esta semana</b>
-        <button class="wk-arrow" id="wk-prev" aria-label="Semana anterior">‹</button>
-        <button class="wk-arrow" id="wk-next" aria-label="Próxima semana">›</button>
-        <button class="wk-toggle" id="cal-toggle" aria-expanded="false">Ver mês</button>
+    <!-- agenda do mês: calendário com o plantão dentro do dia + o que tem no dia escolhido -->
+    <div class="ag" id="ag">
+      <div class="ag-head"><h2>Agenda</h2><span id="ag-resumo"></span></div>
+      <div class="cal cal2" id="cal-mes">
+        <div class="wd"><div>dom</div><div>seg</div><div>ter</div><div>qua</div><div>qui</div><div>sex</div><div>sáb</div></div>
+        <div class="grid" id="cal-grid"></div>
+        <div class="ag-leg" aria-hidden="true">
+          <span><i class="lg-sol"></i>diurno</span><span><i class="lg-lua"></i>noturno</span>
+          <span><i class="lg-res"></i>residência</span><span><i class="lg-bl"></i>bloqueio</span>
+        </div>
       </div>
-      <div class="wk-days" id="wk-days"></div>
-    </div>
-    <div class="cal hidden" id="cal-mes">
-      <div class="wd"><div>dom</div><div>seg</div><div>ter</div><div>qua</div><div>qui</div><div>sex</div><div>sáb</div></div>
-      <div class="grid" id="cal-grid"></div>
+      <div id="ag-dia"></div>
     </div>
    </div>
 
@@ -199,8 +197,7 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
       <h2 id="list-count">Plantões</h2>
       <div class="ctrl-bar">
         <div class="view-toggle" id="view-toggle">
-          <button class="on" data-vt="lista"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> Mês</button>
-          <button data-vt="dia"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg> Dia</button>
+          <button class="on" data-vt="lista"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> Lista</button>
           <button data-vt="semana"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Semana</button>
         </div>
         <div class="segs" id="filter">
@@ -220,6 +217,7 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
     <div id="shift-list"></div>
     <div id="day-view" class="hidden"></div>
     <div id="week-view" class="hidden"></div>
+    <div id="h-checklist"></div>
    </div>
   </section>
 
@@ -650,6 +648,7 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
   </div>
 
   <label class="f"><span>Nome</span><input type="text" id="l-nome" placeholder="Ex.: Hospital Risoleta Neves"></label>
+  <label class="f"><span>Sigla no calendário (opcional)</span><input type="text" id="l-sigla" maxlength="4" autocapitalize="characters" placeholder="Automática: RN"></label>
   <label class="f"><span>Cidade</span><input type="text" id="l-cidade" placeholder="Ex.: Belo Horizonte, MG"></label>
   <label class="f"><span>Endereço</span><input type="text" id="l-end" placeholder="Rua, número, bairro"></label>
   <p class="hint">Com o endereço preenchido, aparece um atalho que abre a rota direto no app de mapas.</p>
