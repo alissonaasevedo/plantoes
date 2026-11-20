@@ -1,6 +1,7 @@
 """Agenda nova: calendário com o plantão dentro do dia, painel do dia, lista por semana,
 semana em linha do tempo, siglas dos locais e métricas 2×2."""
 import json
+import re
 
 from conftest import passo, js, rodar, quando
 
@@ -119,3 +120,56 @@ def test_galaxy_agenda_cabe_na_largura(abrir):
     assert js(pg, "document.documentElement.scrollWidth") <= 385
     pg.click('[data-vt="semana"]'); passo(pg, 300)
     assert js(pg, "document.documentElement.scrollWidth") <= 385
+
+
+def test_painel_mostra_emenda_e_descanso_curto(abrir):
+    pg = abrir_nov(abrir)
+    pg.click(celula(pg, 20)); passo(pg, 200)
+    txt = pg.inner_text('#ag-dia')
+    assert 'h seguidas' in txt and 'plantões emendados' in txt, 'A3 07–19 + A4 19–07 (+ clínica às 8h) emendados'
+    assert js(pg, "emendaComAnterior(S.shifts.find(s=>s.id==='A4'))") is True
+    assert js(pg, "document.querySelectorAll('#shift-list .shift[data-id=\"A4\"] .emd').length") == 1
+    rodar(pg, """const sb=S.locais.find(l=>/São Benedito/i.test(l.nome)); S.shifts.push({id:'A6',categoria:'remunerado',data:'2026-11-21',hora:'13:00',duracao:6,turno:'diurno',localId:sb.id,valor:700,liquido:700,pago:false,tipo:'meu'}); await store.save(S); render();""")
+    pg.click(celula(pg, 20)); passo(pg, 200)
+    assert re.search(r'Só \dh de descanso', pg.inner_text('#ag-dia'))
+    assert 'amanhã' in pg.inner_text('#ag-dia')
+
+
+def test_lancar_rapido_abre_o_modelo_preenchido(abrir):
+    pg = abrir_nov(abrir)
+    pg.click(celula(pg, 27)); passo(pg, 200)
+    assert pg.is_visible('#ag-dia .ag-rap')
+    m = js(pg, "modelosFrequentes(4)[0]")
+    pg.click('#ag-dia [data-rap="0"]'); passo(pg, 400)
+    assert js(pg, "$('#sheet').classList.contains('open')") and js(pg, "$('#f-date').value") == '2026-11-27'
+    assert js(pg, "$('#f-local').value") == m['localId'] and js(pg, "$('#f-hora').value") == m['hora']
+    rodar(pg, "closeSheets()"); passo(pg, 400)
+    pg.click('#ag-dia [data-rap="res"]'); passo(pg, 400)
+    assert js(pg, "chipGet('#f-cat')") == 'residencia' and js(pg, "$('#f-local').value") == 'FR'
+
+
+def test_linha_do_agora_na_semana(abrir):
+    pg = abrir_nov(abrir)
+    pg.click('[data-vt="semana"]'); passo(pg, 300)
+    left = js(pg, "parseFloat(document.querySelector('.tl-row.hoje .tl-agora').style.left)")
+    assert abs(left - 10/24*100) < 0.5, '10h da manhã'
+
+
+def test_deslizar_troca_mes_e_semana(abrir):
+    pg = abrir_nov(abrir, aparelho='galaxy_s25ultra')
+    def deslizar(sel, dx):
+        rodar(pg, f"""const el=document.querySelector('{sel}'); const r=el.getBoundingClientRect(); const x=r.x+r.width/2, y=r.y+60;
+          const t=(tx)=>new Touch({{identifier:1,target:el,clientX:tx,clientY:y}});
+          el.dispatchEvent(new TouchEvent('touchstart',{{touches:[t(x)],changedTouches:[t(x)],bubbles:true}}));
+          el.dispatchEvent(new TouchEvent('touchend',{{touches:[],changedTouches:[t(x+({dx}))],bubbles:true}}));""")
+        passo(pg, 300)
+    deslizar('#cal-mes', -120)
+    assert 'Dezembro' in pg.inner_text('#title')
+    deslizar('#cal-mes', 120); deslizar('#cal-mes', 120)
+    assert 'Outubro' in pg.inner_text('#title')
+    deslizar('#cal-mes', 20)
+    assert 'Outubro' in pg.inner_text('#title'), 'toque curto não troca'
+    pg.click('[data-vt="semana"]'); passo(pg, 300)
+    antes = pg.inner_text('.tl-nav b')
+    deslizar('#week-view', -120)
+    assert pg.inner_text('.tl-nav b') != antes

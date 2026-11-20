@@ -816,6 +816,12 @@ function siglaLocal(id){
   return (pal[0]||'?').slice(0,3).toUpperCase();
 }
 
+// começa até 1h depois do fim de outro plantão: está emendado
+function emendaComAnterior(s){
+  if(!s.hora || ehBolsa(s) || ehBloq(s) || !naAgenda(s)) return false;
+  const { ini } = evJanela(s);
+  return S.shifts.some(o => o !== s && o.hora && naAgenda(o) && !ehBolsa(o) && !ehBloq(o) && (()=>{ const f = evJanela(o).f; return ini - f >= -EMENDA_MS && ini - f <= EMENDA_MS && evJanela(o).ini < ini; })());
+}
 // uma linha da agenda (lista do mês e painel do dia)
 function linhaPlantao(s, o = {}){
   const d = parseDate(s.data), t = iso(hoje());
@@ -832,7 +838,7 @@ function linhaPlantao(s, o = {}){
       <div class="sig ${resid?'resid':''} ${bolsa?'bolsa':''}">${ico}<b>${esc(bolsa ? 'R$' : siglaLocal(s.localId))}</b></div>
       <div class="info">
         <div class="place"><span>${esc(localName(s.localId))}</span>${notas}</div>
-        <div class="meta">${metaLinha(s, '')}${extra ? ` · <em>${esc(extra)}</em>` : ''}${(!off&&s.urgente&&!bolsa&&!resid) ? ' · <b class="urg">⚠️ atenção</b>' : ''}</div>
+        <div class="meta">${emendaComAnterior(s) ? '<b class="emd" title="Emenda com o plantão anterior">⛓</b> ' : ''}${metaLinha(s, '')}${extra ? ` · <em>${esc(extra)}</em>` : ''}${(!off&&s.urgente&&!bolsa&&!resid) ? ' · <b class="urg">⚠️ atenção</b>' : ''}</div>
       </div>
       <div class="right">${dinheiro}${pill}</div>
     </div>`;
@@ -1038,10 +1044,61 @@ function renderAgDia(){
   const d = parseDate(selDia), its = itensDoDia(selDia), bl = bloqueioDoDia(selDia);
   const nome = `${WD_LONG[d.getDay()]}, ${d.getDate()} de ${MES[d.getMonth()]}`;
   const blTxt = bl ? `${NOME_BLOQ_CAL[bl.motivo]||'Bloqueio'}${bl.fim && bl.fim !== bl.ini ? ` até ${pad2(parseDate(bl.fim).getDate())}/${pad2(parseDate(bl.fim).getMonth()+1)}` : ''}${bl.obs ? ' · '+esc(bl.obs) : ''}` : '';
-  box.innerHTML = `<div class="ag-dia-h"><b>${nome.charAt(0).toUpperCase()+nome.slice(1)}${selDia===iso(hoje())?' <em>hoje</em>':''}</b>
+  const dif = Math.round((d - hoje()) / 86400000);
+  const quando = dif === 0 ? '<em>hoje</em>' : dif === 1 ? '<em>amanhã</em>' : dif === -1 ? '<em class="passou">ontem</em>'
+    : dif > 1 && dif <= 60 ? `<em>em ${dif} dias</em>` : '';
+  // lançar rápido: os modelos mais usados viram atalhos de um toque (abre já preenchido)
+  const rapidos = !bl ? lancarRapido(selDia) : '';
+  box.innerHTML = `<div class="ag-dia-h"><b>${nome.charAt(0).toUpperCase()+nome.slice(1)} ${quando}</b>
       <button class="btn sm" data-novo="${selDia}">+ Lançar</button></div>
     ${bl ? `<button class="ag-bl" data-bl="${bl.id}"><i class="lg-bl"></i>${blTxt}</button>` : ''}
-    ${its.map(s => linhaPlantao(s, { semData: true })).join('') || (bl ? '' : '<p class="ag-vazio">Nenhum plantão neste dia.</p>')}`;
+    ${its.map(s => linhaPlantao(s, { semData: true })).join('') || (bl ? '' : '<p class="ag-vazio">Nenhum plantão neste dia.</p>')}
+    ${its.length ? notasDescanso(its) : ''}
+    ${rapidos}`;
+}
+/* Plantões emendados (um termina e outro começa em até 1h) e o descanso até o próximo:
+   "⛓ 24h seguidas" e "descanso de 6h" — o que pesa no corpo, num relance. */
+const EMENDA_MS = 3600000;
+function plantoesPorHorario(){
+  return S.shifts.filter(s => naAgenda(s) && !ehBolsa(s) && !ehBloq(s) && s.hora)
+    .map(s => ({ s, ...evJanela(s) })).sort((a,b) => a.ini - b.ini);
+}
+function emendaDe(s){
+  const todos = plantoesPorHorario();
+  let ini0 = todos.find(x => x.s.id === s.id); if(!ini0) return null;
+  // para trás: alguém que termina até 1h antes/depois do começo deste
+  let a = ini0, guarda = 0;
+  for(;;){ const p = todos.find(x => x.ini < a.ini && Math.abs(a.ini - x.f) <= EMENDA_MS); if(!p || ++guarda > 20) break; a = p; }
+  // para frente: alguém que começa até 1h antes/depois do fim deste
+  let b = a, n = 1; guarda = 0;
+  for(;;){ const q = todos.find(x => x.ini > b.ini && Math.abs(x.ini - b.f) <= EMENDA_MS); if(!q || ++guarda > 20) break; b = q; n++; }
+  const prox = todos.find(x => +x.ini > +b.f + EMENDA_MS) || null;
+  return { ini: a.ini, f: b.f, n, prox, primeiro: a.s.id, ultimo: b.s.id };
+}
+function notasDescanso(its){
+  const hh = d => `${WD[d.getDay()]} ${pad2(d.getHours())}h${d.getMinutes() ? pad2(d.getMinutes()) : ''}`;
+  const vistas = new Set(), out = [];
+  its.forEach(s => {
+    const e = emendaDe(s); if(!e || vistas.has(e.primeiro)) return;
+    vistas.add(e.primeiro);
+    const horas = Math.round((e.f - e.ini) / 3600000);
+    if(e.n > 1) out.push(`<div class="ag-nota emenda">⛓ <b>${horas}h seguidas</b> · ${e.n} plantões emendados, de ${hh(e.ini)} a ${hh(e.f)}</div>`);
+    if(e.prox){
+      const desc = Math.round((e.prox.ini - e.f) / 3600000);
+      if(desc < 11) out.push(`<div class="ag-nota curto">⚠️ Só <b>${desc}h de descanso</b> até o próximo (${esc(siglaLocal(e.prox.s.localId))}, ${hh(e.prox.ini)})</div>`);
+      else if(desc <= 72) out.push(`<div class="ag-nota">Descanso de ${desc}h até o próximo · ${hh(e.prox.ini)}</div>`);
+    }
+  });
+  return out.join('');
+}
+function lancarRapido(ds){
+  const ms = modelosFrequentes(4);
+  const resLocal = S.locais.find(l => l.residencia);
+  if(!ms.length && !resLocal) return '';
+  const fimH = (h, dur) => pad2((+h.split(':')[0] + +dur) % 24);
+  const chips = ms.map((m, i) => `<button class="rap" data-rap="${i}" style="--c:${localCor(m.localId)}">${m.turno==='noturno'?ICON_MOON:ICON_SUN}<b>${esc(siglaLocal(m.localId))}</b> ${m.hora.slice(0,2)}–${fimH(m.hora, m.duracao)}</button>`).join('')
+    + (resLocal ? `<button class="rap resid" data-rap="res" style="--c:${resLocal.cor||'#7C8BA1'}">${ICON_MOON}<b>${esc(siglaLocal(resLocal.id))}</b> residência</button>` : '');
+  return `<div class="ag-rap" data-dia="${ds}"><span>Lançar rápido</span><div>${chips}</div></div>`;
 }
 // tocar num dia (calendário, busca etc.): escolhe o dia e mostra o que tem nele
 function irParaDia(ds){
@@ -1509,6 +1566,9 @@ const CHANGELOG = [
     { t:'imp', txt:'Semana em linha do tempo de 0h a 24h — o noturno aparece atravessando a meia-noite' },
     { t:'imp', txt:'Métricas de volta em quadrado 2×2: plantões, horas, recebido e valor da hora' },
     { t:'new', txt:'Sigla do local (automática ou escolhida em Locais), para reconhecer sem depender da cor' },
+    { t:'new', txt:'Plantões emendados: o dia mostra "40h seguidas" e avisa quando sobra pouco descanso até o próximo' },
+    { t:'new', txt:'Lançar rápido no dia escolhido: seus plantões mais comuns viram atalhos de um toque' },
+    { t:'imp', txt:'Deslize o dedo no calendário para trocar o mês, e na semana para trocar a semana; linha do "agora" na semana' },
   ]},
   { v:'1.30', d:'Nov 2026', items:[
     { t:'fix', txt:'Tocar no + depois de excluir algo desfazia a exclusão: o botão Desfazer ficava sobre o +, mesmo depois de o aviso sumir' },
@@ -1717,9 +1777,10 @@ function renderSemana(){
       return `<button class="tl-bar ${ehResid(s)?'resid':''} ${cont?'cont':''} ${segue?'segue':''}" data-id="${s.id}" style="--c:${localCor(s.localId)};left:${left}%;width:${larg}%"
         aria-label="${esc(localName(s.localId))}, ${hh(ini)} a ${hh(f)}">${s.turno==='noturno'?ICON_MOON:ICON_SUN}<b>${esc(siglaLocal(s.localId))}</b>${rot}</button>`;
     }).join('');
+    const agora = ds === hj ? `<i class="tl-agora" style="left:${((Date.now() - d0) / DIA * 100).toFixed(2)}%" title="Agora"></i>` : '';
     return `<div class="tl-row ${ds===hj?'hoje':''}">
       <div class="tl-d"><span>${WD[d.getDay()]}</span><b>${d.getDate()}</b></div>
-      <div class="tl-track ${bl?'bl':''}" data-dia="${ds}">${bl && !barras ? `<em>${NOME_BLOQ_CAL[bl.motivo]||'Bloqueio'}</em>` : ''}${barras}</div>
+      <div class="tl-track ${bl?'bl':''}" data-dia="${ds}">${bl && !barras ? `<em>${NOME_BLOQ_CAL[bl.motivo]||'Bloqueio'}</em>` : ''}${barras}${agora}</div>
     </div>`;
   }).join('');
 
@@ -3434,6 +3495,14 @@ $('#cal-grid').addEventListener('click', e=>{
 });
 $('#ag-dia').addEventListener('click', async e=>{
   const novo = e.target.closest('[data-novo]'); if(novo){ openSheet(null, novo.dataset.novo); return; }
+  const rap = e.target.closest('[data-rap]');
+  if(rap){
+    const ds = rap.closest('[data-dia]').dataset.dia;
+    if(rap.dataset.rap === 'res'){ novoPlantaoResidencia(ds); return; }
+    const m = modelosFrequentes(4)[+rap.dataset.rap]; if(!m) return;
+    openSheet(null, ds, m.categoria || 'remunerado'); aplicarModelo(m); haptic(8);
+    return;
+  }
   const bl = e.target.closest('[data-bl]'); if(bl){ const x = S.bloqueios.find(b => b.id === bl.dataset.bl); if(x) openBloqueio(x); return; }
   const pay = e.target.closest('[data-pay]'); if(pay){ e.stopPropagation(); await alternarPago(pay.dataset.pay); return; }
   const row = e.target.closest('.shift'); if(row) abrirComTransicao(row, ()=>openSheet(S.shifts.find(x=>x.id===row.dataset.id)));
@@ -4788,3 +4857,26 @@ function marcarLocalResidencia(){
     alvo.forEach(s => { s.categoria = 'residencia'; s.valor = 0; s.liquido = 0; s.venc = ''; s.urgente = false; });
   }), 1200);
 }
+
+/* deslizar o dedo para o lado troca o mês (calendário) ou a semana (linha do tempo) */
+function aoDeslizar(el, fn){
+  let x0 = null, y0 = 0, t0 = 0;
+  el.addEventListener('touchstart', e => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if(x0 === null) return;
+    const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
+    if(Math.abs(dx) > 60 && Math.abs(dy) < 45 && Date.now() - t0 < 700) fn(dx < 0 ? 1 : -1);
+  }, { passive: true });
+}
+function animarTroca(el, dir){
+  el.classList.remove('vem-esq', 'vem-dir'); void el.offsetWidth;
+  el.classList.add(dir > 0 ? 'vem-dir' : 'vem-esq');
+}
+aoDeslizar($('#cal-mes'), dir => {
+  cursor = new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1); render(); haptic(6);
+  animarTroca($('#cal-grid'), dir);
+});
+aoDeslizar($('#week-view'), dir => {
+  semanaAtual.setDate(semanaAtual.getDate() + 7 * dir); renderSemana(); haptic(6);
+  const tl = document.querySelector('#week-view .tl'); if(tl) animarTroca(tl, dir);
+});
