@@ -92,8 +92,8 @@ def test_meta_com_centavos_nao_vira_numero_enorme(abrir):
 def test_resumo_mostra_bloco_do_ano(abrir):
     pg = abrir()
     pg.click('nav button[data-v="resumo"]'); passo(pg, 400)
-    assert js(pg, "$('#yr').textContent") == '2026'
-    assert js(pg, "document.querySelectorAll('#year-stats .row').length") >= 4
+    assert js(pg, "$('#res-calor-tit').textContent") == 'Mapa de 2026'
+    assert js(pg, "document.querySelectorAll('#res-kpis .kpi').length") == 4
 
 
 def test_caixa_nome_e_data_em_linhas_separadas(abrir):

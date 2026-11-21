@@ -38,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.31', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.32', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -336,7 +336,7 @@ function render(){
   $('#mnav').classList.toggle('hidden', view !== 'mes' && view !== 'caixa');
   // só a aba visível é redesenhada (antes eram as 5, com gráficos, a cada toque);
   // trocar de aba chama render() de novo e desenha a nova
-  ({ mes:renderMes, caixa:renderCaixa, resumo:()=>{ renderResumo(); renderAno(); }, locais:renderLocais, ajustes:renderAjustes })[view]();
+  ({ mes:renderMes, caixa:renderCaixa, resumo:renderResumo, locais:renderLocais, ajustes:renderAjustes })[view]();
   aplicarPaleta();
   renderLive();
   renderSaude();
@@ -1356,131 +1356,321 @@ function renderCaixa(){
   })();
 }
 
+/* ================= RESUMO: números, gráficos e tabela =================
+   Uma fonte só para todos os números (Resumo, "Seu ano em números" e a imagem do ano):
+   · plantões = trabalho remunerado (plantão e consultório), por data do plantão;
+   · entradas fixas = bolsa da residência, auxílios — dinheiro que não é plantão;
+   · residência = horas obrigatórias, sem valor.                                      */
+const MES_CURTO = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const ehPlantaoPago = s => counts(s) && !ehBolsa(s);
+const ehEntradaFixa = s => counts(s) && ehBolsa(s);
+
+function agregar(itens){
+  const pl = itens.filter(ehPlantaoPago), fx = itens.filter(ehEntradaFixa), rs = itens.filter(ehResid);
+  const soma = (a, f) => a.reduce((t, s) => t + f(s), 0);
+  const r = {
+    pl, fx,
+    n: pl.length, h: soma(pl, s => +s.duracao || 0),
+    fatPl: soma(pl, liq), recPl: soma(pl.filter(s => s.pago), liq),
+    fatFx: soma(fx, liq), recFx: soma(fx.filter(s => s.pago), liq),
+    bruto: soma(pl, bru), hRes: soma(rs, s => +s.duracao || 0), nRes: rs.length,
+    noites: pl.filter(s => s.turno === 'noturno' && !ehAmb(s)).length,
+  };
+  r.fat = r.fatPl + r.fatFx; r.rec = r.recPl + r.recFx; r.pend = r.fat - r.rec;
+  r.vph = r.h ? r.fatPl / r.h : 0; r.media = r.n ? r.fatPl / r.n : 0;
+  return r;
+}
+// período do Resumo → intervalo de datas e meses dos gráficos
+function periodoResumo(p){
+  const hj = hoje(), y = hj.getFullYear(), m = hj.getMonth();
+  const mesesAte = (y2, m2, n) => Array.from({length:n}, (_,i) => { const d = new Date(y2, m2 - n + 1 + i, 1); return { y:d.getFullYear(), m:d.getMonth() }; });
+  if(p === 'mes') return { nome:'Este mês', ini: iso(new Date(y,m,1)), fim: iso(new Date(y,m+1,0)), meses: mesesAte(y, m, 6), titMeses:'Últimos 6 meses' };
+  if(p === '3m')  return { nome:'Últimos 3 meses', ini: iso(new Date(y,m-2,1)), fim: iso(new Date(y,m+1,0)), meses: mesesAte(y, m, 6), titMeses:'Últimos 6 meses' };
+  if(p === 'ano') return { nome:'Este ano', ini: `${y}-01-01`, fim: `${y}-12-31`, meses: mesesAte(y, 11, 12), titMeses:`Mês a mês · ${y}`, ano: y };
+  return { nome:'Todo o período', ini: '0000-01-01', fim: '9999-12-31', meses: mesesAte(y, m, 12), titMeses:'Últimos 12 meses' };
+}
+const doPeriodo = (ini, fim) => S.shifts.filter(s => s.data >= ini && s.data <= fim);
+const doMes = (y, m) => { const k = `${y}-${pad2(m+1)}`; return S.shifts.filter(s => s.data.startsWith(k)); };
+const kBRL = v => v >= 1000 ? (v/1000).toFixed(v >= 10000 ? 0 : 1).replace('.', ',') + 'k' : String(Math.round(v));
+function abrirDetalhe(titulo, html){
+  delete $('#sd-body').dataset.saude;
+  $('#sd-title').textContent = titulo; $('#sd-body').innerHTML = html;
+  $('#sheet-detail').classList.add('open'); $('#scrim').classList.add('open'); lockScroll();
+}
+
 function renderResumo(){
   const periodo = document.querySelector('#res-periodo .on')?.dataset.rp || 'mes';
-  const hj = hoje();
-  const filtro = s => {
-    if(!counts(s)) return false;
-    const d = parseDate(s.data);
-    if(periodo==='mes')  return d.getMonth()===hj.getMonth() && d.getFullYear()===hj.getFullYear();
-    if(periodo==='3m'){  const lim=new Date(hj); lim.setMonth(lim.getMonth()-3); return d>=lim && d<=hj; }
-    if(periodo==='ano')  return d.getFullYear()===hj.getFullYear();
-    return true;
-  };
-  const arr = S.shifts.filter(filtro);
-  const fat  = arr.reduce((a,s)=>a+liq(s),0);
-  const rec  = arr.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0);
-  const pend = fat - rec;
-  const h    = arr.reduce((a,s)=>a+(+s.duracao||0),0);
-  const nomes= {mes:'Este mês','3m':'Últimos 3 meses',ano:'Este ano',tudo:'Todo o período'};
-  $('#res-lbl').textContent = 'Resumo · ' + (nomes[periodo]||'');
-  $('#res-total').textContent = brl(fat);
-  $('#res-sub').textContent = `${arr.length} lançamento${arr.length!==1?'s':''} · ${h}h`;
-  $('#res-bar').style.width = (fat ? Math.min(100,rec/fat*100) : 0)+'%';
-  $('#res-rec').textContent  = brl(rec);
-  $('#res-pend').textContent = brl(pend);
-
-  // por local
-  const porLocal = {};
-  arr.forEach(s=>{ porLocal[s.localId] = (porLocal[s.localId]||{fat:0,rec:0,n:0}); porLocal[s.localId].fat+=liq(s); porLocal[s.localId].rec+=s.pago?liq(s):0; porLocal[s.localId].n++; });
-  const maxFat = Math.max(...Object.values(porLocal).map(x=>x.fat),1);
-  $('#res-locais').innerHTML = Object.entries(porLocal).sort((a,b)=>b[1].fat-a[1].fat).map(([lid,d])=>{
-    const l = getLocal(lid)||{nome:'Desconhecido',cor:'#ccc'};
-    return `<div class="row" style="flex-direction:column;align-items:stretch;padding:12px 0">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-        <div class="swatch" style="background:${l.cor}"></div>
-        <div class="txt"><b>${esc(l.nome)}</b><small>${d.n} lançamento${d.n!==1?'s':''}</small></div>
-        <div class="val">${brl(d.fat)}</div>
-      </div>
-      <div class="hist-bar"><i style="width:${Math.round(d.fat/maxFat*100)}%;background:var(--accent)"></i></div>
-      <div style="display:flex;justify-content:space-between;margin-top:4px">
-        <span style="font-size:11.5px;color:var(--dim)">Recebido ${brl(d.rec)}</span>
-        <span style="font-size:11.5px;color:var(--dim)">${fat?Math.round(d.fat/fat*100):0}% do total</span>
-      </div></div>`;
-  }).join('') || '<div class="empty">Nenhum lançamento no período.</div>';
-
-  // ── Ranking R$/h por local ──
-  (function(){
-    const el = $('#res-rank-hora');
-    if(!el) return;
-    // só plantões com duração registrada (exclui bolsa/ambulatório sem horas)
-    const comHora = arr.filter(s => !ehBolsa(s) && !ehAmb(s) && (+s.duracao||0) > 0);
-    if(!comHora.length){ el.innerHTML=''; return; }
-    const porLoc = {};
-    comHora.forEach(s=>{
-      const k = s.localId||'_';
-      porLoc[k] = porLoc[k] || { fat:0, h:0, n:0 };
-      porLoc[k].fat += liq(s);
-      porLoc[k].h   += +s.duracao||0;
-      porLoc[k].n++;
-    });
-    const ranking = Object.entries(porLoc)
-      .map(([lid,d]) => ({ lid, ...d, vph: d.h ? Math.round(d.fat/d.h) : 0 }))
-      .filter(x => x.vph > 0)
-      .sort((a,b) => b.vph - a.vph);
-    if(!ranking.length){ el.innerHTML=''; return; }
-    const maxVph = ranking[0].vph;
-    el.innerHTML = ranking.map((r,i) => {
-      const l = getLocal(r.lid)||{nome:'Desconhecido',cor:'#ccc'};
-      const medal = i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : `${i+1}º`;
-      const pct = Math.round(r.vph/maxVph*100);
-      return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px">
-          <div style="font-size:16px;line-height:1;flex:none">${medal}</div>
-          <div class="swatch" style="background:${l.cor};flex:none"></div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.nome)}</div>
-            <div style="font-size:11.5px;color:var(--dim)">${r.n} ${r.n!==1?'plantões':'plantão'} · ${r.h}h</div>
-          </div>
-          <div style="text-align:right;flex:none">
-            <div style="font-size:15px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums">${brl(r.vph)}<span style="font-size:10px;font-weight:500;color:var(--dim)">/h</span></div>
-            <div style="font-size:11px;color:var(--dim)">${brl(r.fat)} total</div>
-          </div>
-        </div>
-        <div style="height:4px;background:var(--line);border-radius:99px;overflow:hidden">
-          <div style="height:100%;width:${pct}%;background:${l.cor};border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1)"></div>
-        </div>
-      </div>`;
-    }).join('');
-  })();
-
-  // por turno — exclui renda fixa (bolsa), que não tem turno real
-  const porTurno = {diurno:{fat:0,n:0},noturno:{fat:0,n:0}};
-  arr.filter(s=>!ehBolsa(s)).forEach(s=>{ const t=s.turno==='noturno'?'noturno':'diurno'; porTurno[t].fat+=liq(s); porTurno[t].n++; });
-  $('#res-turnos').innerHTML = Object.entries(porTurno).filter(([,d])=>d.n>0).map(([t,d])=>`
-    <div class="row"><div class="txt"><b>${t==='diurno'?'☀️ Diurno':'🌙 Noturno'}</b><small>${d.n} ${d.n!==1?'plantões':'plantão'}</small></div><div class="val">${brl(d.fat)}</div></div>`).join('') || '<div class="empty">—</div>';
-
-  // gráfico 6 meses (reutilizar chartPanel mas direcionado para res-chart)
-  const meses=mesesRetroativos(6);
-  const dados=meses.map(m=>{
-    const sub=S.shifts.filter(s=>counts(s)&&parseDate(dataCaixa(s)).getMonth()===m.m&&parseDate(dataCaixa(s)).getFullYear()===m.y);
-    return{label:m.label,fat:sub.reduce((a,s)=>a+liq(s),0),rec:sub.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0)};
-  });
-  const maxV=Math.max(...dados.map(d=>d.fat),1);
-  const W=320,H=140,pad={t:8,r:12,b:28,l:44};
-  const gW=W-pad.l-pad.r,gH=H-pad.t-pad.b;
-  const x=i=>pad.l+i*(gW/dados.length)+gW/dados.length/2;
-  const y=v=>pad.t+gH*(1-v/maxV);
-  const bW=Math.floor(gW/dados.length*0.55);
-  let bars='',pts=[],ptsFat=[];
-  dados.forEach((d,i)=>{
-    bars+=`<rect x="${x(i)-bW/2}" y="${y(d.fat)}" width="${bW}" height="${gH*(d.fat/maxV)}" rx="3" fill="var(--accent)" opacity=".2"/>`;
-    bars+=`<rect x="${x(i)-bW/2}" y="${y(d.rec)}" width="${bW}" height="${gH*(d.rec/maxV)}" rx="3" fill="var(--accent)" opacity=".7"/>`;
-    pts.push([x(i),y(d.rec)]); ptsFat.push([x(i),y(d.fat)]);
-    bars+=`<text x="${x(i)}" y="${H-pad.b+14}" text-anchor="middle" font-size="10" fill="var(--dim)">${d.label}</text>`;
-    const ticks=3;
-    if(i===0) for(let t=0;t<=ticks;t++){const vv=maxV*t/ticks;const yy=y(vv);bars+=`<line x1="${pad.l}" x2="${W-pad.r}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${pad.l-4}" y="${yy+4}" text-anchor="end" font-size="9" fill="var(--dim)">${vv>=1000?(vv/1000).toFixed(0)+'k':Math.round(vv)}</text>`;}
-  });
-  const linha=(arr,op)=>arr.length<2?'':'<path d="M'+arr.map(p=>p.join(',')).join('L')+'" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" opacity="'+op+'"/>';
-  $('#res-chart').innerHTML=`<div class="chart-wrap"><svg class="chart-svg" viewBox="0 0 ${W} ${H}">${bars}${linha(ptsFat,.3)}${linha(pts,1)}${pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--accent)"/>`).join('')}</svg><div class="chart-leg"><span><i style="background:var(--accent);opacity:.3"></i>Faturado</span><span><i style="background:var(--accent)"></i>Recebido</span></div></div>`;
-
-  // plantões de colegas
-  const colegas = S.shifts.filter(s=>counts(s)&&s.tipo==='peguei').sort((a,b)=>b.data.localeCompare(a.data));
-  $('#res-trocas').innerHTML = colegas.length ? colegas.slice(0,8).map(s=>{
-    const d=parseDate(s.data);
-    return `<div class="row"><div class="txt"><b>${esc(localName(s.localId))}</b><small>${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()} · de ${esc(s.colega||'colega')}</small></div><div class="val">${brl(liq(s))}</div></div>`;
-  }).join('') : '<div class="empty">Nenhum plantão de colega no período.</div>';
+  const P = periodoResumo(periodo), A = agregar(doPeriodo(P.ini, P.fim));
+  // ── topo ──
+  $('#res-lbl').textContent = 'Resumo · ' + P.nome;
+  $('#res-total').textContent = brl(A.fat);
+  $('#res-div').innerHTML = A.fatFx
+    ? `<span><i class="cx-pl"></i>Plantões <b>${brl(A.fatPl)}</b></span><span><i class="cx-fx"></i>Entradas fixas <b>${brl(A.fatFx)}</b></span>`
+    : '';
+  $('#res-sub').textContent = `${A.n} ${A.n===1?'plantão':'plantões'} · ${A.h}h` + (A.hRes ? ` · +${A.hRes}h de residência` : '')
+    + (A.bruto - A.fatPl > 0.5 ? ` · ${brl(A.bruto - A.fatPl)} retidos na fonte` : '');
+  $('#res-bar').style.width = (A.fat ? Math.min(100, A.rec/A.fat*100) : 0) + '%';
+  $('#res-rec').textContent = brl(A.rec);
+  $('#res-pend').textContent = brl(A.pend);
+  $('#res-kpis').innerHTML = `
+    <div class="kpi"><b>${A.n}</b><span>plantões</span><small>${A.noites} noturno${A.noites===1?'':'s'}</small></div>
+    <div class="kpi"><b>${A.h}h</b><span>trabalhadas</span><small>${A.h ? '≈ ' + (A.h/24).toFixed(1).replace('.', ',') + ' dias' : '—'}</small></div>
+    <div class="kpi"><b class="money">${A.vph ? brl(A.vph) : '—'}</b><span>por hora</span><small>média dos plantões</small></div>
+    <div class="kpi"><b class="money">${A.media ? brl(A.media) : '—'}</b><span>por plantão</span><small>média líquida</small></div>`;
+  renderProjecaoAno(periodo);
+  $('#res-meses-tit').textContent = P.titMeses;
+  graficoMeses(P.meses);
+  graficoHoras(P.meses);
+  mapaCalor(P.ano || hoje().getFullYear());
+  graficoLocais(A);
+  graficoTurnos(A);
+  graficoSemana(A);
+  tabelaMeses(P.meses);
+  cartaoTrocas(doPeriodo(P.ini, P.fim));
 }
+
+/* projeção do ano: o já lançado + o ritmo até hoje, com o acumulado mês a mês */
+function renderProjecaoAno(periodo){
+  const box = $('#res-proj');
+  if(periodo !== 'ano'){ box.innerHTML = ''; return; }
+  const hj = hoje(), y = hj.getFullYear(), hjI = iso(hj);
+  const ano = S.shifts.filter(s => s.data.startsWith(String(y)) && counts(s));
+  const ate = ano.filter(s => s.data <= hjI);
+  const lancado = ano.reduce((a,s)=>a+liq(s),0), real = ate.reduce((a,s)=>a+liq(s),0);
+  const diasPassados = Math.max(1, Math.round((hj - new Date(y,0,1)) / 86400000) + 1);
+  const diasAno = (new Date(y+1,0,1) - new Date(y,0,1)) / 86400000;
+  const ritmo = real / diasPassados * diasAno;
+  const proj = Math.max(lancado, ritmo);
+  const antes = S.shifts.filter(s => s.data.startsWith(String(y-1)) && counts(s)).reduce((a,s)=>a+liq(s),0);
+  // acumulado por mês (lançado) e reta da projeção do mês atual até dezembro
+  let acc = 0; const pts = MES_CURTO.map((_, m) => { acc += doMes(y, m).filter(counts).reduce((a,s)=>a+liq(s),0); return acc; });
+  const W = 320, H = 120, L = 6, R = 6, T = 10, B = 18, gW = W-L-R, gH = H-T-B, max = Math.max(proj, acc, 1);
+  const X = i => L + gW * i / 11, Y = v => T + gH * (1 - v / max);
+  const mHoje = hj.getMonth();
+  const real_ = pts.slice(0, mHoje + 1).map((v,i) => `${X(i)},${Y(v)}`).join(' ');
+  const fut = pts.slice(mHoje).map((v,i) => `${X(mHoje+i)},${Y(v)}`).join(' ');
+  const projL = `${X(mHoje)},${Y(pts[mHoje])} ${X(11)},${Y(proj)}`;
+  box.innerHTML = `<div class="proj-card">
+    <div class="proj-txt"><span>No ritmo atual, ${y} fecha em</span><b class="money">${brl(proj)}</b>
+      <small>${brl(lancado)} já lançados${lancado > real ? ` (${brl(lancado-real)} agendados)` : ''}${antes ? ` · ${proj >= antes ? '+' : ''}${Math.round((proj/antes-1)*100)}% vs ${y-1}` : ''}</small></div>
+    <svg viewBox="0 0 ${W} ${H}" class="chart-svg" role="img" aria-label="Acumulado do ano e projeção">
+      ${[0.5,1].map(f => `<line x1="${L}" x2="${W-R}" y1="${Y(max*f)}" y2="${Y(max*f)}" stroke="var(--line)"/><text x="${W-R}" y="${Y(max*f)-3}" text-anchor="end" font-size="9" fill="var(--dim)">${kBRL(max*f)}</text>`).join('')}
+      <polyline points="${projL}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4 4" opacity=".7"/>
+      <polyline points="${fut}" fill="none" stroke="var(--accent)" stroke-width="2" opacity=".35"/>
+      <polyline points="${real_}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>
+      <circle cx="${X(mHoje)}" cy="${Y(pts[mHoje])}" r="3.5" fill="var(--accent)"/>
+      ${MES_CURTO.map((m,i) => `<text x="${X(i)}" y="${H-4}" text-anchor="middle" font-size="9" fill="${i===mHoje?'var(--ink)':'var(--dim)'}">${m[0].toUpperCase()}</text>`).join('')}
+    </svg>
+    <div class="chart-leg"><span><i class="lg-linha"></i>acumulado</span><span><i class="lg-traco"></i>projeção</span></div>
+  </div>`;
+}
+
+/* barras mês a mês, empilhadas por local (plantões) + entradas fixas, com o recebido marcado */
+let _mesSel = null;
+function graficoMeses(meses){
+  const dados = meses.map(({y,m}) => {
+    const A = agregar(doMes(y,m)), porLoc = {};
+    A.pl.forEach(s => { porLoc[s.localId] = (porLoc[s.localId]||0) + liq(s); });
+    return { y, m, A, porLoc };
+  });
+  const locs = [...new Set(dados.flatMap(d => Object.keys(d.porLoc)))]
+    .sort((a,b) => dados.reduce((t,d)=>t+(d.porLoc[b]||0),0) - dados.reduce((t,d)=>t+(d.porLoc[a]||0),0));
+  const max = Math.max(...dados.map(d => d.A.fat), 1);
+  const n = dados.length, W = 340, H = 170, L = 30, R = 4, T = 14, B = 20, gW = W-L-R, gH = H-T-B;
+  const bw = Math.min(30, gW/n*0.62), X = i => L + gW*(i+.5)/n, Y = v => T + gH*(1 - v/max);
+  const hjK = `${hoje().getFullYear()}-${hoje().getMonth()}`;
+  if(_mesSel && !dados.some(d => `${d.y}-${d.m}` === _mesSel)) _mesSel = null;
+  let svg = [0.5, 1].map(f => `<line x1="${L}" x2="${W-R}" y1="${Y(max*f)}" y2="${Y(max*f)}" stroke="var(--line)"/><text x="${L-4}" y="${Y(max*f)+3}" text-anchor="end" font-size="9" fill="var(--dim)">${kBRL(max*f)}</text>`).join('');
+  dados.forEach((d, i) => {
+    let base = 0;
+    const k = `${d.y}-${d.m}`, sel = _mesSel === k;
+    locs.forEach(lid => { const v = d.porLoc[lid]||0; if(!v) return;
+      svg += `<rect x="${X(i)-bw/2}" y="${Y(base+v)}" width="${bw}" height="${gH*v/max}" fill="${localCor(lid)}" opacity="${_mesSel && !sel ? .35 : .9}"/>`; base += v; });
+    if(d.A.fatFx) svg += `<rect x="${X(i)-bw/2}" y="${Y(base+d.A.fatFx)}" width="${bw}" height="${gH*d.A.fatFx/max}" fill="url(#hach)" stroke="var(--dim-2)" stroke-width=".6" opacity="${_mesSel && !sel ? .35 : 1}"/>`;
+    if(d.A.rec) svg += `<line x1="${X(i)-bw/2-3}" x2="${X(i)+bw/2+3}" y1="${Y(d.A.rec)}" y2="${Y(d.A.rec)}" stroke="var(--ink)" stroke-width="2"/>`;
+    svg += `<text x="${X(i)}" y="${H-6}" text-anchor="middle" font-size="9.5" font-weight="${k===hjK?700:400}" fill="${k===hjK?'var(--ink)':'var(--dim)'}">${MES_CURTO[d.m]}</text>`;
+    svg += `<rect x="${X(i)-gW/n/2}" y="${T}" width="${gW/n}" height="${gH+B}" fill="transparent" data-mes="${k}" style="cursor:pointer"/>`;
+  });
+  const leg = locs.slice(0, 6).map(l => `<span><i style="background:${localCor(l)}"></i>${esc(siglaLocal(l))}</span>`).join('')
+    + (dados.some(d => d.A.fatFx) ? '<span><i class="lg-fx"></i>fixas</span>' : '') + '<span><i class="lg-rec"></i>recebido</span>';
+  const s = _mesSel && dados.find(d => `${d.y}-${d.m}` === _mesSel);
+  $('#res-meses').innerHTML = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Faturado por mês">
+      <defs><pattern id="hach" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="var(--surface-2)"/><line x1="0" y1="0" x2="0" y2="5" stroke="var(--dim-2)" stroke-width="2"/></pattern></defs>${svg}</svg>
+    <div class="chart-leg">${leg}</div>
+    ${s ? `<div class="mes-info"><b>${MES[s.m].charAt(0).toUpperCase()+MES[s.m].slice(1)} de ${s.y}</b>
+      <div><span>Faturado</span><b>${brl(s.A.fat)}</b></div><div><span>Recebido</span><b>${brl(s.A.rec)}</b></div>
+      <div><span>Plantões</span><b>${s.A.n} · ${s.A.h}h</b></div><div><span>Por hora</span><b>${s.A.vph ? brl(s.A.vph) : '—'}</b></div>
+      ${Object.entries(s.porLoc).sort((a,b)=>b[1]-a[1]).map(([l,v]) => `<div class="full"><span><i style="background:${localCor(l)}"></i>${esc(nomeCurto(l))}</span><b>${brl(v)}</b></div>`).join('')}
+      ${s.A.fatFx ? `<div class="full"><span><i class="lg-fx"></i>Entradas fixas</span><b>${brl(s.A.fatFx)}</b></div>` : ''}</div>`
+      : '<p class="chart-dica">Toque num mês para ver os números.</p>'}`;
+}
+
+/* horas por mês (barras) e valor da hora (linha) */
+function graficoHoras(meses){
+  const d = meses.map(({y,m}) => { const A = agregar(doMes(y,m)); return { m, h: A.h, hRes: A.hRes, vph: A.vph }; });
+  const maxH = Math.max(...d.map(x => x.h + x.hRes), 1), maxV = Math.max(...d.map(x => x.vph), 1);
+  const n = d.length, W = 340, H = 150, L = 26, R = 30, T = 14, B = 20, gW = W-L-R, gH = H-T-B;
+  const bw = Math.min(26, gW/n*.55), X = i => L + gW*(i+.5)/n, YH = v => T + gH*(1-v/maxH), YV = v => T + gH*(1-v/maxV);
+  const iMax = d.reduce((b, x, i) => x.h > d[b].h ? i : b, 0);
+  let svg = `<line x1="${L}" x2="${W-R}" y1="${YH(maxH)}" y2="${YH(maxH)}" stroke="var(--line)"/><text x="${L-4}" y="${YH(maxH)+3}" text-anchor="end" font-size="9" fill="var(--dim)">${maxH}h</text>
+    <text x="${W-R+4}" y="${YV(maxV)+3}" font-size="9" fill="var(--accent)">${kBRL(maxV)}/h</text>`;
+  d.forEach((x, i) => {
+    svg += `<rect x="${X(i)-bw/2}" y="${YH(x.h)}" width="${bw}" height="${gH*x.h/maxH}" rx="3" fill="var(--dim-2)" opacity=".55"/>`;
+    if(x.hRes) svg += `<rect x="${X(i)-bw/2}" y="${YH(x.h+x.hRes)}" width="${bw}" height="${gH*x.hRes/maxH}" rx="3" fill="none" stroke="var(--dim)" stroke-dasharray="3 2"/>`;
+    if(x.h && i === iMax) svg += `<text x="${X(i)}" y="${YH(x.h)-4}" text-anchor="middle" font-size="9" font-weight="700" fill="var(--ink)">${x.h}h</text>`;
+    svg += `<text x="${X(i)}" y="${H-6}" text-anchor="middle" font-size="9.5" fill="var(--dim)">${MES_CURTO[x.m]}</text>`;
+  });
+  const pts = d.map((x,i) => x.vph ? [X(i), YV(x.vph), x.vph] : null).filter(Boolean);
+  if(pts.length > 1) svg += `<polyline points="${pts.map(p=>p[0]+','+p[1]).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>`;
+  pts.forEach(p => { svg += `<circle cx="${p[0]}" cy="${p[1]}" r="3.2" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>`; });
+  $('#res-horas').innerHTML = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Horas e valor da hora por mês">${svg}</svg>
+    <div class="chart-leg"><span><i style="background:var(--dim-2);opacity:.6"></i>horas de plantão</span>${d.some(x=>x.hRes)?'<span><i class="lg-res"></i>residência</span>':''}<span><i class="lg-ponto"></i>R$ por hora</span></div>`;
+}
+
+/* mapa de calor do ano: um quadradinho por dia, mais forte com mais horas */
+function mapaCalor(y){
+  const horas = {};
+  S.shifts.filter(s => s.data.startsWith(String(y)) && naAgenda(s) && !ehBolsa(s) && !ehBloq(s))
+    .forEach(s => { horas[s.data] = (horas[s.data]||0) + (+s.duracao||0); });
+  const nivel = h => !h ? 0 : h <= 6 ? 1 : h <= 12 ? 2 : h <= 24 ? 3 : 4;
+  const L = 26, c = 8.6, g = 1.4, W = L + 31*(c+g), H = 12*(c+g) + 12;
+  const hjI = iso(hoje()), bls = S.bloqueios || [];
+  let svg = '', dias = 0, total = 0, maxDia = ['', 0];
+  for(let m = 0; m < 12; m++){
+    svg += `<text x="0" y="${m*(c+g)+c-0.6}" font-size="7.5" fill="var(--dim)">${MES_CURTO[m]}</text>`;
+    const nd = new Date(y, m+1, 0).getDate();
+    for(let d = 1; d <= nd; d++){
+      const k = `${y}-${pad2(m+1)}-${pad2(d)}`, h = horas[k] || 0, dt = new Date(y, m, d);
+      if(h){ dias++; total += h; if(h > maxDia[1]) maxDia = [k, h]; }
+      const fds = dt.getDay() === 0 || dt.getDay() === 6, bl = !h && bls.some(b => b.ini && k >= b.ini && k <= (b.fim||b.ini));
+      svg += `<rect x="${L+(d-1)*(c+g)}" y="${m*(c+g)}" width="${c}" height="${c}" rx="1.6" class="hm n${nivel(h)}${fds&&!h?' fds':''}${bl?' bl':''}${k===hjI?' hoje':''}" data-hm="${k}"><title>${pad2(d)}/${pad2(m+1)}: ${h ? h+'h' : 'livre'}</title></rect>`;
+    }
+  }
+  [1, 10, 20, 31].forEach(d => { svg += `<text x="${L+(d-1)*(c+g)+c/2}" y="${H-1}" text-anchor="middle" font-size="7" fill="var(--dim)">${d}</text>`; });
+  $('#res-calor-tit').textContent = `Mapa de ${y}`;
+  const md = maxDia[0] ? parseDate(maxDia[0]) : null;
+  $('#res-calor').innerHTML = `<svg class="hm-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Horas por dia em ${y}">${svg}</svg>
+    <div class="hm-rod"><span>${dias} dias com plantão · ${total}h${md ? ` · mais longo: ${pad2(md.getDate())}/${pad2(md.getMonth()+1)} (${maxDia[1]}h)` : ''}</span>
+      <span class="hm-leg">menos <i class="hm n0"></i><i class="hm n1"></i><i class="hm n2"></i><i class="hm n3"></i><i class="hm n4"></i> mais</span></div>`;
+}
+
+/* por local: participação (barra 100%) + tabela com plantões, horas, valor e R$/h */
+function graficoLocais(A){
+  const porLoc = {};
+  A.pl.forEach(s => { const k = s.localId||'_'; const x = porLoc[k] = porLoc[k] || { n:0, h:0, fat:0, rec:0 }; x.n++; x.h += +s.duracao||0; x.fat += liq(s); x.rec += s.pago ? liq(s) : 0; });
+  const lista = Object.entries(porLoc).map(([lid,x]) => ({ lid, ...x, vph: x.h ? x.fat/x.h : 0 })).sort((a,b) => b.fat - a.fat);
+  if(!lista.length){ $('#res-locais').innerHTML = '<div class="empty">Nenhum plantão no período.</div>'; return; }
+  const melhor = lista.filter(x => x.vph).sort((a,b) => b.vph - a.vph)[0];
+  $('#res-locais').innerHTML = `<div class="barra100">${lista.map(x => `<i style="width:${(x.fat/A.fatPl*100).toFixed(2)}%;background:${localCor(x.lid)}" title="${esc(localName(x.lid))}"></i>`).join('')}</div>
+    <div class="tab-wrap mini"><table class="tab">
+      <thead><tr><th>Local</th><th>Faturado</th><th>R$/h</th></tr></thead>
+      <tbody>${lista.map(x => `<tr><td><div class="lc"><span class="sg" style="--c:${localCor(x.lid)}">${esc(siglaLocal(x.lid))}</span><span class="lc-nome">${esc(nomeCurto(x.lid))}<small>${x.n} ${x.n === 1 ? 'plantão' : 'plantões'} · ${x.h}h</small></span></div></td>
+        <td>${brl(x.fat)}<small>${Math.round(x.fat/A.fatPl*100)}%</small></td>
+        <td${melhor && melhor.lid === x.lid && lista.length > 1 ? ' class="top"' : ''}>${x.vph ? Math.round(x.vph) : '—'}${melhor && melhor.lid === x.lid && lista.length > 1 ? '<small>melhor</small>' : ''}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+/* diurno × noturno */
+function graficoTurnos(A){
+  const t = { diurno:{ n:0, h:0, fat:0 }, noturno:{ n:0, h:0, fat:0 } };
+  A.pl.filter(s => !ehAmb(s)).forEach(s => { const x = t[s.turno === 'noturno' ? 'noturno' : 'diurno']; x.n++; x.h += +s.duracao||0; x.fat += liq(s); });
+  const tot = t.diurno.fat + t.noturno.fat;
+  if(!tot){ $('#res-turnos').innerHTML = '<div class="empty">Sem plantões no período.</div>'; return; }
+  const lin = (k, ico, nome) => { const x = t[k]; return `<div class="tn-l"><span class="tn-ico">${ico}</span><b>${nome}</b>
+      <span>${x.n} · ${x.h}h</span><span class="money">${brl(x.fat)}</span><span class="tn-vph">${x.h ? brl(x.fat/x.h)+'/h' : '—'}</span></div>`; };
+  $('#res-turnos').innerHTML = `<div class="barra100 alta"><i class="tn-d" style="width:${t.diurno.fat/tot*100}%"><b>${Math.round(t.diurno.fat/tot*100)}%</b></i><i class="tn-n" style="width:${t.noturno.fat/tot*100}%"><b>${Math.round(t.noturno.fat/tot*100)}%</b></i></div>
+    ${lin('diurno', ICON_SUN, 'Diurno')}${lin('noturno', ICON_MOON, 'Noturno')}`;
+}
+
+/* dia da semana: quantos plantões começam em cada dia e quanto rende a hora */
+function graficoSemana(A){
+  const d = Array.from({length:7}, () => ({ n:0, h:0, fat:0 }));
+  A.pl.forEach(s => { const x = d[parseDate(s.data).getDay()]; x.n++; x.h += +s.duracao||0; x.fat += liq(s); });
+  const max = Math.max(...d.map(x => x.n), 1);
+  if(!A.pl.length){ $('#res-semana').innerHTML = '<div class="empty">Sem plantões no período.</div>'; return; }
+  const melhor = d.map((x,i) => ({ i, vph: x.h ? x.fat/x.h : 0 })).sort((a,b) => b.vph - a.vph)[0];
+  const mais = d.map((x,i) => ({ i, n: x.n })).sort((a,b) => b.n - a.n)[0];
+  $('#res-semana').innerHTML = `<div class="sem-bars">${d.map((x,i) => `<div class="sb-c"><em>${x.n||''}</em><i style="height:${x.n/max*100}%" class="${i===mais.i?'top':''}"></i><span>${WD[i]}</span></div>`).join('')}</div>
+    <p class="chart-dica">Você mais trabalha às <b>${WD_LONG[mais.i]}s</b>${melhor.vph ? ` · a hora rende mais às <b>${WD_LONG[melhor.i]}s</b> (${brl(melhor.vph)}/h)` : ''}.</p>`;
+}
+
+/* tabela mês a mês (ordenável) + exportar planilha */
+let _tabOrd = { col: 'mes', desc: false };
+function linhasTabela(meses){
+  return meses.map(({y,m}) => { const A = agregar(doMes(y,m)); return { y, m, mes: y*12+m, n: A.n, h: A.h, fat: A.fat, rec: A.rec, pend: A.pend, vph: A.vph, fatFx: A.fatFx }; });
+}
+function tabelaMeses(meses){
+  const rows = linhasTabela(meses).sort((a,b) => (a[_tabOrd.col] - b[_tabOrd.col]) * (_tabOrd.desc ? -1 : 1));
+  const tot = rows.reduce((t,r) => ({ n:t.n+r.n, h:t.h+r.h, fat:t.fat+r.fat, rec:t.rec+r.rec, pend:t.pend+r.pend, fatPl:t.fatPl+(r.fat-r.fatFx) }), { n:0, h:0, fat:0, rec:0, pend:0, fatPl:0 });
+  const col = (k, t) => `<th data-ord="${k}" class="${_tabOrd.col===k?'ord'+(_tabOrd.desc?' desc':''):''}">${t}</th>`;
+  const mx = Math.max(...rows.map(r => r.fat), 1);
+  $('#res-tabela').innerHTML = `<table class="tab">
+    <thead><tr>${col('mes','Mês')}${col('n','Plant.')}${col('h','Horas')}${col('fat','Faturado')}${col('rec','Recebido')}${col('pend','A receber')}${col('vph','R$/h')}</tr></thead>
+    <tbody>${rows.map(r => `<tr class="${r.y===hoje().getFullYear() && r.m===hoje().getMonth()?'atual':''}"><td>${MES_CURTO[r.m]}/${String(r.y).slice(2)}</td><td>${r.n||'—'}</td><td>${r.h ? r.h+'h' : '—'}</td>
+      <td class="bar" style="--p:${(r.fat/mx*100).toFixed(1)}%">${r.fat ? brl(r.fat) : '—'}</td><td>${r.rec ? brl(r.rec) : '—'}</td><td>${r.pend ? brl(r.pend) : '—'}</td><td>${r.vph ? brl(r.vph) : '—'}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td>Total</td><td>${tot.n}</td><td>${tot.h}h</td><td>${brl(tot.fat)}</td><td>${brl(tot.rec)}</td><td>${brl(tot.pend)}</td><td>${tot.h ? brl(tot.fatPl/tot.h) : '—'}</td></tr></tfoot>
+  </table>`;
+  $('#res-tabela').dataset.meses = JSON.stringify(meses);
+}
+async function exportarPlanilha(){
+  const meses = JSON.parse($('#res-tabela').dataset.meses || '[]');
+  const num = v => (Math.round(v*100)/100).toFixed(2).replace('.', ',');
+  const lin = [['Mês','Plantões','Horas','Plantões (R$)','Entradas fixas (R$)','Faturado (R$)','Recebido (R$)','A receber (R$)','R$ por hora']];
+  linhasTabela(meses).forEach(r => lin.push([`${MES_CURTO[r.m]}/${r.y}`, r.n, r.h, num(r.fat - r.fatFx), num(r.fatFx), num(r.fat), num(r.rec), num(r.pend), num(r.vph)]));
+  lin.push([], ['Lançamentos do período']);
+  lin.push(['Data','Local','Categoria','Turno','Início','Horas','Valor líquido (R$)','Pago','Pago em']);
+  const ini = `${meses[0].y}-${pad2(meses[0].m+1)}-01`, ult = meses[meses.length-1], fim = iso(new Date(ult.y, ult.m+1, 0));
+  doPeriodo(ini, fim).filter(s => counts(s) || ehResid(s)).sort((a,b) => (a.data+(a.hora||'')).localeCompare(b.data+(b.hora||''))).forEach(s => {
+    const d = parseDate(s.data);
+    lin.push([`${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()}`, localName(s.localId), ehBolsa(s) ? 'Entrada fixa' : ehResid(s) ? 'Residência' : ehAmb(s) ? 'Consultório' : 'Plantão',
+      ehBolsa(s) ? '' : s.turno, s.hora||'', +s.duracao||0, num(ehResid(s) ? 0 : liq(s)), s.pago ? 'sim' : 'não', s.pagoEm||'']);
+  });
+  const csv = '﻿' + lin.map(l => l.map(c => /[;"\n]/.test(String(c)) ? '"' + String(c).replace(/"/g,'""') + '"' : c).join(';')).join('\r\n');
+  const nome = `plantae-${meses[0].y}-${pad2(meses[0].m+1)}_a_${ult.y}-${pad2(ult.m+1)}.csv`;
+  const arq = new File([csv], nome, { type: 'text/csv' });
+  if(navigator.canShare && navigator.canShare({ files:[arq] })){
+    try{ await navigator.share({ files:[arq], title:'Plantaê! — planilha' }); return; }catch(e){ if(e && e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(arq); a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast('Planilha salva · abre no Excel, Planilhas Google e Numbers');
+}
+
+/* plantões de colegas: um cartão com o saldo; a lista completa abre num toque */
+function cartaoTrocas(itens){
+  const pegos = itens.filter(s => counts(s) && s.tipo === 'peguei'), passados = itens.filter(s => s.tipo === 'passei');
+  if(!pegos.length && !passados.length){ $('#res-trocas').innerHTML = ''; return; }
+  const v = pegos.reduce((a,s)=>a+liq(s),0), saldo = pegos.length - passados.length;
+  $('#res-trocas').innerHTML = `<button class="trocas-card" id="res-trocas-btn">
+    <span class="tc-ico">⇄</span><span class="tc-txt"><b>Plantões de colegas</b><small>${pegos.length} pego${pegos.length===1?'':'s'} · ${passados.length} passado${passados.length===1?'':'s'} · saldo ${saldo>0?'+':''}${saldo}</small></span>
+    <span class="money">${brl(v)}</span>${ICON_CHEV}</button>`;
+  $('#res-trocas-btn').onclick = () => {
+    const linha = s => { const d = parseDate(s.data); return `<div class="row"><div class="txt"><b>${esc(localName(s.localId))}</b><small>${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()} · ${s.tipo==='peguei'?'de':'para'} ${esc(s.colega||'colega')}</small></div><div class="val">${s.tipo==='peguei' ? brl(liq(s)) : '—'}</div></div>`; };
+    const ord = a => a.slice().sort((x,y) => y.data.localeCompare(x.data));
+    abrirDetalhe('Plantões de colegas', (pegos.length ? `<div class="sec" style="margin-top:0"><h2>Peguei (${pegos.length})</h2></div>${ord(pegos).map(linha).join('')}` : '')
+      + (passados.length ? `<div class="sec"><h2>Passei (${passados.length})</h2></div>${ord(passados).map(linha).join('')}` : ''));
+  };
+}
+
+$('#res-meses').addEventListener('click', e => {
+  const r = e.target.closest('[data-mes]'); if(!r) return;
+  _mesSel = _mesSel === r.dataset.mes ? null : r.dataset.mes; haptic(5);
+  const periodo = document.querySelector('#res-periodo .on')?.dataset.rp || 'mes';
+  graficoMeses(periodoResumo(periodo).meses);
+});
+$('#res-tabela').addEventListener('click', e => {
+  const th = e.target.closest('[data-ord]'); if(!th) return;
+  const c = th.dataset.ord; _tabOrd = { col: c, desc: _tabOrd.col === c ? !_tabOrd.desc : c !== 'mes' };
+  tabelaMeses(JSON.parse($('#res-tabela').dataset.meses)); haptic(5);
+});
+$('#res-calor').addEventListener('click', e => {
+  const r = e.target.closest('[data-hm]'); if(!r) return;
+  const k = r.dataset.hm, its = S.shifts.filter(s => s.data === k && naAgenda(s) && !ehBolsa(s) && !ehBloq(s));
+  const d = parseDate(k);
+  toast(`${pad2(d.getDate())}/${pad2(d.getMonth()+1)}: ` + (its.length ? its.map(s => `${siglaLocal(s.localId)} ${s.duracao}h`).join(' + ') : 'livre'));
+});
+$('#res-csv').onclick = exportarPlanilha;
+
 function renderLocais(){
   $('#loc-list').innerHTML = S.locais.length ? S.locais.map(l=>{
     const url = mapsUrl(l);
@@ -1514,35 +1704,6 @@ function renderAjustes(){
   renderDiagnostico();
 }
 
-// bloco "Ano de…" — fica na aba Resumo (antes era desenhado pela função de Ajustes;
-// com a renderização só da aba visível, ele ficaria vazio no Resumo)
-function renderAno(){
-  const y = cursor.getFullYear();
-  const ano = S.shifts.filter(s=>counts(s) && parseDate(s.data).getFullYear()===y);
-  const tot = ano.reduce((a,s)=>a+liq(s),0);
-  const brutoAno = ano.reduce((a,s)=>a+bru(s),0);
-  const rec = ano.filter(s=>s.pago).reduce((a,s)=>a+liq(s),0);
-  const h = ano.reduce((a,s)=>a+(+s.duracao||0),0);
-  const hR = S.shifts.filter(s=>ehResid(s) && parseDate(s.data).getFullYear()===y)
-                     .reduce((a,s)=>a+(+s.duracao||0),0);
-  $('#yr').textContent = y;
-  $('#year-stats').innerHTML = `
-    <div class="row"><div class="txt"><b>Faturado</b><small>${ano.filter(s=>!ehBolsa(s)).length} lançamentos · ${h}h</small></div><div class="val">${brl(tot)}</div></div>
-    <div class="row"><div class="txt"><b>Recebido</b><small>${tot?Math.round(rec/tot*100):0}% do faturado</small></div><div class="val" style="color:var(--ok)">${brl(rec)}</div></div>
-    <div class="row"><div class="txt"><b>A receber</b><small>em aberto</small></div><div class="val" style="color:var(--due)">${brl(tot-rec)}</div></div>
-    <div class="row"><div class="txt"><b>Valor médio</b><small>por hora remunerada</small></div><div class="val">${brl(h?tot/h:0)}</div></div>
-    ${brutoAno!==tot?`<div class="row"><div class="txt"><b>Retido na fonte</b><small>diferença entre bruto e líquido</small></div><div class="val">${brl(brutoAno-tot)}</div></div>`:''}
-    ${hR?`<div class="row"><div class="txt"><b>Residência</b><small>horas de plantão obrigatório</small></div><div class="val">${hR}h</div></div>`:''}`;
-
-  const byLoc = {};
-  ano.forEach(s=>{ const k = s.localId||'_'; byLoc[k] = byLoc[k] || {n:0,h:0,v:0}; byLoc[k].n++; byLoc[k].h+=(+s.duracao||0); byLoc[k].v+=liq(s); });  // líquido, como o "Faturado" acima
-  const ks = Object.keys(byLoc).sort((a,b)=>byLoc[b].v-byLoc[a].v);
-  $('#year-loc').innerHTML = ks.length ? ks.map(k=>`
-    <div class="row"><div class="swatch" style="background:${localCor(k)}"></div>
-      <div class="txt"><b>${esc(localName(k))}</b><small>${byLoc[k].n} ${byLoc[k].n>1?'lançamentos':'lançamento'} · ${byLoc[k].h}h</small></div>
-      <div class="val">${brl(byLoc[k].v)}</div></div>`).join('') : `<div class="empty">Sem dados no ano.</div>`;
-}
-
 function renderBackupInfo(){
   let ultimo = null; try{ ultimo = localStorage.getItem('plantoes:lastBackup'); }catch(e){}
   const diasBk = ultimo ? Math.round((hoje() - parseDate(ultimo))/86400000) : null;
@@ -1559,6 +1720,15 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.32', d:'Nov 2026', items:[
+    { t:'new', txt:'Resumo com gráficos: mês a mês por local (toque no mês para ver os números), horas × valor da hora, mapa do ano e projeção de quanto o ano fecha' },
+    { t:'new', txt:'Tabela mês a mês que ordena por qualquer coluna, com total — e “Exportar planilha” (abre no Excel, Planilhas Google e Numbers)' },
+    { t:'new', txt:'Imagem do ano nova: post 4:5 ou stories 9:16, com gráfico dos meses, mapa dos dias, top 3 locais e comparação com o ano anterior' },
+    { t:'new', txt:'Modo discreto na imagem do ano: mostra horas e plantões, sem nenhum valor em R$' },
+    { t:'imp', txt:'Os números batem em todo lugar: plantões e entradas fixas (bolsa) aparecem separados; a residência conta só horas' },
+    { t:'imp', txt:'Por local, diurno × noturno e dia da semana mostram onde e quando a hora rende mais' },
+    { t:'imp', txt:'Plantões de colegas viraram um cartão com o saldo; a lista completa abre num toque' },
+  ]},
   { v:'1.31', d:'Nov 2026', items:[
     { t:'new', txt:'Calendário mostra o plantão dentro do dia: sigla do local, ☀/☾, residência tracejada e bloqueio hachurado' },
     { t:'new', txt:'Tocar num dia mostra o que tem nele logo abaixo, com + Lançar' },
@@ -2617,49 +2787,6 @@ async function saveLocal(){
 
 
 /* ── Wrapped: Seu Ano em Números ── */
-function renderWrapped(){
-  const ano = new Date().getFullYear();
-  document.getElementById('wr-ano').textContent = ano + ' em números';
-  const MES_SIGLA = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const todos = S.shifts.filter(counts);
-  const doAno = todos.filter(s => s.data && s.data.startsWith(String(ano)));
-
-  const totalAno = doAno.reduce((a,s)=>a+liq(s), 0);
-  document.getElementById('wr-total').textContent = brl(totalAno);
-  const nPl = doAno.length;
-  document.getElementById('wr-sub').textContent = nPl > 0
-    ? nPl + (nPl>1?' plantões':' plantão') + ' registrado' + (nPl>1?'s':'')
-    : 'Nenhum lançamento no ano';
-
-  const horas = doAno.reduce((a,s)=>a+(+s.duracao||0), 0);
-  document.getElementById('wr-horas').textContent = horas > 0 ? horas + 'h' : '—';
-  document.getElementById('wr-horas-sub').textContent = horas > 0
-    ? 'equivale a ' + Math.round(horas/24) + ' dias trabalhados' : '';
-
-  const porLocal = {};
-  for(const s of doAno){ const k=s.localId||'outros'; porLocal[k]=(porLocal[k]||0)+liq(s); }
-  const topL = Object.entries(porLocal).sort((a,b)=>b[1]-a[1])[0];
-  document.getElementById('wr-top-local').textContent = topL ? localName(topL[0]) : '—';
-  document.getElementById('wr-top-local-sub').textContent = topL ? brl(topL[1]) + ' recebidos' : '';
-
-  const porMes = {};
-  for(const s of doAno){ if(!s.data) continue; const m=s.data.slice(0,7); porMes[m]=(porMes[m]||0)+liq(s); }
-  const topM = Object.entries(porMes).sort((a,b)=>b[1]-a[1])[0];
-  if(topM){
-    const [y,mm] = topM[0].split('-');
-    document.getElementById('wr-mes-top').textContent = MES_SIGLA[parseInt(mm)-1] + ' ' + y;
-    document.getElementById('wr-mes-top-sub').textContent = brl(topM[1]) + ' neste mês';
-  } else { document.getElementById('wr-mes-top').textContent = '—'; document.getElementById('wr-mes-top-sub').textContent=''; }
-
-  document.getElementById('wr-qtd').textContent = nPl > 0 ? nPl : '—';
-  const pagosPct = nPl > 0 ? Math.round(doAno.filter(s=>s.pago).length/nPl*100) : 0;
-  document.getElementById('wr-qtd-sub').textContent = nPl > 0 ? pagosPct + '% já recebidos' : '';
-
-  const ticket = nPl > 0 ? Math.round(totalAno / nPl) : 0;
-  document.getElementById('wr-ticket').textContent = ticket > 0 ? brl(ticket) : '—';
-  document.getElementById('wr-ticket-sub').textContent = ticket > 0 ? 'valor líquido médio por plantão' : '';
-}
-
 function openWrapped(){
   const sheet = document.getElementById('wrapped-sheet');
   const splash = document.getElementById('wrapped-splash');
@@ -2696,176 +2823,214 @@ function roundRect(ctx, x, y, w, h, r){
   ctx.closePath();
 }
 
-/* ── Gera canvas do resumo anual ── */
-/* icone: Image() com crossOrigin=anonymous carregada antes — null usa fallback desenhado */
-function gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa, icone){
-  const W=1080, H=1350;
-  const cvs = document.createElement('canvas');
-  cvs.width=W; cvs.height=H;
-  const ctx = cvs.getContext('2d');
-
-  // ── Fundo gradiente escuro profundo ──
-  const grad = ctx.createLinearGradient(0,0,0,H);
-  grad.addColorStop(0,'#0D0B1C'); grad.addColorStop(0.45,'#150F38'); grad.addColorStop(1,'#0A0818');
-  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
-
-  // Malha de pontos sutil
-  ctx.fillStyle='rgba(255,255,255,0.022)';
-  for(let x=36;x<W;x+=36) for(let y=36;y<H;y+=36){
-    ctx.beginPath(); ctx.arc(x,y,1.4,0,Math.PI*2); ctx.fill();
-  }
-
-  // Glow radial central (atrás dos números)
-  const rg = ctx.createRadialGradient(W/2,500,0,W/2,500,420);
-  rg.addColorStop(0,'rgba(120,80,255,0.16)'); rg.addColorStop(1,'rgba(120,80,255,0)');
-  ctx.fillStyle=rg; ctx.fillRect(0,180,W,680);
-
-  // ── CABEÇALHO: ícone + "Plantaê!" ──
-  ctx.save();
-  const icoSz=120, icoX=W/2-230, icoY=90;
-  if(icone){
-    // Ícone real com máscara circular
-    ctx.save();
-    ctx.beginPath(); ctx.arc(icoX+icoSz/2, icoY+icoSz/2, icoSz/2, 0, Math.PI*2);
-    ctx.clip();
-    ctx.drawImage(icone, icoX, icoY, icoSz, icoSz);
-    ctx.restore();
-  } else {
-    // Fallback: folha desenhada
-    const lx=icoX, ly=icoY;
-    ctx.strokeStyle='rgba(140,200,90,0.85)'; ctx.lineWidth=8; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(lx+50,ly+110); ctx.lineTo(lx+50,ly+30); ctx.stroke();
-    ctx.fillStyle='rgba(110,200,80,0.9)';
-    ctx.beginPath();
-    ctx.moveTo(lx+50,ly+30);
-    ctx.bezierCurveTo(lx+80,ly-10,lx+110,ly+20,lx+90,ly+70);
-    ctx.bezierCurveTo(lx+70,ly+95,lx+50,ly+90,lx+50,ly+30);
-    ctx.fill();
-    ctx.fillStyle='rgba(80,170,60,0.75)';
-    ctx.beginPath();
-    ctx.moveTo(lx+50,ly+55);
-    ctx.bezierCurveTo(lx+20,ly+20,lx-8,ly+42,lx+18,ly+82);
-    ctx.bezierCurveTo(lx+34,ly+95,lx+50,ly+85,lx+50,ly+55);
-    ctx.fill();
-  }
-  ctx.restore();
-
-  // "Plantaê!" wordmark
-  ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.fillStyle='#FFFFFF';
-  ctx.font='800 108px system-ui,-apple-system,sans-serif';
-  ctx.fillText('Plantaê!', W/2-160, 150);
-
-  // Linha accent abaixo do wordmark
-  const ulX=W/2-160;
-  const ulG=ctx.createLinearGradient(ulX,0,ulX+450,0);
-  ulG.addColorStop(0,'rgba(130,100,255,0.95)');
-  ulG.addColorStop(0.65,'rgba(170,145,255,0.4)');
-  ulG.addColorStop(1,'rgba(170,145,255,0)');
-  ctx.fillStyle=ulG; ctx.fillRect(ulX,208,450,5);
-
-  // Subtítulo
-  ctx.fillStyle='rgba(255,255,255,0.42)';
-  ctx.font='400 28px system-ui,-apple-system,sans-serif';
-  ctx.fillText('Seu ano em números · '+ano, W/2-160, 248);
-
-  // Linha divisória
-  ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(60,284,W-120,1);
-
-  // ── TOTAL ──
-  const totalStr=brl(total);
-  const fs=totalStr.length>14?72:totalStr.length>11?86:100;
-  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-  ctx.fillStyle='#FFFFFF';
-  ctx.font='800 '+fs+'px system-ui,-apple-system,sans-serif';
-  ctx.fillText(totalStr, W/2, 396);
-  ctx.fillStyle='rgba(255,255,255,0.38)';
-  ctx.font='400 28px system-ui,-apple-system,sans-serif';
-  ctx.fillText('receita bruta de plantões · '+ano, W/2, 440);
-
-  // ── CARDS MÉTRICAS ──
-  const cards=[
-    {ico:'⏱',lbl:'HORAS TRABALHADAS',  val:horas>0?horas+'h':'—', sub:horas>0?'equivale a '+Math.round(horas/24)+' dia'+(Math.round(horas/24)!==1?'s':''):''},
-    {ico:'🏥',lbl:'PLANTÕES REALIZADOS',val:n>0?String(n):'—',     sub:n>0?(n>1?'plantões':'plantão')+' no ano':''},
-    {ico:'💰',lbl:'TICKET MÉDIO',       val:ticket>0?brl(ticket):'—',sub:ticket>0?'valor líquido médio':''},
-  ];
-  const cH=160, cW=W-80, cX=40;
-  cards.forEach((c,i)=>{
-    const cy=476+i*(cH+18);
-    // Fundo do card
-    ctx.fillStyle='rgba(255,255,255,0.05)';
-    roundRect(ctx,cX,cy,cW,cH,22); ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,0.09)'; ctx.lineWidth=1.5;
-    roundRect(ctx,cX,cy,cW,cH,22); ctx.stroke();
-    // Emoji
-    ctx.font='44px system-ui,sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
-    ctx.fillStyle='rgba(255,255,255,0.88)'; ctx.fillText(c.ico,cX+26,cy+cH/2);
-    // Label
-    ctx.fillStyle='rgba(255,255,255,0.36)';
-    ctx.font='600 19px system-ui,-apple-system,sans-serif';
-    ctx.fillText(c.lbl,cX+96,cy+42);
-    // Valor
-    ctx.fillStyle='#FFFFFF';
-    ctx.font='700 42px system-ui,-apple-system,sans-serif';
-    ctx.fillText(c.val,cX+96,cy+98);
-    // Sub
-    if(c.sub){
-      ctx.fillStyle='rgba(255,255,255,0.36)';
-      ctx.font='400 20px system-ui,-apple-system,sans-serif';
-      ctx.fillText(c.sub,cX+96,cy+130);
-    }
+/* ================= O ANO: dados para "Seu ano em números" e para a imagem ================= */
+function maiorSequencia(y){
+  const ps = plantoesPorHorario().filter(x => x.s.data.startsWith(String(y)));
+  let melhor = { h: 0, ini: null, n: 0 }, ini = null, fim = null, n = 0;
+  ps.forEach(x => {
+    if(fim && x.ini - fim <= EMENDA_MS && x.ini >= fim - EMENDA_MS){ fim = new Date(Math.max(+fim, +x.f)); n++; }
+    else { ini = x.ini; fim = x.f; n = 1; }
+    const h = Math.round((fim - ini) / 3600000);
+    if(h > melhor.h) melhor = { h, ini, n };
   });
+  return melhor;
+}
+function dadosAno(y){
+  const itens = S.shifts.filter(s => s.data.startsWith(String(y)));
+  const A = agregar(itens);
+  const meses = MES_CURTO.map((_, m) => { const a = agregar(doMes(y, m)); return { m, fat: a.fat, fatPl: a.fatPl, fatFx: a.fatFx, h: a.h }; });
+  const porLoc = {};
+  A.pl.forEach(s => { const x = porLoc[s.localId] = porLoc[s.localId] || { lid: s.localId, fat: 0, h: 0, n: 0 }; x.fat += liq(s); x.h += +s.duracao||0; x.n++; });
+  const locais = Object.values(porLoc).sort((a,b) => b.fat - a.fat);
+  const horasDia = {};
+  itens.filter(s => naAgenda(s) && !ehBolsa(s) && !ehBloq(s)).forEach(s => { horasDia[s.data] = (horasDia[s.data]||0) + (+s.duracao||0); });
+  const ant = agregar(S.shifts.filter(s => s.data.startsWith(String(y-1))));
+  const melhorMes = meses.slice().sort((a,b) => b.fat - a.fat)[0];
+  return { y, A, meses, locais, horasDia, seq: maiorSequencia(y), antes: ant.n || ant.fat ? ant : null, melhorMes };
+}
 
-  // ── RENDA FIXA (se houver) ──
-  if(totalRendaFixa>0){
-    const rfY=476+3*(cH+18)+10;
-    ctx.fillStyle='rgba(130,100,255,0.10)';
-    roundRect(ctx,40,rfY,W-80,76,16); ctx.fill();
-    ctx.strokeStyle='rgba(130,100,255,0.30)'; ctx.lineWidth=1.5;
-    roundRect(ctx,40,rfY,W-80,76,16); ctx.stroke();
-    ctx.textAlign='left'; ctx.textBaseline='middle';
-    ctx.fillStyle='rgba(255,255,255,0.42)';
-    ctx.font='500 20px system-ui,-apple-system,sans-serif';
-    ctx.fillText('🏦  Bolsa-Residência + Auxílio-Moradia', 68, rfY+26);
-    ctx.fillStyle='rgba(170,148,255,0.95)';
-    ctx.font='700 32px system-ui,-apple-system,sans-serif';
-    ctx.fillText(brl(totalRendaFixa), 68, rfY+56);
+function renderWrapped(){
+  const y = new Date().getFullYear(), D = dadosAno(y), A = D.A;
+  $('#wr-ano').textContent = y + ' em números';
+  $('#wr-total').textContent = brl(A.fat);
+  $('#wr-sub').textContent = A.n
+    ? `${A.n} ${A.n===1?'plantão registrado':'plantões registrados'}` + (A.fatFx ? ` · ${brl(A.fatPl)} em plantões + ${brl(A.fatFx)} de entradas fixas` : '')
+    : 'Nenhum plantão no ano';
+  $('#wr-horas').textContent = A.h ? A.h + 'h' : '—';
+  $('#wr-horas-sub').textContent = A.h ? `≈ ${Math.round(A.h/24)} dias inteiros` + (A.hRes ? ` · +${A.hRes}h de residência` : '') : '';
+  const top = D.locais[0];
+  $('#wr-top-local').textContent = top ? localName(top.lid) : '—';
+  $('#wr-top-local-sub').textContent = top ? `${brl(top.fat)} · ${top.n} ${top.n===1?'plantão':'plantões'} · ${brl(top.h ? top.fat/top.h : 0)}/h` : '';
+  const mm = D.melhorMes;
+  $('#wr-mes-top').textContent = mm && mm.fat ? MES[mm.m].charAt(0).toUpperCase() + MES[mm.m].slice(1) : '—';
+  $('#wr-mes-top-sub').textContent = mm && mm.fat ? `${brl(mm.fat)} · ${mm.h}h` : '';
+  $('#wr-qtd').textContent = A.n || '—';
+  $('#wr-qtd-sub').textContent = A.n ? `${Math.round(A.recPl / (A.fatPl||1) * 100)}% do valor já recebido` : '';
+  $('#wr-ticket').textContent = A.media ? brl(A.media) : '—';
+  $('#wr-ticket-sub').textContent = A.vph ? `${brl(A.vph)} por hora trabalhada` : '';
+  $('#wr-seq').textContent = D.seq.h ? D.seq.h + 'h seguidas' : '—';
+  $('#wr-seq-sub').textContent = D.seq.ini ? `${D.seq.n} ${D.seq.n===1?'plantão':'plantões emendados'} a partir de ${pad2(D.seq.ini.getDate())}/${pad2(D.seq.ini.getMonth()+1)}` : '';
+  $('#wr-noites').textContent = A.noites || '—';
+  $('#wr-noites-sub').textContent = A.noites ? `${Math.round(A.noites / (A.n||1) * 100)}% dos plantões foram noturnos` : '';
+  atualizarPreviaAno();
+}
+
+/* ── imagem do ano: post (1080×1350) ou stories (1080×1920), com modo discreto (sem R$) ── */
+const wrOpcoes = () => ({
+  formato: document.querySelector('#wr-formato .on')?.dataset.fmt || 'post',
+  discreto: !!document.querySelector('#wr-discreto.on'),
+});
+let _wrIcone = null;
+function carregarIconeAno(){
+  return new Promise(ok => {
+    if(_wrIcone) return ok(_wrIcone);
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => { _wrIcone = img; ok(img); }; img.onerror = () => ok(null);
+    img.src = './icon-512.png';
+  });
+}
+async function atualizarPreviaAno(){
+  const el = $('#wr-previa'); if(!el) return;
+  try{
+    const D = dadosAno(new Date().getFullYear());
+    el.src = gerarCanvasAno(D, { ...wrOpcoes(), icone: await carregarIconeAno() }).toDataURL('image/png');
+    el.classList.toggle('stories', wrOpcoes().formato === 'stories');
+  }catch(e){ registrarErro(e, 'ano:previa'); }
+}
+
+function gerarCanvasAno(D, { formato = 'post', discreto = false, icone = null } = {}){
+  const W = 1080, H = formato === 'stories' ? 1920 : 1350, st = formato === 'stories';
+  const cvs = document.createElement('canvas'); cvs.width = W; cvs.height = H;
+  const ctx = cvs.getContext('2d'), A = D.A, P = 72, CW = W - 2*P;
+  const C = { tx:'#F4F4F5', dim:'#A1A1AA', dim2:'#71717A', ac:'#8B93FF', ac2:'#5B5BD6', fx:'#F5B544', card:'rgba(255,255,255,.06)', linha:'rgba(255,255,255,.10)' };
+  const F = (peso, px) => `${peso} ${px}px Inter, "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  const texto = (t, x, y, f, cor, al = 'left') => { ctx.font = f; ctx.fillStyle = cor; ctx.textAlign = al; ctx.fillText(t, x, y); };
+  const caber = (t, peso, px, max) => { ctx.font = F(peso, px); while(ctx.measureText(t).width > max && px > 20){ px -= 4; ctx.font = F(peso, px); } return px; };
+  const grande = v => discreto ? '' : brl(v);
+
+  // fundo
+  const g = ctx.createLinearGradient(0, 0, W*0.3, H);
+  g.addColorStop(0, '#0E0C22'); g.addColorStop(.5, '#17114A'); g.addColorStop(1, '#090814');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const brilho = ctx.createRadialGradient(W*0.85, H*0.08, 0, W*0.85, H*0.08, W*0.7);
+  brilho.addColorStop(0, 'rgba(139,147,255,.28)'); brilho.addColorStop(1, 'rgba(139,147,255,0)');
+  ctx.fillStyle = brilho; ctx.fillRect(0, 0, W, H);
+
+  let y = st ? 150 : 76;
+  const gap = st ? 44 : 26;
+  // cabeçalho: ícone + nome + ano
+  let xNome = P;
+  if(icone){ ctx.save(); roundRect(ctx, P, y - 6, 64, 64, 16); ctx.clip(); ctx.drawImage(icone, P, y - 6, 64, 64); ctx.restore(); xNome = P + 82; }
+  texto('Plantaê!', xNome, y + 42, F(800, 44), C.tx);
+  ctx.font = F(700, 30); const anoTxt = String(D.y), anoW = ctx.measureText(anoTxt).width + 44;
+  roundRect(ctx, W - P - anoW, y, anoW, 52, 26); ctx.fillStyle = 'rgba(139,147,255,.18)'; ctx.fill();
+  texto(anoTxt, W - P - anoW/2, y + 37, F(700, 30), C.ac, 'center');
+  y += 64 + gap + 18;
+
+  // número principal
+  texto(discreto ? 'MEU ANO EM PLANTÕES' : 'MEU ANO EM PLANTÕES · FATURADO', P, y, F(700, 24), C.dim);
+  y += st ? 150 : 120;
+  const principal = discreto ? `${A.h}h` : brl(A.fat);
+  const px = caber(principal, 800, st ? 150 : 132, CW);
+  const gt = ctx.createLinearGradient(P, 0, P + CW*0.8, 0); gt.addColorStop(0, '#FFFFFF'); gt.addColorStop(1, '#B7BCFF');
+  texto(principal, P, y, F(800, px), gt);
+  y += st ? 70 : 52;
+  const sub = discreto
+    ? `${A.n} plantões · ≈ ${Math.round(A.h/24)} dias inteiros de trabalho`
+    : A.fatFx ? `Plantões ${brl(A.fatPl)}  +  entradas fixas ${brl(A.fatFx)}` : `${A.n} plantões · ${A.h} horas`;
+  texto(sub, P, y, F(500, caber(sub, 500, 32, CW)), C.dim);
+  if(D.antes){
+    const base = discreto ? D.antes.h : D.antes.fat, atual = discreto ? A.h : A.fat;
+    if(base > 0){
+      const pct = Math.round((atual/base - 1) * 100), t = `${pct >= 0 ? '▲ +' : '▼ '}${pct}% vs ${D.y - 1}`;
+      y += st ? 64 : 48; ctx.font = F(700, 26); const tw = ctx.measureText(t).width + 36;
+      roundRect(ctx, P, y - 34, tw, 48, 24); ctx.fillStyle = pct >= 0 ? 'rgba(86,180,233,.18)' : 'rgba(240,163,94,.18)'; ctx.fill();
+      texto(t, P + 18, y - 1, F(700, 26), pct >= 0 ? '#7CC8F2' : '#F0A35E');
+    }
+  }
+  y += gap + 8;
+
+  // barras dos 12 meses
+  const chH = st ? 330 : 212;
+  roundRect(ctx, P, y, CW, chH, 28); ctx.fillStyle = C.card; ctx.fill();
+  texto(discreto ? 'Horas por mês' : 'Faturado por mês', P + 32, y + 50, F(700, 26), C.tx);
+  const vals = D.meses.map(m => discreto ? m.h : m.fat), max = Math.max(...vals, 1), mi = vals.indexOf(Math.max(...vals));
+  const bx = P + 32, bW = CW - 64, by = y + 80, bH = chH - 80 - 56, col = bW / 12, bw = col * 0.62;
+  D.meses.forEach((m, i) => {
+    const v = vals[i], h = Math.max(v ? 6 : 0, bH * v / max), x = bx + col*i + (col - bw)/2, topo = by + bH - h;
+    if(!discreto && m.fatFx && m.fat){
+      const hFx = bH * m.fatFx / max;
+      roundRect(ctx, x, topo, bw, h, 8); ctx.fillStyle = i === mi ? C.ac : 'rgba(139,147,255,.55)'; ctx.fill();
+      ctx.fillStyle = 'rgba(245,181,68,.85)'; ctx.fillRect(x, by + bH - hFx, bw, Math.min(hFx, h));
+    } else if(h){ roundRect(ctx, x, topo, bw, h, 8); ctx.fillStyle = i === mi ? C.ac : 'rgba(139,147,255,.55)'; ctx.fill(); }
+    if(i === mi && v) texto(discreto ? `${v}h` : kBRL(v), x + bw/2, topo - 12, F(700, 22), C.tx, 'center');
+    texto(MES_CURTO[m.m][0].toUpperCase(), x + bw/2, by + bH + 38, F(600, 22), i === mi ? C.tx : C.dim2, 'center');
+  });
+  if(!discreto && D.meses.some(m => m.fatFx)){
+    ctx.fillStyle = 'rgba(245,181,68,.85)'; ctx.fillRect(P + CW - 230, y + 32, 18, 18);
+    texto('entradas fixas', P + CW - 204, y + 49, F(500, 20), C.dim);
+  }
+  y += chH + gap;
+
+  // mapa de calor do ano
+  const ini = new Date(D.y, 0, 1), desloc = ini.getDay(), dias = (new Date(D.y + 1, 0, 1) - ini) / 86400000;
+  const nSem = Math.ceil((desloc + dias) / 7), passo = CW / nSem, cel = passo * 0.8;
+  texto('Dias de plantão', P, y + 4, F(700, 24), C.tx);
+  const nDias = Object.keys(D.horasDia).length;
+  texto(`${nDias} dias`, P + CW, y + 4, F(600, 22), C.dim, 'right');
+  y += 24;
+  for(let i = 0; i < dias; i++){
+    const d = new Date(D.y, 0, 1 + i), k = iso(d), h = D.horasDia[k] || 0, pos = i + desloc;
+    const nv = !h ? 0 : h <= 6 ? .3 : h <= 12 ? .55 : h <= 24 ? .8 : 1;
+    roundRect(ctx, P + Math.floor(pos/7) * passo, y + (pos % 7) * passo, cel, cel, 3);
+    ctx.fillStyle = h ? `rgba(139,147,255,${nv})` : 'rgba(255,255,255,.06)'; ctx.fill();
+  }
+  y += 7 * passo + gap + 6;
+
+  // quatro números
+  const st4 = discreto
+    ? [['Horas', `${A.h}h`, `≈ ${Math.round(A.h/24)} dias`], ['Plantões', String(A.n), `${A.noites} noturnos`],
+       ['Maior sequência', D.seq.h ? `${D.seq.h}h` : '—', D.seq.h ? `${D.seq.n} emendados` : ''], ['Noites viradas', String(A.noites), `${Math.round(A.noites/(A.n||1)*100)}% dos plantões`]]
+    : [['Horas', `${A.h}h`, `≈ ${Math.round(A.h/24)} dias`], ['Plantões', String(A.n), `${A.noites} noturnos`],
+       ['Por hora', A.vph ? brl(A.vph) : '—', 'média dos plantões'], ['Maior sequência', D.seq.h ? `${D.seq.h}h` : '—', D.seq.h ? `${D.seq.n} emendados` : '']];
+  const cw = (CW - 24) / 2, chh = st ? 150 : 116;
+  st4.forEach(([r, v, s], i) => {
+    const x = P + (i % 2) * (cw + 24), yy = y + Math.floor(i/2) * (chh + 18);
+    roundRect(ctx, x, yy, cw, chh, 24); ctx.fillStyle = C.card; ctx.fill();
+    texto(r.toUpperCase(), x + 28, yy + 42, F(700, 19), C.dim);
+    texto(v, x + 28, yy + (st ? 98 : 82), F(800, caber(v, 800, st ? 50 : 40, cw - 56)), C.tx);
+    if(s) texto(s, x + 28, yy + (st ? 130 : 104), F(500, 20), C.dim2);
+  });
+  y += 2 * chh + 18 + gap;
+
+  // onde trabalhou: 3 locais principais (só percentual — sem expor valores)
+  const top = (discreto ? D.locais.slice().sort((a,b) => b.h - a.h) : D.locais).slice(0, 3), totPl = A.fatPl || 1, totH = A.h || 1;
+  if(top.length){
+    texto('Onde mais trabalhei', P, y + 4, F(700, 24), C.tx);
+    y += st ? 34 : 24;
+    const rowH = st ? 62 : 42;
+    top.forEach((l, i) => {
+      const yy = y + i * rowH, pct = discreto ? l.h / totH : l.fat / totPl;
+      roundRect(ctx, P, yy, 70, 38, 10); ctx.fillStyle = localCor(l.lid); ctx.globalAlpha = .9; ctx.fill(); ctx.globalAlpha = 1;
+      texto(siglaLocal(l.lid), P + 35, yy + 27, F(800, 20), '#0B0B12', 'center');
+      ctx.font = F(600, 24); let nome = nomeCurto(l.lid); while(ctx.measureText(nome).width > CW - 300 && nome.length > 4) nome = nome.slice(0, -2);
+      if(nome !== nomeCurto(l.lid)) nome += '…';
+      texto(nome, P + 88, yy + 27, F(600, 24), C.tx);
+      const bxx = P + CW - 190, bww = 120;
+      roundRect(ctx, bxx, yy + 13, bww, 12, 6); ctx.fillStyle = C.linha; ctx.fill();
+      roundRect(ctx, bxx, yy + 13, Math.max(8, bww * pct), 12, 6); ctx.fillStyle = C.ac; ctx.fill();
+      texto(`${Math.round(pct*100)}%`, P + CW, yy + 27, F(700, 22), C.tx, 'right');
+    });
+    y += (top.length - 1) * rowH + 38;
   }
 
-  // ── RODAPÉ ──
-  const wg=ctx.createLinearGradient(0,H-120,0,H);
-  wg.addColorStop(0,'rgba(0,0,0,0)'); wg.addColorStop(1,'rgba(0,0,0,0.6)');
-  ctx.fillStyle=wg; ctx.fillRect(0,H-120,W,120);
-  ctx.fillStyle='rgba(255,255,255,0.12)'; ctx.fillRect(0,H-80,W,1);
-  ctx.fillStyle='rgba(255,255,255,0.52)';
-  ctx.font='700 26px system-ui,-apple-system,sans-serif'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-  ctx.fillText('Plantaê!', 48, H-42);
-  ctx.fillStyle='rgba(255,255,255,0.26)';
-  ctx.font='400 20px system-ui,-apple-system,sans-serif';
-  ctx.fillText('plantoes-asevedo.vercel.app', 48, H-16);
-
-  // Marca d'água: ícone pequeno no canto inferior direito
-  const wmSz=64, wmX=W-wmSz-44, wmY=H-wmSz-22;
-  if(icone){
-    ctx.save();
-    ctx.globalAlpha=0.72;
-    ctx.beginPath(); ctx.arc(wmX+wmSz/2, wmY+wmSz/2, wmSz/2, 0, Math.PI*2);
-    ctx.clip();
-    ctx.drawImage(icone, wmX, wmY, wmSz, wmSz);
-    ctx.restore();
-  } else {
-    // Fallback: folha mini
-    ctx.save(); ctx.globalAlpha=0.55;
-    ctx.translate(wmX+wmSz/2, wmY+wmSz/2);
-    ctx.fillStyle='rgba(140,200,90,0.9)';
-    ctx.beginPath(); ctx.ellipse(0,-4,13,20,0.2,0,Math.PI*2); ctx.fill();
-    ctx.restore();
-  }
-
+  // rodapé
+  const yRod = H - (st ? 120 : 34);
+  texto(`plantaê · ${location.host || 'plantoes'}`, W/2, yRod, F(500, 20), 'rgba(255,255,255,.38)', 'center');
+  cvs.dataset.fim = Math.round(y); cvs.dataset.rodape = yRod - 20;   // conferido nos testes: nada encosta no rodapé
   return cvs;
 }
 
-/* ── Overlay para mostrar imagem no iOS PWA (window.open bloqueado) ── */
 function mostrarImagemOverlay(dataUrl, ano){
   // Remove overlay anterior se existir
   const prev = document.getElementById('img-overlay');
@@ -2896,58 +3061,28 @@ function mostrarImagemOverlay(dataUrl, ano){
   if(!_locked) abrirCamadaHist();
 }
 
-/* ── Compartilha o resumo anual ── */
-function compartilharAno(){
-  const ano = new Date().getFullYear();
-  const doAno = S.shifts.filter(counts).filter(s=>s.data&&s.data.startsWith(String(ano)));
-  const total = doAno.reduce((a,s)=>a+liq(s),0);
-  const horas = doAno.reduce((a,s)=>a+(+s.duracao||0),0);
-  const n = doAno.length;
-  const ticket = n > 0 ? Math.round(total/n) : 0;
-  const rendaFixaAno = S.shifts.filter(ehBolsa).filter(s=>s.data&&s.data.startsWith(String(ano)));
-  const totalRendaFixa = rendaFixaAno.reduce((a,s)=>a+(s.liquido||s.valor||0),0);
-
-  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
-    (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
-
-  function gerarECompartilhar(icone){
-    let dataUrl;
-    try {
-      const cvs = gerarCanvasAno(ano, total, horas, n, ticket, totalRendaFixa, icone);
-      dataUrl = cvs.toDataURL('image/png');
-    } catch(e){
-      toast('Erro ao gerar imagem: ' + e.message);
-      return;
-    }
-    if(isIOS){
-      mostrarImagemOverlay(dataUrl, ano);
-      return;
-    }
-    const byteStr=atob(dataUrl.split(',')[1]);
-    const ab=new Uint8Array(byteStr.length);
-    for(let i=0;i<byteStr.length;i++) ab[i]=byteStr.charCodeAt(i);
-    const blob=new Blob([ab],{type:'image/png'});
-    const file=new File([blob],'plantae-'+ano+'.png',{type:'image/png'});
-    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:'Plantaê! '+ano}).catch(err=>{
-        if(err?.name==='AbortError') return;
-        const a=document.createElement('a');a.href=dataUrl;a.download='plantae-'+ano+'.png';
-        document.body.appendChild(a);a.click();document.body.removeChild(a);
-      });
-    } else {
-      const a=document.createElement('a');a.href=dataUrl;a.download='plantae-'+ano+'.png';
-      document.body.appendChild(a);a.click();document.body.removeChild(a);
-      toast('Imagem salva ✓');
-    }
+async function compartilharAno(){
+  const D = dadosAno(new Date().getFullYear()), op = wrOpcoes();
+  let dataUrl;
+  try{ dataUrl = gerarCanvasAno(D, { ...op, icone: await carregarIconeAno() }).toDataURL('image/png'); }
+  catch(e){ toast('Erro ao gerar imagem: ' + e.message); return; }
+  const nome = `plantae-${D.y}${op.formato === 'stories' ? '-stories' : ''}${op.discreto ? '-discreto' : ''}.png`;
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if(isIOS){ mostrarImagemOverlay(dataUrl, D.y); return; }
+  const blob = await (await fetch(dataUrl)).blob();
+  const file = new File([blob], nome, { type: 'image/png' });
+  if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
+    try{ await navigator.share({ files: [file], title: 'Plantaê! ' + D.y }); return; }catch(err){ if(err && err.name === 'AbortError') return; }
   }
-
-  // Carrega o ícone com crossOrigin=anonymous para não contaminar o canvas
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => gerarECompartilhar(img);
-  img.onerror = () => gerarECompartilhar(null); // fallback sem ícone
-  img.src = './icon-512.png?' + Date.now(); // cache-bust garante que o header CORS seja aplicado
+  const a = document.createElement('a'); a.href = dataUrl; a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('Imagem salva ✓');
 }
+document.addEventListener('click', e => {
+  const f = e.target.closest('#wr-formato button');
+  if(f){ document.querySelectorAll('#wr-formato button').forEach(b => b.classList.toggle('on', b === f)); atualizarPreviaAno(); return; }
+  if(e.target.closest('#wr-discreto')) setTimeout(atualizarPreviaAno, 0);   // o manipulador geral já trocou o "on"
+});
 
 /* ================= eventos ================= */
 // ── Wrapped handlers (delegation). Os botões também tinham onclick inline — cada toque

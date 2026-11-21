@@ -257,55 +257,52 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
 
   <!-- ===== TROCAS ===== -->
   <section id="v-resumo" class="hidden">
-    <!-- HERO RESUMO -->
-    <div class="hero hero-card">
-      <div class="lbl" id="res-lbl">Resumo de —</div>
-      <div class="big" id="res-total">R$ 0</div>
-      <div class="sub" id="res-sub">—</div>
-    </div>
-    <div class="gauge"><i class="p" id="res-bar" style="width:0%"></i></div>
-    <div class="split">
-      <div><div class="k">Recebido</div><div class="v ok" id="res-rec">R$ 0</div></div>
-      <div><div class="k">A receber</div><div class="v due" id="res-pend">R$ 0</div></div>
+    <!-- período primeiro: tudo abaixo segue a escolha -->
+    <div class="segs res-periodo" id="res-periodo">
+      <button class="on" data-rp="mes">Este mês</button>
+      <button data-rp="3m">3 meses</button>
+      <button data-rp="ano">Este ano</button>
+      <button data-rp="tudo">Tudo</button>
     </div>
 
-    <!-- SELETOR DE PERÍODO -->
-    <div class="sec"><h2>Período</h2>
-      <div class="segs" id="res-periodo">
-        <button class="on" data-rp="mes">Este mês</button>
-        <button data-rp="3m">3 meses</button>
-        <button data-rp="ano">Este ano</button>
-        <button data-rp="tudo">Tudo</button>
+    <!-- total com a divisão plantões × entradas fixas -->
+    <div class="hero hero-card res-hero">
+      <div class="lbl" id="res-lbl">Resumo</div>
+      <div class="big" id="res-total">R$ 0</div>
+      <div class="res-div" id="res-div"></div>
+      <div class="sub" id="res-sub">—</div>
+      <div class="gauge res-gauge"><i class="p" id="res-bar" style="width:0%"></i></div>
+      <div class="split">
+        <div><div class="k">Recebido</div><div class="v ok" id="res-rec">R$ 0</div></div>
+        <div><div class="k">A receber</div><div class="v due" id="res-pend">R$ 0</div></div>
       </div>
     </div>
+    <div class="kpis" id="res-kpis"></div>
+    <div id="res-proj"></div>
 
-    <!-- POR LOCAL -->
+    <div class="sec"><h2 id="res-meses-tit">Mês a mês</h2></div>
+    <div class="chart-wrap" id="res-meses"></div>
+
+    <div class="sec"><h2>Horas e valor da hora</h2></div>
+    <div class="chart-wrap" id="res-horas"></div>
+
+    <div class="sec"><h2 id="res-calor-tit">Mapa do ano</h2></div>
+    <div class="chart-wrap" id="res-calor"></div>
+
     <div class="sec"><h2>Por local</h2></div>
-    <div id="res-locais"></div>
+    <div class="chart-wrap" id="res-locais"></div>
 
-    <!-- RANKING R$/h por local -->
-    <div class="sec" style="margin-top:8px"><h2>Ranking R$/h</h2></div>
-    <div id="res-rank-hora"></div>
+    <div class="sec"><h2>Diurno × noturno</h2></div>
+    <div class="chart-wrap" id="res-turnos"></div>
 
-    <!-- DISTRIBUIÇÃO POR TURNO -->
-    <div class="sec" style="margin-top:8px"><h2>Por turno</h2></div>
-    <div id="res-turnos"></div>
+    <div class="sec"><h2>Dia da semana</h2></div>
+    <div class="chart-wrap" id="res-semana"></div>
 
-    <!-- GRÁFICO 6 MESES -->
-    <div class="sec" style="margin-top:8px"><h2>Últimos 6 meses</h2></div>
-    <div id="res-chart"></div>
+    <div class="sec res-tab-h"><h2>Tabela</h2><button class="btn sm" id="res-csv">Exportar planilha</button></div>
+    <div class="tab-wrap" id="res-tabela"></div>
 
-    <!-- TROCAS (simplificado) -->
-    <div class="sec" style="margin-top:8px"><h2>Plantões de colegas</h2></div>
     <div id="res-trocas"></div>
 
-    <!-- RESUMO ANUAL -->
-    <div class="sec" style="margin-top:26px">
-      <h2>Ano de <span id="yr">—</span></h2>
-    </div>
-    <div id="year-stats"></div>
-    <div class="sec" style="margin-top:26px"><h2>Distribuição por local</h2></div>
-    <div id="year-loc"></div>
     <div style="margin-top:20px">
       <button id="wrapped-btn">✦ <span>Seu ano em números</span></button>
     </div>
@@ -763,7 +760,14 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
   <div class="wr-card"><div class="wr-ico">🏥</div><div><div class="wr-lbl">Hospital que mais pagou</div><div class="wr-val" id="wr-top-local">—</div><div class="wr-sub" id="wr-top-local-sub"></div></div></div>
   <div class="wr-card"><div class="wr-ico">📅</div><div><div class="wr-lbl">Mês mais forte</div><div class="wr-val" id="wr-mes-top">—</div><div class="wr-sub" id="wr-mes-top-sub"></div></div></div>
   <div class="wr-card"><div class="wr-ico">🔢</div><div><div class="wr-lbl">Plantões realizados</div><div class="wr-val" id="wr-qtd">—</div><div class="wr-sub" id="wr-qtd-sub"></div></div></div>
-  <div class="wr-card"><div class="wr-ico">💰</div><div><div class="wr-lbl">Ticket médio por plantão</div><div class="wr-val" id="wr-ticket">—</div><div class="wr-sub" id="wr-ticket-sub"></div></div></div>
+  <div class="wr-card"><div class="wr-ico">💰</div><div><div class="wr-lbl">Média por plantão</div><div class="wr-val" id="wr-ticket">—</div><div class="wr-sub" id="wr-ticket-sub"></div></div></div>
+  <div class="wr-card"><div class="wr-ico">⛓</div><div><div class="wr-lbl">Maior sequência</div><div class="wr-val" id="wr-seq">—</div><div class="wr-sub" id="wr-seq-sub"></div></div></div>
+  <div class="wr-card"><div class="wr-ico">🌙</div><div><div class="wr-lbl">Noites viradas</div><div class="wr-val" id="wr-noites">—</div><div class="wr-sub" id="wr-noites-sub"></div></div></div>
+  <div class="wr-opcoes">
+    <div class="segs" id="wr-formato"><button class="on" data-fmt="post">Post 4:5</button><button data-fmt="stories">Stories 9:16</button></div>
+    <div class="toggle" id="wr-discreto"><div class="lb">Modo discreto — esconder os valores em R$</div><div class="sw"></div></div>
+  </div>
+  <img id="wr-previa" alt="Prévia da imagem do ano">
   <button class="wr-share" id="wr-share">✦ Compartilhar meu ano</button>
 </div>
 
