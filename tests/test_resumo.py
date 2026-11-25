@@ -101,13 +101,13 @@ def test_mapa_de_calor_do_ano(abrir):
     assert js(pg, "$('#res-calor rect[data-hm=\"2026-11-20\"]').classList.contains('hoje')")
     assert '5 dias com plantão · 84h' in pg.inner_text('#res-calor')
     pg.click('#res-calor rect[data-hm="2026-03-02"]', force=True); passo(pg, 100)
-    assert '02/03: SB 12h + SB 12h' in pg.inner_text('#toast')
+    assert '02/03: UPA São Benedito 12h + UPA São Benedito 12h' in pg.inner_text('#toast')
 
 
 def test_por_local_e_turnos(abrir):
     pg = abrir_resumo(abrir)
     linhas = [esp(r) for r in js(pg, "[...document.querySelectorAll('#res-locais tbody tr')].map(r=>r.innerText)")]
-    assert len(linhas) == 2 and linhas[0].startswith('SB UPA São Benedito 3 plantões · 36h')
+    assert len(linhas) == 2 and linhas[0].startswith('UPA São Benedito 3 plantões · 36h')
     assert 'melhor' in linhas[0], 'maior R$/h (5100/36 > 4700/36)'
     assert js(pg, "document.querySelectorAll('#res-locais .barra100 i').length") == 2
     assert js(pg, "[...document.querySelectorAll('#res-turnos .barra100 b')].map(b=>b.textContent)") == ['32%', '68%'], 'diurno 3.100 × noturno 6.700'

@@ -183,10 +183,7 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
       <div class="cal cal2" id="cal-mes">
         <div class="wd"><div>dom</div><div>seg</div><div>ter</div><div>qua</div><div>qui</div><div>sex</div><div>sáb</div></div>
         <div class="grid" id="cal-grid"></div>
-        <div class="ag-leg" aria-hidden="true">
-          <span><i class="lg-sol"></i>diurno</span><span><i class="lg-lua"></i>noturno</span>
-          <span><i class="lg-res"></i>residência</span><span><i class="lg-bl"></i>bloqueio</span>
-        </div>
+        <div class="ag-leg" id="ag-leg" aria-hidden="true"></div>
       </div>
       <div id="ag-dia"></div>
     </div>
@@ -637,6 +634,11 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
 </div>
 
 <!-- ===== SHEET LOCAL ===== -->
+<div class="sheet" id="sheet-novo" role="dialog" aria-label="Novo plantão">
+  <div class="grab"></div>
+  <div id="qs-body"></div>
+</div>
+
 <div class="sheet" id="sheet2">
   <div class="grab"></div>
   <div class="sheet-head">
@@ -645,14 +647,15 @@ try{ var _t = localStorage.getItem('plantoes:tema'); if(_t) aplicarTema(_t); }ca
   </div>
 
   <label class="f"><span>Nome</span><input type="text" id="l-nome" placeholder="Ex.: Hospital Risoleta Neves"></label>
-  <label class="f"><span>Sigla no calendário (opcional)</span><input type="text" id="l-sigla" maxlength="4" autocapitalize="characters" placeholder="Automática: RN"></label>
   <label class="f"><span>Cidade</span><input type="text" id="l-cidade" placeholder="Ex.: Belo Horizonte, MG"></label>
   <label class="f"><span>Endereço</span><input type="text" id="l-end" placeholder="Rua, número, bairro"></label>
   <p class="hint">Com o endereço preenchido, aparece um atalho que abre a rota direto no app de mapas.</p>
 
-  <label class="f"><span>Cor de identificação</span>
+  <div class="f"><span>Ícone e cor</span>
+    <div class="ic-opts" id="l-icones"></div>
     <div class="swatches" id="l-cores"></div>
-  </label>
+  </div>
+  <p class="hint" style="margin-top:-4px">O ícone aparece no calendário e na lista — identifica o local mesmo sem distinguir as cores.</p>
 
   <div class="toggle" id="l-resid"><div class="lb">Local da residência — plantões sem remuneração</div><div class="sw"></div></div>
   <p class="hint hidden" id="l-resid-hint" style="margin-top:-4px">Tudo o que for lançado aqui entra como plantão da residência: na agenda e nos avisos, fora das contas.</p>

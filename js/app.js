@@ -38,7 +38,7 @@ const store = {
    Guarda os erros que acontecem no aparelho (últimos 50) para você copiar e
    me enviar — hoje eu só vejo erros no meu ambiente de teste. Fica no topo
    do arquivo para capturar até erros durante a abertura do app.            */
-const APP_VERSAO = '1.32', DIAG_KEY = 'plantoes:diag';
+const APP_VERSAO = '1.33', DIAG_KEY = 'plantoes:diag';
 function registrarErro(err, onde){
   try{
     let lista = []; try{ lista = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); }catch(e){}
@@ -53,7 +53,35 @@ function registrarErro(err, onde){
 window.addEventListener('error', e => registrarErro(e.error || e.message, `${String(e.filename||'').split('/').pop()}:${e.lineno||0}`));
 window.addEventListener('unhandledrejection', e => registrarErro(e.reason, 'promessa'));
 
-const CORES = ['#FFC24D','#4ECFA0','#8B9DFF','#FF7A93','#5FC8EC','#C48BF5','#F79E5C','#93D95F'];
+// Cores dos locais: continuam diferentes na visão normal e no daltonismo vermelho-verde
+// (deuteranopia e protanopia simuladas; ΔE mínimo ≈ 18 entre quaisquer duas — a paleta antiga tinha pares com ΔE < 3).
+const CORES = ['#8B9DFF','#F0E442','#CC79A7','#F07A3A','#5FC8EC','#FF6B6B','#9C6BFF','#E8D36A'];
+// Ícone de cada local: identifica sem sigla e sem depender da cor. Só traços (path), para servir
+// tanto no SVG quanto no canvas da imagem do ano (Path2D).
+const ICONES_LOCAL = {
+  cruz:        { nome:'Pronto-atendimento', d:['M7 3.5h10a3.5 3.5 0 0 1 3.5 3.5v10a3.5 3.5 0 0 1-3.5 3.5H7A3.5 3.5 0 0 1 3.5 17V7A3.5 3.5 0 0 1 7 3.5z','M12 8v8M8 12h8'] },
+  ambulancia:  { nome:'Ambulância', d:['M2.5 7.5h11v9.5h-11z','M13.5 10.5h4l3 3.5v3h-7','M5.2 17.5a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0-3.6 0','M15.2 17.5a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0-3.6 0','M8 9.8v4.4M5.8 12h4.4'] },
+  hospital:    { nome:'Hospital', d:['M4 21V7l8-3.5L20 7v14','M2.5 21h19','M12 8.5v5M9.5 11h5','M10 21v-3.5h4V21'] },
+  estetoscopio:{ nome:'Consultório', d:['M6 3v6a4 4 0 0 0 8 0V3','M10 13v2a5 5 0 0 0 10 0v-2','M18 11a2 2 0 1 0 4 0a2 2 0 1 0-4 0'] },
+  coracao:     { nome:'Coração', d:['M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.8C19.5 15.4 12 20 12 20z','M7 12.5h2.6l1.4-2.4 2 4.6 1.4-2.2H17'] },
+  sirene:      { nome:'Emergência', d:['M7 18v-6a5 5 0 0 1 10 0v6','M5 18h14v3H5z','M12 2.5v2M4.2 5.6l1.4 1.4M19.8 5.6l-1.4 1.4'] },
+  capelo:      { nome:'Residência', d:['M2 9l10-5 10 5-10 5z','M6 11.2v4.6c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.6','M22 9v6'] },
+  cifrao:      { nome:'Renda fixa', d:['M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0','M14.8 9.2c-.5-1-1.6-1.7-2.8-1.7-1.6 0-2.8.9-2.8 2.2 0 3 5.8 1.6 5.8 4.6 0 1.3-1.3 2.3-3 2.3-1.3 0-2.5-.7-3-1.8','M12 6v1.5M12 16.6V18'] },
+};
+const semAcentoIc = t => String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+// sugere um ícone pelo tipo do local, evitando repetir o de outro local do mesmo tipo
+function iconeSugerido(nome, residencia, usados = []){
+  const n = semAcentoIc(nome), livre = lista => lista.find(i => !usados.includes(i)) || lista[0];
+  if(residencia) return 'capelo';
+  if(/bolsa|renda|salario|fixa/.test(n)) return 'cifrao';
+  if(/clinica|consult|ambulat|policlin/.test(n)) return livre(['estetoscopio','coracao','hospital']);
+  if(/\bupa\b|pronto|^pa\b|^ps\b|emerg|urgenc/.test(n)) return livre(['cruz','ambulancia','sirene','coracao']);
+  if(/hosp|santa casa|maternidade/.test(n)) return livre(['hospital','coracao','cruz','sirene']);
+  return livre(['cruz','hospital','ambulancia','sirene','coracao','estetoscopio']);
+}
+// primeira cor da paleta que nenhum local usa (antes: posição na lista, repetia cores)
+const corLivre = () => CORES.find(c => !S.locais.some(l => (l.cor||'').toUpperCase() === c)) || CORES[S.locais.length % CORES.length];
+const iconeLivre = (nome, resid) => iconeSugerido(nome, resid, S.locais.map(l => l.icone));
 
 let S = { shifts: [], locais: [], bloqueios: [] };
 let cursor = new Date();
@@ -101,6 +129,9 @@ const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>'
 const getLocal = id => S.locais.find(x=>x.id===id) || null;
 const localName = id => (getLocal(id)||{}).nome || 'Sem local';
 const localCor = id => (getLocal(id)||{}).cor || '#8B9DFF';
+const iconeDe = id => { const l = getLocal(id); return l && ICONES_LOCAL[l.icone] ? l.icone : iconeSugerido(l && l.nome, l && l.residencia); };
+const svgIcone = (chave, px = 16, cls = 'il') => `<svg class="${cls}" width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${(ICONES_LOCAL[chave]||ICONES_LOCAL.cruz).d.map(d => `<path d="${d}"/>`).join('')}</svg>`;
+const icoLocal = (id, px = 16) => svgIcone(iconeDe(id), px);
 
 const PAGMES = ['no mesmo mês','no mês seguinte','dois meses depois'];
 
@@ -780,40 +811,20 @@ function renderMes(){
   // anima a entrada só ao trocar de mês/filtro — não a cada toque em "Pago"
   const listKey = cursor.getFullYear()+'-'+cursor.getMonth()+'-'+filter;
   const animar = el.dataset.k !== listKey; el.dataset.k = listKey;
-  // grupos por semana (domingo a sábado), com o resumo da semana no cabeçalho
-  const semanas = new Map();
-  shown.forEach(s => { const k = iso(domingoSemana(parseDate(s.data))); if(!semanas.has(k)) semanas.set(k, []); semanas.get(k).push(s); });
-  const domHoje = iso(domingoSemana(hoje()));
-  const domProx = (()=>{ const d = domingoSemana(hoje()); d.setDate(d.getDate()+7); return iso(d); })();
-  let idx = 0;
-  el.innerHTML = [...semanas].map(([k, itens]) => {
-    const d0 = parseDate(k), d6 = new Date(d0); d6.setDate(d6.getDate()+6);
-    const nome = k === domHoje ? 'Esta semana' : k === domProx ? 'Próxima semana'
-      : `${pad2(d0.getDate())}/${pad2(d0.getMonth()+1)} – ${pad2(d6.getDate())}/${pad2(d6.getMonth()+1)}`;
-    const pl = itens.filter(s => naAgenda(s) && !ehBolsa(s) && !ehBloq(s));
-    const h = pl.reduce((a,s)=>a+(+s.duracao||0),0);
-    const res = filter==='due'
-      ? brl(itens.reduce((a,s)=>a+liq(s),0)) + ' a receber'
-      : `${pl.length} ${pl.length===1?'plantão':'plantões'}${h ? ' · '+h+'h' : ''}`;
-    let ant = '';
-    const linhas = itens.map(s => { const r = linhaPlantao(s, { repete: s.data === ant, anim: animar, i: idx++ }); ant = s.data; return r; }).join('');
-    return `<div class="list-sep"><span>${nome}</span><em>${res}</em></div>${linhas}`;
-  }).join('');
-}
-
-// sigla do local para calendário, lista e semana: "UPA São Benedito" → "SB"
-// (ou a sigla escolhida no cadastro do local). Dá para reconhecer o local sem depender da cor.
-const PALAVRAS_GENERICAS = /^(upa|ubs|hospital|hosp\.?|cl[ií]nica|policl[ií]nica|unidade|centro|de|da|do|das|dos|e|em)$/i;
-function siglaLocal(id){
-  const l = getLocal(id);
-  if(!l) return '?';
-  if(l.sigla) return String(l.sigla).trim().slice(0,4).toUpperCase();
-  const nome = String(l.nome||'').replace(/\(.*?\)/g,' ').trim();
-  const pal = nome.split(/\s+/).filter(Boolean);
-  const sig = pal.filter(p => !PALAVRAS_GENERICAS.test(p));
-  if(sig.length >= 2) return (sig[0][0] + sig[1][0]).toUpperCase();
-  if(sig.length === 1) return sig[0].slice(0,3).toUpperCase();
-  return (pal[0]||'?').slice(0,3).toUpperCase();
+  // um bloco por dia (data grande uma vez) e, entre os dias, o descanso que sobra
+  const dias = new Map();
+  shown.forEach(s => { if(!dias.has(s.data)) dias.set(s.data, []); dias.get(s.data).push(s); });
+  const tHoje = iso(hoje());
+  let idx = 0, fimAnt = null, html = '';
+  [...dias].sort((a,b) => a[0].localeCompare(b[0])).forEach(([ds, itens]) => {
+    const jan = janelaDoDia(itens);
+    if(filter !== 'due' && jan) html += separadorDescanso(fimAnt, jan.ini);
+    const d = parseDate(ds);
+    html += `<div class="dia2 ${ds < tHoje ? 'passou' : ''}"><div class="dc ${ds===tHoje?'hj':''}"><small>${WD[d.getDay()]}</small><b>${d.getDate()}</b></div>
+      <div class="dcards">${itens.map(s => linhaPlantao(s, { anim: animar, i: idx++ })).join('')}</div></div>`;
+    if(jan) fimAnt = Math.max(fimAnt || 0, jan.f);
+  });
+  el.innerHTML = html;
 }
 
 // começa até 1h depois do fim de outro plantão: está emendado
@@ -822,26 +833,50 @@ function emendaComAnterior(s){
   const { ini } = evJanela(s);
   return S.shifts.some(o => o !== s && o.hora && naAgenda(o) && !ehBolsa(o) && !ehBloq(o) && (()=>{ const f = evJanela(o).f; return ini - f >= -EMENDA_MS && ini - f <= EMENDA_MS && evJanela(o).ini < ini; })());
 }
-// uma linha da agenda (lista do mês e painel do dia)
+const MES_ABREV = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const ICON_24 = '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg>';
+const ICON_RELOGIO = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
+const ICON_CADEADO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>';
+const iconeTurno = s => +s.duracao >= 24 ? ICON_24 : s.turno === 'noturno' ? ICON_MOON : ICON_SUN;
+// status com símbolo e texto (nunca só a cor): ✓ Pago · ◷ cai 10/12 · sem remuneração
+function statusPlantao(s){
+  if(ehResid(s)) return '';
+  if(!counts(s) || ehBloq(s)) return '';
+  if(s.pago) return `<button class="st2 ok" data-pay="${s.id}" aria-label="Pago — toque para desmarcar">✓ Pago</button>`;
+  const vc = vencimento(s), v = parseDate(vc), atras = vc < iso(hoje());
+  const quando = vencIncerto(s) ? `cai em ${MES_ABREV[v.getMonth()]}` : `${atras ? 'venceu' : 'cai'} ${pad2(v.getDate())}/${pad2(v.getMonth()+1)}`;
+  return `<button class="st2 pend ${atras?'atras':''}" data-pay="${s.id}" aria-label="A receber — toque para marcar como pago">${ICON_RELOGIO}${quando}</button>`;
+}
 function linhaPlantao(s, o = {}){
-  const d = parseDate(s.data), t = iso(hoje());
-  const resid = ehResid(s), bolsa = ehBolsa(s), bloq = ehBloq(s), off = !counts(s) && !resid;   // residência não fica apagada
-  const extra = s.tipo==='peguei' ? `peguei de ${s.colega||'colega'}` : s.tipo==='passei' ? `passei para ${s.colega||'colega'}`
-    : resid ? 'sem remuneração' : bolsa ? (s.obs || 'entrada fixa') : '';
-  const pill = (off || resid || bloq) ? '' : `<div class="pill ${s.pago?'pago':'pend'}" data-pay="${s.id}">${s.pago?'Pago':'Pendente'}</div>`;
-  const dinheiro = (resid || bloq) ? '' : `<div class="money">${brl(liq(s))}</div>`;
-  const ico = bolsa || bloq ? '' : (s.turno==='noturno' ? ICON_MOON : ICON_SUN);
+  const resid = ehResid(s), bolsa = ehBolsa(s), bloq = ehBloq(s), off = !counts(s) && !resid;
+  const urg = !off && s.urgente && !bolsa && !resid;
+  const extra = s.tipo==='peguei' ? `peguei de ${s.colega||'colega'}` : s.tipo==='passei' ? `passei para ${s.colega||'colega'}` : '';
+  const meta = bolsa ? (s.obs || 'Entrada mensal fixa') : resid ? `${nomeCurto(s.localId)} · ${s.hora||'--:--'} → ${fim(s.hora,s.duracao)} · ${s.duracao}h` : metaLinha(s, '');
   const notas = (s.notas||[]).length ? `<span class="note-ind" title="Anotações">📝${s.notas.length}</span>` : '';
-  const data = o.semData ? '' : `<div class="daycol ${s.data===t?'is-today':''}">${o.repete ? '' : `<div class="d">${d.getDate()}</div><div class="w">${WD[d.getDay()]}</div>`}</div>`;
-  return `<div class="shift lin ${o.anim?'animate-in':''} ${off?'off':''} ${resid?'resid':''} ${(!off&&s.urgente&&!bolsa)?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${o.anim?`animation-delay:${Math.min(o.i||0,8)*30}ms`:''}">
-      ${data}
-      <div class="sig ${resid?'resid':''} ${bolsa?'bolsa':''}">${ico}<b>${esc(bolsa ? 'R$' : siglaLocal(s.localId))}</b></div>
-      <div class="info">
-        <div class="place"><span>${esc(localName(s.localId))}</span>${notas}</div>
-        <div class="meta">${emendaComAnterior(s) ? '<b class="emd" title="Emenda com o plantão anterior">⛓</b> ' : ''}${metaLinha(s, '')}${extra ? ` · <em>${esc(extra)}</em>` : ''}${(!off&&s.urgente&&!bolsa&&!resid) ? ' · <b class="urg">⚠️ atenção</b>' : ''}</div>
-      </div>
-      <div class="right">${dinheiro}${pill}</div>
+  const dinheiro = (resid || bloq) ? '' : `<span class="money">${brl(liq(s))}</span>`;
+  const turno = bolsa ? '' : `<i class="c2-tn ${s.turno==='noturno'||+s.duracao>=24?'noite':''}">${iconeTurno(s)}</i>`;
+  const data = o.comData ? (()=>{ const d = parseDate(s.data); return `<span class="c2-data">${WD[d.getDay()]} ${pad2(d.getDate())}/${pad2(d.getMonth()+1)}</span>`; })() : '';
+  return `<div class="shift c2 ${o.anim?'animate-in':''} ${off?'off':''} ${resid?'resid':''} ${urg?'urgente':''}" data-id="${s.id}" data-date="${s.data}" style="--c:${localCor(s.localId)};${o.anim?`animation-delay:${Math.min(o.i||0,8)*30}ms`:''}">
+      <div class="c2-t"><span class="c2-ic">${icoLocal(s.localId, 16)}</span><b class="place"><span>${esc(resid ? nomeResid(s) : localName(s.localId))}</span>${notas}</b>${dinheiro}</div>
+      <div class="c2-m">${turno}<span class="meta">${data}${emendaComAnterior(s) ? '<b class="emd" title="Emenda com o plantão anterior">⛓</b> ' : ''}${esc(meta)}${extra ? ` · <em>${esc(extra)}</em>` : ''}${urg ? ' · <b class="urg">⚠️ atenção</b>' : ''}</span>${statusPlantao(s)}</div>
     </div>`;
+}
+// fim e começo reais de um dia de plantões (o noturno termina no dia seguinte)
+function janelaDoDia(itens){
+  const js = itens.filter(s => s.hora && naAgenda(s) && !ehBloq(s)).map(evJanela);
+  if(!js.length) return null;
+  return { ini: Math.min(...js.map(x => +x.ini)), f: Math.max(...js.map(x => +x.f)) };
+}
+// entre um dia e outro da lista: quanto tempo de descanso sobra
+function separadorDescanso(fimA, iniB){
+  if(fimA == null || iniB == null) return '';
+  const h = Math.round((iniB - fimA) / 3600000);
+  if(h < -1) return '';
+  if(h <= 1) return '<div class="desc emenda"><i></i><span>⛓ Emendado, sem pausa</span></div>';
+  if(h < 11) return `<div class="desc curto"><i></i><span>⚠ Só ${h}h de descanso</span></div>`;
+  if(h <= 72) return `<div class="desc"><i></i><span>Descanso de ${h}h</span></div>`;
+  const d = Math.floor(h / 24);
+  return `<div class="desc"><i></i><span>${d} dias livres</span></div>`;
 }
 
 function metaLinha(s, cid){
@@ -958,49 +993,30 @@ function renderNext(){
   const d = parseDate(nx.data);
   const dias = Math.round((d - hoje())/86400000);
   const l = getLocal(nx.localId), url = mapsUrl(l);
-
-  // ── Countdown visual ──
-  let badgeHtml = '', countdownHtml = '';
-  if(dias === 0){
-    // Hoje: calcular horas restantes
-    const agora = new Date();
-    const [hh, mm] = (nx.hora||'07:00').split(':').map(Number);
-    const inicio = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm);
-    const diffMs = inicio - agora;
-    if(diffMs > 0){
-      const diffH = Math.floor(diffMs/3600000);
-      const diffM = Math.floor((diffMs%3600000)/60000);
-      const tempoStr = diffH > 0 ? `em ${diffH}h${diffM>0?' '+diffM+'min':''}` : `em ${diffM}min`;
-      badgeHtml = `<span style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.04em">🔴 HOJE</span>`;
-      countdownHtml = `<div style="font-size:13px;color:rgba(255,255,255,.9);margin-top:6px;font-weight:600">Começa ${tempoStr} · ${nx.hora}</div>`;
-    } else {
-      badgeHtml = `<span style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.04em">🟢 EM ANDAMENTO</span>`;
-      const diffFimMs = (inicio.getTime() + (nx.duracao||12)*3600000) - agora.getTime();
-      if(diffFimMs > 0){
-        const hFim = Math.floor(diffFimMs/3600000);
-        countdownHtml = `<div style="font-size:13px;color:rgba(255,255,255,.9);margin-top:6px;font-weight:600">Faltam ~${hFim}h para o fim</div>`;
-      }
-    }
-  } else if(dias === 1){
-    badgeHtml = `<span style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.04em">🟡 AMANHÃ</span>`;
-    countdownHtml = `<div style="font-size:13px;color:rgba(255,255,255,.9);margin-top:6px;font-weight:600">Às ${nx.hora} · ${nx.duracao}h</div>`;
-  } else if(dias <= 3){
-    badgeHtml = `<span style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.04em">🟠 EM ${dias} DIAS</span>`;
-  } else {
-    badgeHtml = `<span style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:99px;padding:2px 10px;font-size:11px;font-weight:600;letter-spacing:.03em">Em ${dias} dias</span>`;
+  // quando: texto, sem bolinhas coloridas (vermelho/verde não servem para todo mundo)
+  let quando = dias === 1 ? 'amanhã' : `em ${dias} dias`, falta = '';
+  if(dias <= 0){
+    const { ini, f } = evJanela(nx), agoraD = new Date();
+    if(ini > agoraD){
+      const min = Math.round((ini - agoraD) / 60000);
+      quando = 'hoje'; falta = `Começa em ${min >= 60 ? Math.floor(min/60) + 'h' + (min % 60 ? ' ' + pad2(min % 60) + 'min' : '') : min + ' min'}`;
+    } else { quando = 'em andamento'; falta = `Termina em ~${Math.max(1, Math.round((f - agoraD) / 3600000))}h`; }
   }
-
-  box.innerHTML = `<div class="next" style="--nc:${localCor(nx.localId)}" data-id="${nx.id}">
-    <div class="when" style="margin-bottom:8px">${badgeHtml}</div>
-    <div class="pl">${esc(localName(nx.localId))}</div>
-    <div class="dt">${nx.turno==='noturno'?ICON_MOON:ICON_SUN}
-      ${WD[d.getDay()]}, ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ·
-      ${nx.hora ? nx.hora+' → '+fim(nx.hora,nx.duracao)+' · ' : ''}${nx.duracao}h${l&&l.cidade?' · '+esc(l.cidade):''}</div>
-    ${countdownHtml}
-    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-      ${url?`<button class="go" data-map="${encodeURIComponent(url)}">${ICON_PIN} Como chegar</button>`:''}
-      <button class="go" data-cal="${nx.id}">${ICON_CAL} Agendar</button>
-    </div>
+  const resid = ehResid(nx), noite = nx.turno === 'noturno';
+  const valor = resid ? '<span class="nx-res">sem remuneração</span>'
+    : `<b class="money">${brl(liq(nx))}</b><small>${nx.pago ? '✓ pago' : 'cai ' + (()=>{ const v = parseDate(vencimento(nx)); return pad2(v.getDate()) + '/' + pad2(v.getMonth()+1); })()}</small>`;
+  const turnoTxt = resid ? nomeResid(nx) : +nx.duracao >= 24 ? '24 horas' : noite ? 'Noturno' : 'Diurno';
+  box.innerHTML = `<div class="next2 ${noite?'noite':''}" style="--c:${localCor(nx.localId)}" data-id="${nx.id}">
+    <span class="nx-art" aria-hidden="true">${noite
+      ? '<svg viewBox="0 0 24 24"><path d="M20.5 14.6A8.6 8.6 0 1 1 9.4 3.5a7 7 0 0 0 11.1 11.1z" fill="currentColor"/></svg>'
+      : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.6" fill="currentColor"/><g stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8"/></g></svg>'}</span>
+    <div class="nx-k">Próximo plantão · ${quando}</div>
+    <h3><span class="nx-ic">${icoLocal(nx.localId, 18)}</span><span class="nx-nome">${esc(localName(nx.localId))}</span></h3>
+    <div class="nx-q">${WD_LONG[d.getDay()].replace(/^./, c => c.toUpperCase())}, ${pad2(d.getDate())}/${pad2(d.getMonth()+1)} · ${turnoTxt}${nx.hora ? ` · ${nx.hora} → ${fim(nx.hora, nx.duracao)}` : ''} · ${nx.duracao}h${l && l.cidade ? ' · ' + esc(l.cidade) : ''}</div>
+    ${falta ? `<div class="nx-falta">${falta}</div>` : ''}
+    <div class="nx-v"><div class="nx-val">${valor}</div><div class="nx-acts">
+      ${url ? `<button class="go" data-map="${encodeURIComponent(url)}">${ICON_PIN}Rota</button>` : ''}
+      <button class="go" data-cal="${nx.id}">${ICON_CAL}Agendar</button></div></div>
   </div>`;
 }
 
@@ -1011,26 +1027,28 @@ function itensDoDia(ds){
     .sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
 }
 const bloqueioDoDia = ds => S.bloqueios.find(b => b.ini && ds >= b.ini && ds <= (b.fim||b.ini));
-function chipCal(s){
-  return `<i class="ev ${ehResid(s)?'resid':''} ${s.turno==='noturno'?'noite':''}" style="--c:${localCor(s.localId)}">${s.turno==='noturno'?ICON_MOON:ICON_SUN}<b>${esc(siglaLocal(s.localId))}</b></i>`;
-}
 function renderCal(){
   const y = cursor.getFullYear(), m = cursor.getMonth();
   const first = new Date(y,m,1).getDay(), dim = new Date(y,m+1,0).getDate();
   const hj = iso(hoje());
   if(!selDia || !sameMonth(selDia, cursor)) selDia = sameMonth(hj, cursor) ? hj : null;
-  let html = '', nPl = 0, nRes = 0, horas = 0;
+  let html = '', nPl = 0, nRes = 0, horas = 0; const locMes = new Set();
   for(let i=0;i<first;i++) html += '<div class="void"></div>';
   for(let d=1; d<=dim; d++){
     const ds = iso(new Date(y,m,d)), its = itensDoDia(ds), bl = bloqueioDoDia(ds);
     its.forEach(s => { if(ehResid(s)) nRes++; else if(counts(s)) nPl++; horas += (+s.duracao||0); });
-    const chips = its.length > 2 ? chipCal(its[0]) + `<i class="ev mais">+${its.length-1}</i>` : its.map(chipCal).join('');
-    const blTag = bl && !its.length ? `<em class="bl-tag">${NOME_BLOQ_CAL[bl.motivo]||'Bloqueio'}</em>` : '';
-    const rotulo = `${d} de ${MES[m]}` + (its.length ? ': ' + its.map(s => `${s.turno==='noturno'?'noturno':'diurno'} ${localName(s.localId)}`).join(', ') : '') + (bl ? ', bloqueado' : '');
-    html += `<button data-day="${d}" class="cd ${its.length?'has':''} ${bl?'bl':''} ${ds===hj?'today':''} ${ds===selDia?'sel':''} ${ds<hj?'passou':''}" aria-label="${esc(rotulo)}">
-      <span class="cd-n">${d}</span><span class="cd-ev">${chips}${blTag}</span></button>`;
+    const p = its[0];
+    const forma = !p ? '' : ehResid(p) ? 't-res' : (p.turno === 'noturno' || +p.duracao >= 24) ? 't-noite' : 't-dia';
+    const comValor = its.filter(s => counts(s) && liq(s) > 0), pago = comValor.length && comValor.every(s => s.pago);
+    const rotulo = `${d} de ${MES[m]}` + (its.length ? ': ' + its.map(s => `${s.turno==='noturno'?'noturno':'diurno'} ${localName(s.localId)}${s.pago?' (pago)':''}`).join(', ') : '') + (bl ? `, ${NOME_BLOQ_CAL[bl.motivo]||'bloqueio'}` : '');
+    if(p) locMes.add(p.localId);
+    html += `<button data-day="${d}" class="cd ${its.length?'has '+forma:''} ${bl&&!its.length?'bl':''} ${ds===hj?'today':''} ${ds===selDia?'sel':''} ${ds<hj?'passou':''}" ${p?`style="--c:${localCor(p.localId)}"`:''} aria-label="${esc(rotulo)}">
+      <span class="cd-n">${d}</span>${p ? `<span class="cd-i">${icoLocal(p.localId, 15)}</span>` : bl ? `<span class="cd-i">${ICON_CADEADO}</span>` : ''}${pago ? '<span class="cd-ok" aria-hidden="true">✓</span>' : ''}${its.length > 1 ? `<span class="cd-mais" aria-hidden="true">${its.length}</span>` : ''}</button>`;
   }
   $('#cal-grid').innerHTML = html;
+  // legenda: o ícone de cada local do mês (com o nome) e o que cada forma quer dizer
+  $('#ag-leg').innerHTML = [...locMes].slice(0, 5).map(l => `<span style="--c:${localCor(l)}"><i class="lg-ic">${icoLocal(l, 13)}</i>${esc(nomeCurto(l))}</span>`).join('')
+    + '<span><i class="lg-f"></i>dia</span><span><i class="lg-n"></i>noite</span><span><i class="lg-r"></i>residência</span><span><b class="lg-ok">✓</b>pago</span>';
   const partes = [];
   if(nPl) partes.push(`${nPl} ${nPl===1?'plantão':'plantões'}`);
   if(nRes) partes.push(`${nRes} da residência`);
@@ -1047,14 +1065,11 @@ function renderAgDia(){
   const dif = Math.round((d - hoje()) / 86400000);
   const quando = dif === 0 ? '<em>hoje</em>' : dif === 1 ? '<em>amanhã</em>' : dif === -1 ? '<em class="passou">ontem</em>'
     : dif > 1 && dif <= 60 ? `<em>em ${dif} dias</em>` : '';
-  // lançar rápido: os modelos mais usados viram atalhos de um toque (abre já preenchido)
-  const rapidos = !bl ? lancarRapido(selDia) : '';
   box.innerHTML = `<div class="ag-dia-h"><b>${nome.charAt(0).toUpperCase()+nome.slice(1)} ${quando}</b>
       <button class="btn sm" data-novo="${selDia}">+ Lançar</button></div>
-    ${bl ? `<button class="ag-bl" data-bl="${bl.id}"><i class="lg-bl"></i>${blTxt}</button>` : ''}
-    ${its.map(s => linhaPlantao(s, { semData: true })).join('') || (bl ? '' : '<p class="ag-vazio">Nenhum plantão neste dia.</p>')}
-    ${its.length ? notasDescanso(its) : ''}
-    ${rapidos}`;
+    ${bl ? `<button class="ag-bl" data-bl="${bl.id}">${ICON_CADEADO}${blTxt}</button>` : ''}
+    ${its.map(s => linhaPlantao(s)).join('') || (bl ? '' : `<button class="ag-vazio2" data-novo="${selDia}">Nenhum plantão neste dia<b>+ Lançar aqui</b></button>`)}
+    ${its.length ? notasDescanso(its) : ''}`;
 }
 /* Plantões emendados (um termina e outro começa em até 1h) e o descanso até o próximo:
    "⛓ 24h seguidas" e "descanso de 6h" — o que pesa no corpo, num relance. */
@@ -1085,20 +1100,11 @@ function notasDescanso(its){
     if(e.n > 1) out.push(`<div class="ag-nota emenda">⛓ <b>${horas}h seguidas</b> · ${e.n} plantões emendados, de ${hh(e.ini)} a ${hh(e.f)}</div>`);
     if(e.prox){
       const desc = Math.round((e.prox.ini - e.f) / 3600000);
-      if(desc < 11) out.push(`<div class="ag-nota curto">⚠️ Só <b>${desc}h de descanso</b> até o próximo (${esc(siglaLocal(e.prox.s.localId))}, ${hh(e.prox.ini)})</div>`);
+      if(desc < 11) out.push(`<div class="ag-nota curto">⚠️ Só <b>${desc}h de descanso</b> até o próximo (${esc(nomeCurto(e.prox.s.localId))}, ${hh(e.prox.ini)})</div>`);
       else if(desc <= 72) out.push(`<div class="ag-nota">Descanso de ${desc}h até o próximo · ${hh(e.prox.ini)}</div>`);
     }
   });
   return out.join('');
-}
-function lancarRapido(ds){
-  const ms = modelosFrequentes(4);
-  const resLocal = S.locais.find(l => l.residencia);
-  if(!ms.length && !resLocal) return '';
-  const fimH = (h, dur) => pad2((+h.split(':')[0] + +dur) % 24);
-  const chips = ms.map((m, i) => `<button class="rap" data-rap="${i}" style="--c:${localCor(m.localId)}">${m.turno==='noturno'?ICON_MOON:ICON_SUN}<b>${esc(siglaLocal(m.localId))}</b> ${m.hora.slice(0,2)}–${fimH(m.hora, m.duracao)}</button>`).join('')
-    + (resLocal ? `<button class="rap resid" data-rap="res" style="--c:${resLocal.cor||'#7C8BA1'}">${ICON_MOON}<b>${esc(siglaLocal(resLocal.id))}</b> residência</button>` : '');
-  return `<div class="ag-rap" data-dia="${ds}"><span>Lançar rápido</span><div>${chips}</div></div>`;
 }
 // tocar num dia (calendário, busca etc.): escolhe o dia e mostra o que tem nele
 function irParaDia(ds){
@@ -1491,7 +1497,7 @@ function graficoMeses(meses){
     svg += `<text x="${X(i)}" y="${H-6}" text-anchor="middle" font-size="9.5" font-weight="${k===hjK?700:400}" fill="${k===hjK?'var(--ink)':'var(--dim)'}">${MES_CURTO[d.m]}</text>`;
     svg += `<rect x="${X(i)-gW/n/2}" y="${T}" width="${gW/n}" height="${gH+B}" fill="transparent" data-mes="${k}" style="cursor:pointer"/>`;
   });
-  const leg = locs.slice(0, 6).map(l => `<span><i style="background:${localCor(l)}"></i>${esc(siglaLocal(l))}</span>`).join('')
+  const leg = locs.slice(0, 6).map(l => `<span style="--c:${localCor(l)}"><i class="lg-ic">${icoLocal(l, 12)}</i>${esc(nomeCurto(l))}</span>`).join('')
     + (dados.some(d => d.A.fatFx) ? '<span><i class="lg-fx"></i>fixas</span>' : '') + '<span><i class="lg-rec"></i>recebido</span>';
   const s = _mesSel && dados.find(d => `${d.y}-${d.m}` === _mesSel);
   $('#res-meses').innerHTML = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Faturado por mês">
@@ -1564,7 +1570,7 @@ function graficoLocais(A){
   $('#res-locais').innerHTML = `<div class="barra100">${lista.map(x => `<i style="width:${(x.fat/A.fatPl*100).toFixed(2)}%;background:${localCor(x.lid)}" title="${esc(localName(x.lid))}"></i>`).join('')}</div>
     <div class="tab-wrap mini"><table class="tab">
       <thead><tr><th>Local</th><th>Faturado</th><th>R$/h</th></tr></thead>
-      <tbody>${lista.map(x => `<tr><td><div class="lc"><span class="sg" style="--c:${localCor(x.lid)}">${esc(siglaLocal(x.lid))}</span><span class="lc-nome">${esc(nomeCurto(x.lid))}<small>${x.n} ${x.n === 1 ? 'plantão' : 'plantões'} · ${x.h}h</small></span></div></td>
+      <tbody>${lista.map(x => `<tr><td><div class="lc"><span class="sg" style="--c:${localCor(x.lid)}">${icoLocal(x.lid, 15)}</span><span class="lc-nome">${esc(nomeCurto(x.lid))}<small>${x.n} ${x.n === 1 ? 'plantão' : 'plantões'} · ${x.h}h</small></span></div></td>
         <td>${brl(x.fat)}<small>${Math.round(x.fat/A.fatPl*100)}%</small></td>
         <td${melhor && melhor.lid === x.lid && lista.length > 1 ? ' class="top"' : ''}>${x.vph ? Math.round(x.vph) : '—'}${melhor && melhor.lid === x.lid && lista.length > 1 ? '<small>melhor</small>' : ''}</td></tr>`).join('')}</tbody>
     </table></div>`;
@@ -1667,7 +1673,7 @@ $('#res-calor').addEventListener('click', e => {
   const r = e.target.closest('[data-hm]'); if(!r) return;
   const k = r.dataset.hm, its = S.shifts.filter(s => s.data === k && naAgenda(s) && !ehBolsa(s) && !ehBloq(s));
   const d = parseDate(k);
-  toast(`${pad2(d.getDate())}/${pad2(d.getMonth()+1)}: ` + (its.length ? its.map(s => `${siglaLocal(s.localId)} ${s.duracao}h`).join(' + ') : 'livre'));
+  toast(`${pad2(d.getDate())}/${pad2(d.getMonth()+1)}: ` + (its.length ? its.map(s => `${nomeCurto(s.localId)} ${s.duracao}h`).join(' + ') : 'livre'));
 });
 $('#res-csv').onclick = exportarPlanilha;
 
@@ -1681,7 +1687,7 @@ function renderLocais(){
     const sub = l.residencia ? [l.cidade, 'Residência · sem remuneração'].filter(Boolean).join(' · ')
       : [l.cidade, l.vDia ? `dia ${brl(l.vDia)}/12h` : '', l.vNoite ? `noite ${brl(l.vNoite)}/12h` : '', regra].filter(Boolean).join(' · ');
     return `<div class="row" data-loc="${l.id}">
-      <div class="swatch" style="background:${l.cor}"></div>
+      <div class="loc-ic" style="--c:${l.cor}">${icoLocal(l.id, 20)}</div>
       <div class="txt"><b>${esc(l.nome)}</b><small>${esc(sub)}</small></div>
       ${url?`<button class="iconbtn" data-map="${encodeURIComponent(url)}" aria-label="Abrir no mapa">${ICON_PIN}</button>`:''}
       <span class="iconbtn" style="background:none">${ICON_CHEV}</span></div>`;
@@ -1720,6 +1726,14 @@ function renderBackupInfo(){
 /* ================= referência tributária (IRPF 2026) ================= */
 const IRPF = { isento: 5000, redutorAte: 7350 };
 const CHANGELOG = [
+  { v:'1.33', d:'Nov 2026', items:[
+    { t:'new', txt:'Agenda refeita: próximo plantão em destaque, com quanto falta, Rota e Agendar' },
+    { t:'new', txt:'Calendário em quadradinhos: ícone do local, cheio = dia, contorno = noite, tracejado = residência e ✓ quando já foi pago' },
+    { t:'new', txt:'Plantões do mês por dia, com o descanso entre um plantão e outro — e aviso quando é curto' },
+    { t:'new', txt:'Novo plantão: os de sempre lançam num toque (com Desfazer); ou escolha o local pelo ícone, o turno e veja quanto vai receber antes de confirmar' },
+    { t:'imp', txt:'Cores dos locais trocadas por uma paleta que o daltonismo vermelho-verde distingue; cada local ganhou um ícone (dá para trocar em Locais)' },
+    { t:'imp', txt:'Sem siglas: o nome completo aparece na agenda, na semana, no Resumo e na imagem do ano' },
+  ]},
   { v:'1.32', d:'Nov 2026', items:[
     { t:'new', txt:'Resumo com gráficos: mês a mês por local (toque no mês para ver os números), horas × valor da hora, mapa do ano e projeção de quanto o ano fecha' },
     { t:'new', txt:'Tabela mês a mês que ordena por qualquer coluna, com total — e “Exportar planilha” (abre no Excel, Planilhas Google e Numbers)' },
@@ -1945,7 +1959,7 @@ function renderSemana(){
       const cont = ini.getTime() < d0, segue = f.getTime() > d1;
       const rot = larg >= 34 ? ` ${cont ? '…' : hh(ini)}–${segue ? '…' : hh(f)}` : '';
       return `<button class="tl-bar ${ehResid(s)?'resid':''} ${cont?'cont':''} ${segue?'segue':''}" data-id="${s.id}" style="--c:${localCor(s.localId)};left:${left}%;width:${larg}%"
-        aria-label="${esc(localName(s.localId))}, ${hh(ini)} a ${hh(f)}">${s.turno==='noturno'?ICON_MOON:ICON_SUN}<b>${esc(siglaLocal(s.localId))}</b>${rot}</button>`;
+        aria-label="${esc(localName(s.localId))}, ${hh(ini)} a ${hh(f)}">${icoLocal(s.localId, 12)}${s.turno==='noturno'?ICON_MOON:ICON_SUN}${rot}</button>`;
     }).join('');
     const agora = ds === hj ? `<i class="tl-agora" style="left:${((Date.now() - d0) / DIA * 100).toFixed(2)}%" title="Agora"></i>` : '';
     return `<div class="tl-row ${ds===hj?'hoje':''}">
@@ -2645,7 +2659,7 @@ async function saveShift(){
     const turno = chipGet('#f-turno'), v = parseFloat($('#f-valor').value)||0;
     const dur0 = duracaoAtual() || 12;
     const b = Math.round(v * 12 / dur0 * 100) / 100;   // converte para base de 12h
-    const novo = { id:uid(), nome, cidade:'', endereco:'', cor:CORES[S.locais.length % CORES.length],
+    const novo = { id:uid(), nome, cidade:'', endereco:'', cor:corLivre(), icone: iconeLivre(nome, chipGet('#f-cat') === 'residencia'),
                    vDia: turno==='diurno'?b:0, vNoite: turno==='noturno'?b:0, residencia: chipGet('#f-cat') === 'residencia' };
     S.locais.push(novo); localId = novo.id;
   }
@@ -2721,16 +2735,18 @@ async function saveShift(){
 }
 
 /* ================= sheet local ================= */
+let icoSel = 'cruz', icoTocado = false;
 function paintCores(){
   $('#l-cores').innerHTML = CORES.map(c=>`<div class="sw-opt ${c===corSel?'on':''}" data-cor="${c}" style="background:${c}"></div>`).join('');
+  $('#l-icones').innerHTML = Object.entries(ICONES_LOCAL).map(([k, v]) =>
+    `<button type="button" class="ic-opt ${k===icoSel?'on':''}" data-ico="${k}" style="--c:${corSel}" aria-label="${v.nome}" title="${v.nome}">${svgIcone(k, 22)}</button>`).join('');
 }
 function openLocal(l){
   editingLocal = l || null;
-  corSel = l ? (l.cor||CORES[0]) : CORES[S.locais.length % CORES.length];
+  corSel = l ? (l.cor||CORES[0]) : corLivre();
+  icoSel = l ? iconeDe(l.id) : iconeLivre('', false); icoTocado = false;
   $('#l-title').textContent = l ? 'Editar local' : 'Novo local';
   $('#l-nome').value  = l ? l.nome : '';
-  $('#l-sigla').value = l && l.sigla ? l.sigla : '';
-  $('#l-sigla').placeholder = 'Automática' + (l ? ': ' + siglaLocal(l.id).replace(/^\?$/,'') : '');
   $('#l-cidade').value= l ? (l.cidade||'') : '';
   $('#l-end').value   = l ? (l.endereco||'') : '';
   $('#l-dia').value   = l ? (l.vDia||'') : '';
@@ -2766,7 +2782,7 @@ async function saveLocal(){
     vPlano: parseFloat($('#l-vplano').value)||0,
     vProc: parseFloat($('#l-vproc').value)||0,
     residencia: $('#l-resid').classList.contains('on'),
-    sigla: $('#l-sigla').value.trim().toUpperCase().slice(0,4)
+    icone: (editingLocal || icoTocado) ? icoSel : iconeLivre(nome, $('#l-resid').classList.contains('on'))
   };
   // virou local da residência: os lançamentos dele que estavam como plantão pago (e ainda não
   // recebidos) passam a ser plantões da residência — com Desfazer
@@ -2898,6 +2914,13 @@ async function atualizarPreviaAno(){
   }catch(e){ registrarErro(e, 'ano:previa'); }
 }
 
+// ícone do local no canvas (mesmos traços do SVG, via Path2D)
+function desenharIcone(ctx, chave, x, y, px, cor, lw = 2.2){
+  ctx.save(); ctx.translate(x, y); ctx.scale(px/24, px/24);
+  ctx.strokeStyle = cor; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  (ICONES_LOCAL[chave] || ICONES_LOCAL.cruz).d.forEach(d => ctx.stroke(new Path2D(d)));
+  ctx.restore();
+}
 function gerarCanvasAno(D, { formato = 'post', discreto = false, icone = null } = {}){
   const W = 1080, H = formato === 'stories' ? 1920 : 1350, st = formato === 'stories';
   const cvs = document.createElement('canvas'); cvs.width = W; cvs.height = H;
@@ -3011,11 +3034,11 @@ function gerarCanvasAno(D, { formato = 'post', discreto = false, icone = null } 
     const rowH = st ? 62 : 42;
     top.forEach((l, i) => {
       const yy = y + i * rowH, pct = discreto ? l.h / totH : l.fat / totPl;
-      roundRect(ctx, P, yy, 70, 38, 10); ctx.fillStyle = localCor(l.lid); ctx.globalAlpha = .9; ctx.fill(); ctx.globalAlpha = 1;
-      texto(siglaLocal(l.lid), P + 35, yy + 27, F(800, 20), '#0B0B12', 'center');
-      ctx.font = F(600, 24); let nome = nomeCurto(l.lid); while(ctx.measureText(nome).width > CW - 300 && nome.length > 4) nome = nome.slice(0, -2);
+      roundRect(ctx, P, yy, 50, 38, 10); ctx.fillStyle = localCor(l.lid); ctx.globalAlpha = .92; ctx.fill(); ctx.globalAlpha = 1;
+      desenharIcone(ctx, iconeDe(l.lid), P + 13, yy + 7, 24, '#0B0B12');
+      ctx.font = F(600, 24); let nome = nomeCurto(l.lid); while(ctx.measureText(nome).width > CW - 270 && nome.length > 4) nome = nome.slice(0, -2);
       if(nome !== nomeCurto(l.lid)) nome += '…';
-      texto(nome, P + 88, yy + 27, F(600, 24), C.tx);
+      texto(nome, P + 68, yy + 27, F(600, 24), C.tx);
       const bxx = P + CW - 190, bww = 120;
       roundRect(ctx, bxx, yy + 13, bww, 12, 6); ctx.fillStyle = C.linha; ctx.fill();
       roundRect(ctx, bxx, yy + 13, Math.max(8, bww * pct), 12, 6); ctx.fillStyle = C.ac; ctx.fill();
@@ -3296,12 +3319,8 @@ function novoItem(){
   const itemStyle = `display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;
     padding:14px 16px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;`;
   const sep = `border-bottom:1px solid var(--line);`;
-  const freq = modelosFrequentes(3);
-  menu.innerHTML = (freq.length ? `<div style="padding:10px 16px 4px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)">Lançar hoje</div>`
-      + freq.map((m,i)=>`<button data-fab-mod="${i}" style="${itemStyle}padding-top:10px;padding-bottom:10px;${i===freq.length-1?sep:''}">
-          <i style="width:9px;height:9px;border-radius:3px;background:${localCor(m.localId)};flex:none"></i>
-          <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nomeCurto(m.localId))}<small style="display:block;font-weight:500;color:var(--dim);font-size:12px">${rotuloModelo(m)}</small></span></button>`).join('') : '') + `
-    <button id="fab-p"  style="${itemStyle}${sep}">🏥 <span>Novo plantão</span></button>
+  menu.innerHTML = `
+    <button id="fab-p"  style="${itemStyle}${sep}">🏥 <span>Novo plantão<small style="display:block;font-weight:500;color:var(--dim);font-size:12px">os de sempre num toque</small></span></button>
     <button id="fab-am" style="${itemStyle}${sep}">🩺 <span>Dia de consultório</span></button>
     <button id="fab-r"  style="${itemStyle}${sep}">🌙 <span>Plantão da residência<small style="display:block;font-weight:500;color:var(--dim);font-size:12px">obrigatório · sem remuneração</small></span></button>
     <button id="fab-b"  style="${itemStyle}">🔒 <span>Bloqueio de agenda</span></button>`;
@@ -3316,13 +3335,10 @@ function novoItem(){
   abrirCamadaHist();
   function fora(e){ if(!menu.contains(e.target) && !e.target.closest('#fab, #add-top')) fechar(); }
   setTimeout(()=>document.addEventListener('click', fora, true), 0);
-  menu.querySelector('#fab-p') .onclick = ()=>{ fechar(true); openSheet(null, null, 'remunerado'); };
+  menu.querySelector('#fab-p') .onclick = ()=>{ fechar(true); abrirNovoRapido(); };
   menu.querySelector('#fab-am').onclick = ()=>{ fechar(true); openSheet(null, null, 'ambulatorio'); };
-  menu.querySelector('#fab-r') .onclick = ()=>{ fechar(true); novoPlantaoResidencia(); };
+  menu.querySelector('#fab-r') .onclick = ()=>{ fechar(true); S.locais.some(l => l.residencia) ? abrirNovoRapido(null, { residencia:true }) : novoPlantaoResidencia(); };
   menu.querySelector('#fab-b') .onclick = ()=>{ fechar(true); openBloqueio(null); };
-  menu.querySelectorAll('[data-fab-mod]').forEach(b=> b.onclick = ()=>{
-    fechar(true); openSheet(null, iso(new Date()), freq[+b.dataset.fabMod].categoria); aplicarModelo(freq[+b.dataset.fabMod]);
-  });
 }
 $('#fab').onclick = novoItem;
 
@@ -3417,6 +3433,8 @@ $('#l-del').onclick = ()=>{
 document.addEventListener('click', e=>{
   const sw = e.target.closest('.sw-opt');
   if(sw){ corSel = sw.dataset.cor; paintCores(); return; }
+  const ic = e.target.closest('.ic-opt');
+  if(ic){ icoSel = ic.dataset.ico; icoTocado = true; paintCores(); return; }
   const chip = e.target.closest('.chip');
   if(chip){
     const box = chip.parentElement;
@@ -3542,7 +3560,7 @@ $('#b-gerar').onclick = async ()=>{
   let l = S.locais.find(x=>x.nome === 'Renda Fixa da Residência' || x.nome === 'Bolsa da residência');
   if(!l){
     l = { id:uid(), nome:'Renda Fixa da Residência', cidade:'', endereco:'',
-          cor:CORES[S.locais.length % CORES.length], vDia:0, vNoite:0,
+          cor:corLivre(), icone:'cifrao', vDia:0, vNoite:0,
           pagDia:2, pagMes:0, retencao:0, vPart:0, vPlano:0, vProc:0 };
     S.locais.push(l);
   }
@@ -3622,22 +3640,14 @@ $('#cal-grid').addEventListener('click', e=>{
   const b = e.target.closest('[data-day]'); if(!b) return;
   haptic(5);
   const ds = iso(new Date(cursor.getFullYear(), cursor.getMonth(), +b.dataset.day));
-  if(selDia === ds && !itensDoDia(ds).length && !bloqueioDoDia(ds)){ openSheet(null, ds); return; }   // 2º toque num dia vazio lança
+  if(selDia === ds && !itensDoDia(ds).length && !bloqueioDoDia(ds)){ abrirNovoRapido(ds); return; }   // 2º toque num dia vazio lança
   selDia = ds;
   document.querySelectorAll('#cal-grid .cd.sel').forEach(x => x.classList.remove('sel'));
   b.classList.add('sel');
   renderAgDia();
 });
 $('#ag-dia').addEventListener('click', async e=>{
-  const novo = e.target.closest('[data-novo]'); if(novo){ openSheet(null, novo.dataset.novo); return; }
-  const rap = e.target.closest('[data-rap]');
-  if(rap){
-    const ds = rap.closest('[data-dia]').dataset.dia;
-    if(rap.dataset.rap === 'res'){ novoPlantaoResidencia(ds); return; }
-    const m = modelosFrequentes(4)[+rap.dataset.rap]; if(!m) return;
-    openSheet(null, ds, m.categoria || 'remunerado'); aplicarModelo(m); haptic(8);
-    return;
-  }
+  const novo = e.target.closest('[data-novo]'); if(novo){ abrirNovoRapido(novo.dataset.novo); return; }
   const bl = e.target.closest('[data-bl]'); if(bl){ const x = S.bloqueios.find(b => b.id === bl.dataset.bl); if(x) openBloqueio(x); return; }
   const pay = e.target.closest('[data-pay]'); if(pay){ e.stopPropagation(); await alternarPago(pay.dataset.pay); return; }
   const row = e.target.closest('.shift'); if(row) abrirComTransicao(row, ()=>openSheet(S.shifts.find(x=>x.id===row.dataset.id)));
@@ -3978,7 +3988,7 @@ function boasVindas(){
   ov.querySelector('#wl-ok').onclick = async ()=>{
     const nome = ov.querySelector('#wl-nome').value.trim();
     if(!nome){ ov.querySelector('#wl-nome').focus(); toast('Dê um nome ao local'); return; }
-    S.locais.push({ id:uid(), nome, cidade:'', endereco:'', cor:CORES[0],
+    S.locais.push({ id:uid(), nome, cidade:'', endereco:'', cor:corLivre(), icone: iconeLivre(nome, false),
       vDia: parseFloat(ov.querySelector('#wl-dia').value)||0, vNoite: parseFloat(ov.querySelector('#wl-noite').value)||0,
       pagDia: Math.min(31, Math.max(1, parseInt(ov.querySelector('#wl-pag').value)||10)), pagMes:1, pagIncerto:false, retencao:0 });
     await store.save(S); fechar(); render();
@@ -4040,6 +4050,129 @@ function modelosFrequentes(max = 6){
     .sort((a,b) => b.n - a.n || b.ult.data.localeCompare(a.ult.data))
     .slice(0, max).map(e => e.ult);
 }
+// ── Novo plantão (folha rápida) ──
+// Junção das referências: os "de sempre" lançam num toque (com Desfazer), o local se escolhe pelo
+// ícone (como um contato no Pix), o turno em três botões e, antes de confirmar, quanto vai cair e quando.
+let _qs = null;
+const TURNOS_Q = { diurno:{ nome:'Diurno', hora:'07:00', dur:12 }, noturno:{ nome:'Noturno', hora:'19:00', dur:12 }, h24:{ nome:'24 horas', hora:'07:00', dur:24 } };
+function locaisParaLancar(){
+  const uso = {}; S.shifts.forEach(s => { uso[s.localId] = (uso[s.localId]||0) + 1; });
+  const soBolsa = l => { const ss = S.shifts.filter(s => s.localId === l.id); return l.icone === 'cifrao' || (ss.length > 0 && ss.every(ehBolsa)); };
+  return S.locais.filter(l => !soBolsa(l)).sort((a,b) => (uso[b.id]||0) - (uso[a.id]||0));
+}
+// o plantão que a folha vai lançar, com horário e valor do último igual (ou da tabela do local)
+function plantaoDaFolha(turnoK = _qs.turno){
+  const l = getLocal(_qs.localId) || {}, t = TURNOS_Q[turnoK], resid = !!l.residencia;
+  const turno = turnoK === 'noturno' ? 'noturno' : 'diurno';
+  const ult = S.shifts.filter(s => s.localId === _qs.localId && (s.turno||'diurno') === turno && +s.duracao === t.dur && s.hora && !ehBolsa(s))
+    .sort((a,b) => b.data.localeCompare(a.data))[0];
+  let valor = 0, liquido = 0;
+  if(!resid){
+    if(ult && bru(ult)){ valor = bru(ult); liquido = liq(ult); }
+    else {
+      const vd = +l.vDia || 0, vn = +l.vNoite || 0;
+      valor = turnoK === 'h24' ? ((vd && vn) ? vd + vn : 2 * (vd || vn)) : (turno === 'noturno' ? vn : vd) * t.dur / 12;
+      valor = Math.round(valor * 100) / 100;
+      liquido = Math.round(valor * (1 - (+l.retencao || 0) / 100) * 100) / 100;
+    }
+  }
+  return { id: uid(), categoria: resid ? 'residencia' : 'remunerado', urgente:false, blTipo:'', blFim:'', blDiaInt:true,
+    nPart:0, nPlano:0, nProc:0, vPart:0, vPlano:0, vProc:0,
+    data: _qs.data, localId: _qs.localId, turno, duracao: t.dur, hora: ult ? ult.hora : t.hora,
+    valor, liquido, pago:false, pagoEm:'', venc:'', tipo:'meu', colega:'', contra:'', quitado:false, obs:'' };
+}
+function abrirNovoRapido(ds, opts = {}){
+  const locs = locaisParaLancar();
+  const hj = iso(hoje());
+  const data = ds || (selDia && selDia >= hj ? selDia : hj);
+  if(!locs.length){ openSheet(null, data, 'remunerado'); return; }   // sem locais: o formulário completo cria o primeiro
+  const resid = opts.residencia && locs.find(l => l.residencia);
+  const padrao = getLocal(localPadrao('remunerado'));
+  const l0 = resid || (padrao && locs.includes(padrao) ? padrao : locs[0]);
+  _qs = { data, localId: l0.id, turno: l0.residencia ? 'noturno' : 'diurno', confirmar: false, aviso: '' };
+  pintarNovoRapido();
+  $('#sheet-novo').classList.add('open'); $('#scrim').classList.add('open'); lockScroll(); haptic(6);
+}
+function pintarNovoRapido(){
+  const ds = _qs.data, d = parseDate(ds), hj = iso(hoje());
+  const am = (()=>{ const x = hoje(); x.setDate(x.getDate()+1); return iso(x); })();
+  const rot = x => x === hj ? 'Hoje' : x === am ? 'Amanhã' : (()=>{ const y = parseDate(x); return `${WD[y.getDay()].replace(/^./, c => c.toUpperCase())}, ${y.getDate()}`; })();
+  const dias = [...new Set([hj, am, ds])].sort();
+  const mods = modelosFrequentes(3);
+  const l = getLocal(_qs.localId) || {}, p = plantaoDaFolha();
+  const fimH = (h, dur) => fim(h, dur);
+  const dow = d.getDay(), naNo = (dow === 0 || dow === 6) ? 'no' : 'na';
+  const quando = ds === hj ? 'hoje' : ds === am ? 'amanhã' : `${naNo} ${WD_LONG[dow]}, ${d.getDate()}`;
+  const v = parseDate(vencimento(p));
+  const resumo = l.residencia
+    ? '<div class="qs-res"><b>Plantão da residência</b><span>sem remuneração · entra na agenda e nos avisos</span></div>'
+    : liq(p) ? `<div class="qs-res"><span>Você vai receber<br>cai em ${vencIncerto(p) ? MES[v.getMonth()] : pad2(v.getDate()) + '/' + pad2(v.getMonth()+1)}</span><b class="money">${brl(liq(p))}</b></div>`
+    : '<div class="qs-res"><span>Este local ainda não tem valor de plantão.<br>Ajuste em “Mais detalhes”.</span><b class="money">—</b></div>';
+  $('#qs-body').innerHTML = `
+    <div class="qs-h"><h2>Novo plantão</h2></div>
+    <div class="qs-dias">${dias.map(x => `<button type="button" class="qs-dia ${x===ds?'on':''}" data-qdia="${x}">${rot(x)}</button>`).join('')}
+      <label class="qs-dia outro">${ICON_CAL}<span>Outro dia</span><input type="date" id="qs-data" value="${ds}" aria-label="Escolher outro dia"></label></div>
+    ${mods.length ? `<div class="qs-lbl">Seus de sempre <small>lança num toque</small></div>
+    <div class="qs-mods">${mods.map((m, i) => `<button type="button" class="qs-mod" data-qmod="${i}" style="--c:${localCor(m.localId)}">
+      <span class="qs-cap ${ehResid(m)?'t-res':m.turno==='noturno'||+m.duracao>=24?'t-noite':'t-dia'}">${icoLocal(m.localId, 16)}</span>
+      <span class="qs-tx"><b>${esc(nomeCurto(m.localId))}</b><small>${+m.duracao >= 24 ? '24 horas' : m.turno==='noturno' ? 'Noturno' : 'Diurno'} · ${m.hora} → ${fimH(m.hora, m.duracao)} · ${m.duracao}h</small></span>
+      <span class="money">${ehResid(m) ? '' : brl(liq(m))}</span></button>`).join('')}</div>
+    <div class="qs-lbl">Ou escolha</div>` : '<div class="qs-lbl">Onde</div>'}
+    <div class="qs-locs">${locaisParaLancar().map(x => `<button type="button" class="qs-av ${x.id===_qs.localId?'on':''}" data-qloc="${x.id}" style="--c:${x.cor}" aria-pressed="${x.id===_qs.localId}">
+      <span>${icoLocal(x.id, 24)}</span><b>${esc(nomeCurto(x.id))}</b></button>`).join('')}</div>
+    <div class="qs-tns">${Object.entries(TURNOS_Q).map(([k, t]) => { const q = plantaoDaFolha(k);
+      return `<button type="button" class="qs-tn ${k===_qs.turno?'on':''}" data-qtn="${k}" aria-pressed="${k===_qs.turno}"><i class="${k==='noturno'?'noite':''}">${k==='h24' ? ICON_24 : k==='noturno' ? ICON_MOON : ICON_SUN}</i><b>${t.nome}</b><small>${q.hora.slice(0,2)}h → ${fimH(q.hora, q.duracao).slice(0,2)}h</small></button>`; }).join('')}</div>
+    ${resumo}
+    ${_qs.aviso ? `<div class="qs-aviso">⚠ ${esc(_qs.aviso)}</div>` : ''}
+    <button type="button" class="btn qs-go" id="qs-go">${_qs.confirmar ? 'Lançar mesmo assim' : 'Lançar ' + quando}</button>
+    <button type="button" class="qs-mais" id="qs-mais">Mais detalhes (valor, colega, observação)</button>`;
+}
+// lança com Desfazer; choque de horário ou dia bloqueado pede um segundo toque
+async function lancarDaFolha(novo){
+  if(!_qs.confirmar){
+    const choque = conflito(novo, null);
+    const bl = S.bloqueios.find(b => novo.data >= b.ini && novo.data <= (b.fim||b.ini));
+    if(choque || bl){
+      const c = choque && parseDate(choque.data);
+      _qs.confirmar = true; _qs.pendente = novo;
+      _qs.aviso = choque ? `Choca com ${localName(choque.localId)} em ${pad2(c.getDate())}/${pad2(c.getMonth()+1)}${choque.hora ? ' às ' + choque.hora : ''}`
+                         : `Dia marcado como ${(NOME_BLOQ_CAL[bl.motivo]||'bloqueio').toLowerCase()}`;
+      haptic(25); pintarNovoRapido(); return false;
+    }
+  }
+  const d = parseDate(novo.data);
+  cursor = new Date(d.getFullYear(), d.getMonth(), 1); selDia = novo.data;
+  closeSheets(); _qs = null;
+  await comDesfazer(`Lançado: ${nomeCurto(novo.localId)} · ${WD[d.getDay()]} ${pad2(d.getDate())}/${pad2(d.getMonth()+1)}`, () => { S.shifts.push(novo); });
+  return true;
+}
+$('#sheet-novo').addEventListener('click', e => {
+  if(!_qs) return;
+  const muda = fn => { fn(); _qs.confirmar = false; _qs.aviso = ''; _qs.pendente = null; haptic(5); pintarNovoRapido(); };
+  const dia = e.target.closest('[data-qdia]'); if(dia){ muda(() => { _qs.data = dia.dataset.qdia; }); return; }
+  const loc = e.target.closest('[data-qloc]');
+  if(loc){ muda(() => { const l = getLocal(loc.dataset.qloc); _qs.localId = l.id; if(l.residencia && _qs.turno === 'diurno') _qs.turno = 'noturno'; }); return; }
+  const tn = e.target.closest('[data-qtn]'); if(tn){ muda(() => { _qs.turno = tn.dataset.qtn; }); return; }
+  const mod = e.target.closest('[data-qmod]');
+  if(mod){
+    const m = modelosFrequentes(3)[+mod.dataset.qmod]; if(!m) return;
+    const novo = { id: uid(), categoria: m.categoria || 'remunerado', urgente:false, blTipo:'', blFim:'', blDiaInt:true,
+      nPart:0, nPlano:0, nProc:0, vPart: +m.vPart||0, vPlano: +m.vPlano||0, vProc: +m.vProc||0,
+      data: _qs.data, localId: m.localId, turno: m.turno, duracao: +m.duracao, hora: m.hora,
+      valor: bru(m), liquido: liq(m), pago:false, pagoEm:'', venc:'', tipo:'meu', colega:'', contra:'', quitado:false, obs:'' };
+    _qs.localId = m.localId; _qs.turno = +m.duracao >= 24 ? 'h24' : m.turno === 'noturno' ? 'noturno' : 'diurno';
+    lancarDaFolha(novo); return;
+  }
+  if(e.target.closest('#qs-go')){ lancarDaFolha(_qs.confirmar && _qs.pendente ? _qs.pendente : plantaoDaFolha()); return; }
+  if(e.target.closest('#qs-mais')){
+    const p = plantaoDaFolha(); closeSheets(); _qs = null;
+    setTimeout(() => { openSheet(null, p.data, p.categoria); aplicarModelo(p); }, 60);
+  }
+});
+$('#sheet-novo').addEventListener('change', e => {
+  if(e.target.id === 'qs-data' && e.target.value && _qs){ _qs.data = e.target.value; _qs.confirmar = false; _qs.aviso = ''; pintarNovoRapido(); }
+});
+
 // "UPA Acrízio Menezes (Justinópolis)" → "UPA Acrízio Menezes"
 const nomeCurto = id => localName(id).replace(/\s*\(.*?\)\s*/g, ' ').trim();
 function rotuloModelo(m){
@@ -4857,7 +4990,7 @@ document.addEventListener('click', e=>{
    Os dados guardam a versão em S.v; ao abrir, só os passos que faltam rodam,
    em ordem, e uma cópia do original fica em localStorage antes de migrar.
    aplicarPadroes() completa campos ausentes e pode rodar quantas vezes for. */
-const SCHEMA = 3;
+const SCHEMA = 4;
 const MIGRACOES = {
   // 1 · bloqueios saíram da lista de plantões para S.bloqueios
   1: d => {
@@ -4886,6 +5019,24 @@ const MIGRACOES = {
     });
     (d.locais||[]).forEach(l=>{ l.vDia = +l.vDia || 0; l.vNoite = +l.vNoite || 0; l.pagDia = +l.pagDia || 10; });
     ['metaMensal','metaAnual'].forEach(k=>{ if(d[k] != null) d[k] = +d[k] || 0; });
+    return d;
+  },
+  // 4 · cores dos locais trocadas por uma paleta que o daltonismo vermelho-verde distingue
+  //     (o mais usado fica com a primeira) e um ícone por local, no lugar das siglas
+  4: d => {
+    // uso = plantões na agenda (a bolsa mensal não conta); locais só de bolsa vão para o fim
+    const uso = {}; (d.shifts||[]).forEach(s => { if(s.categoria !== 'bolsa') uso[s.localId] = (uso[s.localId]||0) + 1; });
+    const soBolsa = l => { const ss = (d.shifts||[]).filter(s => s.localId === l.id); return ss.length > 0 && ss.every(s => s.categoria === 'bolsa'); };
+    const ordem = [...(d.locais||[])].sort((a,b) => (soBolsa(a) - soBolsa(b)) || ((uso[b.id]||0) - (uso[a.id]||0)));
+    // quem já tem uma cor da paleta nova continua com ela (menos estranhamento); os outros pegam a próxima livre
+    const tomadas = new Set();
+    ordem.forEach(l => { const c = String(l.cor||'').toUpperCase(); if(CORES.includes(c) && !tomadas.has(c)){ l.cor = c; tomadas.add(c); l._ok = 1; } });
+    ordem.forEach(l => { if(l._ok){ delete l._ok; return; } const c = CORES.find(x => !tomadas.has(x)) || CORES[tomadas.size % CORES.length]; l.cor = c; tomadas.add(c); });
+    const usados = [];
+    ordem.forEach(l => {
+      if(!ICONES_LOCAL[l.icone]) l.icone = soBolsa(l) ? 'cifrao' : iconeSugerido(l.nome, l.residencia, usados);
+      usados.push(l.icone);
+    });
     return d;
   },
 };
